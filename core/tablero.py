@@ -32,18 +32,26 @@ class Tablero:
         self.atajos = []
         self.pendientes = []
         self.tarjetas = []
+        self.caja = None
         h = timezone.localtime().hour
         self.saludo = "Buenos días" if h < 12 else "Buenas tardes" if h < 19 else "Buenas noches"
 
     def construir(self):
         self._atajos()
         self._configuracion()
+        if puede(self.user, "ventas.vender", "ventas.ver"):
+            self._ventas()
         if puede(self.user, "productos.ver"):
             self._productos()
         return self
 
     def _atajos(self):
         a, u = self.atajos, self.user
+        if puede(u, "ventas.vender"):
+            a.append({"texto": "Vender", "url": reverse("ventas:pos"), "icono": "bi-cart-plus", "color": "success"})
+        if puede(u, "ventas.vender", "ventas.ver"):
+            a.append({"texto": "Ventas de hoy" if puede(u, "ventas.ver") else "Mis ventas", "url": reverse("ventas:lista"),
+                      "icono": "bi-receipt", "color": "primary"})
         if puede(u, "productos.ver"):
             a.append({"texto": "Productos", "url": reverse("productos:lista"), "icono": "bi-box-seam", "color": "success"})
         if puede(u, "productos.stock"):
@@ -59,6 +67,23 @@ class Tablero:
         if puede(self.user, "config.negocio") and not Ajustes.cargar().nombre:
             self.pendientes.append(_pend("Completa los datos del negocio", reverse("core:datos_negocio"), "bi-shop",
                                          detalle="Nombre, logo, RUC y contacto: salen en el ingreso y en los tickets."))
+
+    def _ventas(self):
+        from ventas.models import Venta
+        from ventas.servicios import resumen
+
+        from .templatetags.sis import soles
+
+        hoy = Venta.objects.filter(fecha__date=self.hoy)
+        todas = puede(self.user, "ventas.ver")
+        if not todas:
+            hoy = hoy.filter(usuario=self.user)
+        r = resumen(hoy)
+        self.tarjetas.append({"titulo": "Vendido hoy" if todas else "Mis ventas de hoy", "valor": soles(r["total"]),
+                              "icono": "bi-cash-stack", "color": "primary", "url": reverse("ventas:lista")})
+        self.tarjetas.append({"titulo": f"Venta{'s' if r['n'] != 1 else ''} hoy", "valor": r["n"], "icono": "bi-receipt",
+                              "color": "info", "url": reverse("ventas:lista")})
+        self.caja = r if todas and r["n"] else None
 
     def _productos(self):
         from productos.models import Categoria, Producto

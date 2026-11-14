@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Ventas{% endblock %}
+{% block page_title %}{% if f.solo_mias %}Mis ventas{% else %}Ventas{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Ventas</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.ventas_vender %}<a href="{% url 'ventas:pos' %}" class="btn btn-success"><i class="bi bi-cart-plus me-1"></i>Nueva venta</a>{% endif %}
+  <div class="btn-group btn-group-sm flex-wrap ms-sm-auto" role="group">
+    {% for texto, d, h in atajos %}
+    <a href="?desde={{ d|date:'Y-m-d' }}&hasta={{ h|date:'Y-m-d' }}" class="btn btn-outline-secondary {% if f.desde == d and f.hasta == h %}active{% endif %}">{{ texto }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{# ---------- Resumen ---------- #}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100"><div class="inner"><h3>{{ r.total|soles }}</h3><p class="mb-0">Vendido{% if f.desde == f.hasta %} el {{ f.desde|date:"d/m" }}{% endif %}</p></div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-primary mb-0 h-100"><div class="inner"><h3>{{ r.n }}</h3><p class="mb-0">Venta{{ r.n|pluralize }} · promedio {{ r.promedio|soles }}</p></div><i class="small-box-icon bi bi-receipt"></i></div></div>
+  {% if ver_costos %}
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-info mb-0 h-100"><div class="inner"><h3>{{ r.ganancia|soles }}</h3><p class="mb-0">Ganancia aprox.{% if r.sin_costo %} <i class="bi bi-info-circle" title="Algunos productos no tienen costo registrado: la ganancia real es menor."></i>{% endif %}</p></div><i class="small-box-icon bi bi-graph-up-arrow"></i></div></div>
+  {% endif %}
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 mb-0">
+      <ul class="list-group list-group-flush small">
+        {% for m in r.metodos %}<li class="list-group-item d-flex py-1"><span>{{ m.metodo }}</span><span class="ms-auto fw-semibold">{{ m.total|soles }}</span></li>
+        {% empty %}<li class="list-group-item text-body-secondary">Sin cobros</li>{% endfor %}
+        {% if r.anuladas %}<li class="list-group-item d-flex py-1 text-danger"><span>Anuladas</span><span class="ms-auto">{{ r.anuladas }}</span></li>{% endif %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="desde">Desde</label><input type="date" name="desde" id="desde" value="{{ f.desde|date:'Y-m-d' }}" class="form-control"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="hasta">Hasta</label><input type="date" name="hasta" id="hasta" value="{{ f.hasta|date:'Y-m-d' }}" class="form-control"></div>
+      <div class="col-12 col-md-3"><label class="form-label small mb-1" for="q">N°, cliente o producto</label><input type="search" name="q" id="q" value="{{ f.q }}" class="form-control"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="metodo">Pago</label>
+        <select name="metodo" id="metodo" class="form-select"><option value="">Todos</option>{% for k, t in metodos %}<option value="{{ k }}" {% if f.metodo == k %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      {% if usuarios %}
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="usuario">Vendedor</label>
+        <select name="usuario" id="usuario" class="form-select"><option value="">Todos</option>{% for u in usuarios %}<option value="{{ u.pk }}" {% if f.usuario == u.pk %}selected{% endif %}>{{ u|nombre }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="col-12 col-md-1 d-flex gap-1">
+        <button class="btn btn-primary flex-grow-1" title="Filtrar"><i class="bi bi-funnel"></i></button>
+        <button class="btn btn-outline-success" name="excel" value="1" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+      </div>
+    </form>
+  </div>
+  {% if pagina.object_list %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th class="ps-3">N°</th><th>Hora</th><th class="d-none d-md-table-cell">Cliente</th><th class="d-none d-sm-table-cell">Pago</th>
+        {% if not f.solo_mias %}<th class="d-none d-lg-table-cell">Vendedor</th>{% endif %}<th class="text-end pe-3">Total</th></tr></thead>
+      <tbody>
+        {% for v in pagina.object_list %}
+        <tr onclick="location.href='{% url 'ventas:ticket' v.pk %}'" style="cursor: pointer" class="{% if v.anulada %}text-body-tertiary text-decoration-line-through{% endif %}">
+          <td class="ps-3"><a href="{% url 'ventas:ticket' v.pk %}" class="fw-semibold">{{ v.numero_str }}</a>{% if v.anulada %} <span class="badge text-bg-danger">Anulada</span>{% endif %}</td>
+          <td class="small text-nowrap">{% if f.desde != f.hasta %}{{ v.fecha|date:"d/m" }} {% endif %}{{ v.fecha|date:"H:i" }}</td>
+          <td class="d-none d-md-table-cell small">{{ v.cliente_nombre|default:"—" }}</td>
+          <td class="d-none d-sm-table-cell small">{% for p in v.pagos.all %}<span class="badge text-bg-light border">{{ p.get_metodo_display }}</span> {% endfor %}</td>
+          {% if not f.solo_mias %}<td class="d-none d-lg-table-cell small">{{ v.usuario|nombre }}</td>{% endif %}
+          <td class="text-end pe-3 fw-semibold text-nowrap">{{ v.total|soles }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagina.paginator.num_pages > 1 %}
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <span class="small text-body-secondary">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    <div class="btn-group">
+      {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}"><i class="bi bi-chevron-left"></i> Anterior</a>{% endif %}
+      {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}">Siguiente <i class="bi bi-chevron-right"></i></a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="card-body text-center text-body-secondary py-5"><i class="bi bi-receipt display-6"></i><p class="mt-2 mb-0">No hay ventas en esas fechas{% if f.q or f.metodo or f.usuario %} con esos filtros{% endif %}.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

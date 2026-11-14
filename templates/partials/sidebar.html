@@ -20,6 +20,22 @@
         </li>
 
         {# ---------- Módulos del negocio ---------- #}
+        {% if P.ventas_vender %}
+        <li class="nav-item">
+          <a href="{% url 'ventas:pos' %}" class="nav-link {% if ns == 'ventas' and url == 'pos' %}active{% endif %}">
+            <i class="nav-icon bi bi-cart-plus"></i>
+            <p>Vender</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.ventas_vender or P.ventas_ver %}
+        <li class="nav-item">
+          <a href="{% url 'ventas:lista' %}" class="nav-link {% if ns == 'ventas' and url != 'pos' %}active{% endif %}">
+            <i class="nav-icon bi bi-receipt"></i>
+            <p>{% if P.ventas_ver %}Ventas{% else %}Mis ventas{% endif %}</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.productos_ver %}
         <li class="nav-item {% if ns == 'productos' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if ns == 'productos' %}active{% endif %}">

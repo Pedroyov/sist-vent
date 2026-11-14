@@ -19,6 +19,7 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | `config/` | settings (todo por `.env`), urls, formatos |
 | `core/` | Base reutilizable: datos del negocio y rubro (`Ajustes`), usuarios, **roles y permisos**, **módulos activos**, inicio (`tablero.py`), archivos privados, PWA, utilidades |
 | `productos/` | Catálogo: categorías, productos y servicios, variantes (talla/color/tamaño), stock y kardex, importar y exportar Excel, catálogos de ejemplo por rubro |
+| `ventas/` | Punto de venta, registro y anulación de ventas, ticket, lista y resumen del día, Excel |
 | `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
@@ -30,7 +31,16 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **MovimientoStock** es el kardex. El stock **solo cambia** con `productos.servicios.mover_stock()` o `ajustar_a()`, que bloquean la fila y anotan el saldo. Las ventas usarán `mover_stock(variante, -cantidad, Tipo.VENTA, referencia="Venta 000123")`. Se permite stock negativo para no trabar la caja.
 - `productos/rubros.py` tiene lo que cambia por rubro: categorías sugeridas, nombres de las variantes y valores por defecto.
 - Permisos: `productos.ver`, `productos.editar`, `productos.stock` y `productos.costos`. Quien no tiene `productos.costos` no ve los costos en pantallas ni en el Excel.
-- Pruebas: `python manage.py test productos`.
+- Pruebas: `python manage.py test productos ventas`.
+
+## Ventas (cómo está pensado)
+
+- **Venta** (numerada con `Correlativo`, sin saltos), **VentaItem** (guarda nombre, precio de lista, precio cobrado y costo de ese momento) y **Pago** (uno por método; el de efectivo guarda lo que se queda el negocio, y la venta guarda `recibido` y `vuelto`).
+- El punto de venta (`templates/ventas/pos.html`) carga el catálogo en JSON y arma el carrito en el navegador; al cobrar envía un JSON a `ventas:registrar`. **El servidor vuelve a validar todo** en `ventas.servicios.registrar_venta()`: precios del catálogo (salvo permiso `ventas.precio`), cantidades enteras si la unidad no es fraccionable, que los pagos cubran el total y que el vuelto salga solo del efectivo.
+- Un `token` por carrito evita registrar dos veces la misma venta (doble clic o reintento sin internet).
+- Las ventas descuentan stock con `mover_stock(..., VENTA)`. `anular_venta()` lo devuelve con un movimiento de DEVOLUCIÓN. Nada se borra.
+- Quien solo tiene `ventas.vender` ve solo **sus** ventas. `ventas.ver` ve todas y los totales.
+- El ticket es una "nota de venta" interna, imprimible en 80 mm y enviable por WhatsApp. La factura o boleta electrónica (SUNAT) queda pendiente.
 
 ## Rubros
 
@@ -57,7 +67,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Enlaces `wa.me` con el mensaje ya armado (`core.utils.numero_whatsapp` agrega el 51).
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
-- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`) y su catálogo (`productos/demo.py`). `demo.bat` los carga en una base aparte.
+- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) y una semana de ventas (`ventas/demo.py`). `demo.bat` los carga en una base aparte.
 
 ## Convenciones
 

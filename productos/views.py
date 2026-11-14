@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, Q, Sum
+from django.db.models import Count, F, Prefetch, ProtectedError, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -151,9 +151,13 @@ def producto_eliminar(request, pk):
     if usado:
         messages.error(request, f"«{producto.nombre}» ya tiene movimientos de stock o ventas. Desactívalo en vez de borrarlo.")
         return redirect("productos:detalle", pk=pk)
-    with transaction.atomic():
-        MovimientoStock.objects.filter(variante__producto=producto).delete()
-        producto.delete()
+    try:
+        with transaction.atomic():
+            MovimientoStock.objects.filter(variante__producto=producto).delete()
+            producto.delete()
+    except ProtectedError:
+        messages.error(request, f"«{producto.nombre}» ya se vendió. Desactívalo en vez de borrarlo.")
+        return redirect("productos:detalle", pk=pk)
     messages.success(request, f"«{producto.nombre}» eliminado.")
     return redirect("productos:lista")
 
@@ -219,7 +223,7 @@ def variante_eliminar(request, pk):
     producto = v.producto
     if v.stock != CERO:
         messages.error(request, f"«{v.nombre}» todavía tiene stock ({v.stock.normalize():f}). Ajústalo a 0 primero.")
-    elif v.movimientos.exists():
+    elif v.movimientos.exists() or _vendida(v):
         v.activa = False
         v.save(update_fields=["activa"])
         messages.success(request, f"«{v.nombre}» tiene historial: se desactivó en vez de borrarse.")
@@ -230,6 +234,10 @@ def variante_eliminar(request, pk):
         asegurar_variante_unica(producto)
         messages.info(request, "El producto quedó sin variantes: ahora se vende y se cuenta como uno solo.")
     return redirect(reverse("productos:detalle", args=[producto.pk]) + "#variantes")
+
+
+def _vendida(variante):
+    return hasattr(variante, "ventas") and variante.ventas.exists()
 
 
 # --- Stock ---------------------------------------------------------------------------

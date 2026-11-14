@@ -23,6 +23,7 @@ urlpatterns = [
     path("cuenta/contrasena/listo/", auth_views.PasswordChangeDoneView.as_view(), name="password_change_done"),
     path("admin/", admin.site.urls),
     path("productos/", include("productos.urls")),
+    path("ventas/", include("ventas.urls")),
     path("", include("core.urls")),
 ]
 

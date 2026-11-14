@@ -23,6 +23,7 @@ ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR]
 #   ("caja", "Caja", "bi-cash-stack", "Apertura, cierre, ingresos y egresos."),
 #   ("clientes", "Clientes", "bi-people", "Clientes, historial y deudas."),
 MODULOS = [
+    ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets, ventas del día y anulaciones."),
     ("productos", "Productos", "bi-box-seam", "Catálogo de productos y servicios, variantes (talla, color, tamaño), precios y stock."),
 ]
 MODULOS_BASE = ("config",)
@@ -30,6 +31,11 @@ MODULOS_BASE = ("config",)
 # (código, módulo, descripción, roles que lo tienen por defecto)
 # Administración y el superusuario siempre tienen todos.
 PERMISOS = [
+    ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),
+    ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),
+    ("ventas.precio", "ventas", "Cambiar precios y dar descuentos al vender", []),
+    ("ventas.anular", "ventas", "Anular ventas (devuelve el stock)", []),
+
     ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR]),
     ("productos.editar", "productos", "Crear y editar productos, variantes, precios y categorías; importar Excel", []),
     ("productos.stock", "productos", "Registrar ingresos, salidas y conteos de stock; ver movimientos", []),

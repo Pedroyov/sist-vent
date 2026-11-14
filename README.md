@@ -60,7 +60,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 
 - [x] **Base** – Login con bloqueo, usuarios, roles y permisos, módulos activables, datos del negocio (rubro, logo, RUC), PWA instalable
 - [x] **Productos** – Productos y servicios, categorías, variantes (talla, color, tamaño), códigos de barras, stock con kardex, importar y exportar Excel
-- [ ] Punto de venta y tickets
+- [x] **Punto de venta** – Venta rápida con lectora de códigos, variantes, cobro en efectivo con vuelto, Yape, Plin, tarjeta o mixto, ticket 80 mm y WhatsApp, ventas del día por método, anulaciones
 - [ ] Caja (apertura, cierre, ingresos y egresos)
 - [ ] Clientes
 - [ ] Reportes

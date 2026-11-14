@@ -60,5 +60,8 @@ class Command(BaseCommand):
             if rol:
                 u.groups.add(Group.objects.get(name=rol))
         n = cargar_catalogo(rubro, User.objects.get(username="admin"))
+        from ventas.demo import cargar_ventas
+
+        nv = cargar_ventas()
         self.stdout.write(self.style.SUCCESS(
-            f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos). Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))
+            f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))

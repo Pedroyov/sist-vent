@@ -1,0 +1,13 @@
+from django.urls import path
+
+from . import views
+
+app_name = "ventas"
+
+urlpatterns = [
+    path("", views.pos, name="pos"),
+    path("registrar/", views.registrar, name="registrar"),
+    path("lista/", views.lista, name="lista"),
+    path("<int:pk>/", views.ticket, name="ticket"),
+    path("<int:pk>/anular/", views.anular, name="anular"),
+]
