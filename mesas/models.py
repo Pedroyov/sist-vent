@@ -110,6 +110,10 @@ class ItemCuenta(models.Model):
     enviado_en = models.DateTimeField("enviado a cocina", null=True, blank=True)
     listo_en = models.DateTimeField("listo en cocina", null=True, blank=True)
     servido_en = models.DateTimeField(null=True, blank=True)
+    cortesia = models.BooleanField("cortesía", default=False, help_text="No se cobra (va por la casa).")
+    cortesia_motivo = models.CharField(max_length=120, blank=True)
+    cortesia_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                     verbose_name="autorizó la cortesía")
     anulado = models.BooleanField(default=False)
     motivo_anulacion = models.CharField(max_length=200, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
@@ -125,6 +129,12 @@ class ItemCuenta(models.Model):
 
     @property
     def subtotal(self):
+        """Lo que se cobra (0 si es cortesía)."""
+        return CERO if self.cortesia else self.valor
+
+    @property
+    def valor(self):
+        """Lo que valdría al precio de carta (para controlar las cortesías)."""
         return (self.precio * self.cantidad).quantize(Decimal("0.01"))
 
     @property

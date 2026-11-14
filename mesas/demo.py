@@ -19,10 +19,11 @@ def _historial(mozo, variantes):
     from ventas.models import Venta
 
     from .models import ItemCuenta
-    from .servicios import cobrar, quitar
+    from .servicios import cobrar, cortesia, quitar
 
     User = get_user_model()
     cajero = User.objects.filter(username="cajero").first()
+    jefe = User.objects.filter(username="gerente").first() or User.objects.filter(is_superuser=True).first() or cajero
     platos = [v for v in variantes.values() if v.producto.activo and not v.producto.maneja_stock]
     if not cajero or not platos:
         return
@@ -40,9 +41,17 @@ def _historial(mozo, variantes):
             if azar.random() < .12:
                 quitar(c.items.first(), cajero, azar.choice(["El cliente cambió de pedido", "Demoró mucho", "Se equivocó el mozo"]),
                        puede_anular=True)
+            if azar.random() < .1:
+                regalo = c.items.filter(anulado=False).last()
+                cortesia(regalo, jefe, azar.choice(["Plato salió mal", "Demora", "Cumpleaños", "Cliente frecuente"]), cantidad=1)
             total = c.total_por_cobrar
+            descuento = Decimal("0")
+            if azar.random() < .08 and total > 20:
+                descuento = (total * Decimal("0.1")).quantize(Decimal("1"))
+                total -= descuento
             propina = (total * Decimal("0.1")).quantize(Decimal("0.50")) if azar.random() < .4 else Decimal("0")
-            venta = cobrar(c, cajero, [{"metodo": azar.choice(["EFE", "EFE", "YAP", "TAR"]), "monto": str(total + propina)}], propina=propina)
+            venta = cobrar(c, cajero, [{"metodo": azar.choice(["EFE", "EFE", "YAP", "TAR"]), "monto": str(total + propina)}], propina=propina,
+                           descuento=descuento, descuento_motivo="Cliente frecuente" if descuento else "", descuento_por=jefe if descuento else None)
             fin = inicio + timedelta(minutes=azar.randint(30, 95))
             Cuenta.objects.filter(pk=c.pk).update(abierta_en=inicio, cerrada_en=fin)
             ItemCuenta.objects.filter(cuenta=c).update(creado=inicio + timedelta(minutes=3), enviado_en=inicio + timedelta(minutes=4),

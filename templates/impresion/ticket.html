@@ -20,12 +20,12 @@
 <table>
   {% for i in v.items.all %}
   <tr><td colspan="2">{{ i.descripcion }}</td></tr>
-  <tr><td>&nbsp;{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}</td><td class="r">{{ i.subtotal }}</td></tr>
+  <tr><td>&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>
   {% endfor %}
 </table>
 <div class="linea"></div>
 <table>
-  {% if v.descuento %}<tr><td>Subtotal</td><td class="r">{{ v.subtotal }}</td></tr><tr><td>Descuento</td><td class="r">-{{ v.descuento }}</td></tr>{% endif %}
+  {% if v.descuento %}<tr><td>Subtotal</td><td class="r">{{ v.subtotal }}</td></tr><tr><td>Descuento{% if v.descuento_motivo %} ({{ v.descuento_motivo|truncatechars:18 }}){% endif %}</td><td class="r">-{{ v.descuento }}</td></tr>{% endif %}
   <tr class="grande"><td>TOTAL S/</td><td class="r">{{ v.total }}</td></tr>
   {% if v.propina %}<tr><td>Propina</td><td class="r">{{ v.propina }}</td></tr>{% endif %}
   {% for p in v.pagos.all %}<tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="r">{{ p.monto }}</td></tr>{% endfor %}

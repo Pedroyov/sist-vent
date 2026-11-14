@@ -44,7 +44,9 @@
         {% if ver_costos and not v.anulada %}
         <li class="list-group-item d-flex"><span class="text-body-secondary">Ganancia aprox.</span><span class="ms-auto">{{ v.ganancia|soles }}</span></li>
         {% endif %}
-        {% for i in v.items.all %}{% if i.precio_cambiado %}
+        {% if v.descuento %}<li class="list-group-item text-warning-emphasis"><i class="bi bi-tag me-1"></i>Descuento {{ v.descuento|soles }}{% if v.descuento_motivo %}: {{ v.descuento_motivo }}{% endif %}{% if v.descuento_por and v.descuento_por_id != v.usuario_id %} · autorizó {{ v.descuento_por|nombre }}{% endif %}</li>{% endif %}
+        {% for i in v.items.all %}{% if i.cortesia %}<li class="list-group-item text-success"><i class="bi bi-gift me-1"></i>{{ i.descripcion }}: cortesía ({{ i.precio_lista|soles }}){% if i.cortesia_motivo %} · {{ i.cortesia_motivo }}{% endif %}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</li>
+        {% elif i.precio_cambiado %}
         <li class="list-group-item text-warning-emphasis"><i class="bi bi-tag me-1"></i>{{ i.descripcion }}: precio cambiado de {{ i.precio_lista|soles }} a {{ i.precio_unitario|soles }}</li>
         {% endif %}{% endfor %}
       </ul>
@@ -96,14 +98,14 @@
           <table>
             {% for i in v.items.all %}
             <tr><td colspan="2">{{ i.descripcion }}</td></tr>
-            <tr><td>&nbsp;&nbsp;{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}</td><td class="der">{{ i.subtotal }}</td></tr>
+            <tr><td>&nbsp;&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% endif %}</td><td class="der">{{ i.subtotal }}</td></tr>
             {% endfor %}
           </table>
           <div class="linea"></div>
           <table>
             {% if v.descuento %}
             <tr><td>Subtotal</td><td class="der">{{ v.subtotal }}</td></tr>
-            <tr><td>Descuento</td><td class="der">-{{ v.descuento }}</td></tr>
+            <tr><td>Descuento{% if v.descuento_motivo %} ({{ v.descuento_motivo }}){% endif %}</td><td class="der">-{{ v.descuento }}</td></tr>
             {% endif %}
             <tr style="font-size: 1.25em"><td><strong>TOTAL S/</strong></td><td class="der"><strong>{{ v.total }}</strong></td></tr>
             {% if v.propina %}<tr><td>Propina</td><td class="der">{{ v.propina }}</td></tr>{% endif %}

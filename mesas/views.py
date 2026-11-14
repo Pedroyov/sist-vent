@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from urllib.parse import quote
 
 from django.contrib import messages
@@ -14,7 +15,9 @@ from core.permisos import permiso_requerido, puede
 from core.utils import entero
 
 from .models import Cuenta, ItemCuenta, Mesa, Zona
-from .servicios import (MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, enviar_cocina, juntar,
+from core.autorizacion import AutorizacionError, autorizar
+
+from .servicios import (MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, enviar_cocina, juntar,
                         marcar_listo, marcar_servido, mover, quitar)
 
 
@@ -96,6 +99,7 @@ def cuenta(request, pk):
         "puede_anular": puede(request.user, "mesas.anular"),
         "hay_listos": any(i.listo_en and not i.servido_en for i in enviados + pagados),
         "imprimir_precuenta": request.GET.get("precuenta") == "1",
+        "motivos_cortesia": ["Plato salió mal", "Demora", "Cumpleaños", "Cliente frecuente", "Consumo del personal", "Invitación del dueño"],
     })
 
 
@@ -161,6 +165,24 @@ def item(request, pk):
             quitar(it, request.user, request.POST.get("motivo"), puede(request.user, "mesas.anular"))
             messages.success(request, "Producto quitado.")
     except MesaError as e:
+        messages.error(request, str(e))
+    return redirect("mesas:cuenta", pk=it.cuenta_id)
+
+
+@permiso_requerido("mesas.atender", "mesas.cobrar")
+@require_POST
+def cortesia_vista(request, pk):
+    it = get_object_or_404(ItemCuenta.objects.select_related("cuenta"), pk=pk)
+    try:
+        autoriza = autorizar(request, "mesas.cortesia", request.POST.get("sup_usuario"), request.POST.get("sup_clave"))
+        quitar_ = request.POST.get("quitar") == "1"
+        cortesia(it, autoriza, request.POST.get("motivo"), request.POST.get("cantidad"), quitar=quitar_)
+        if quitar_:
+            messages.info(request, f"{it.descripcion}: ya no es cortesía, se cobrará.")
+        else:
+            nombre = "" if autoriza == request.user else f" (autorizó {autoriza.get_full_name() or autoriza.username})"
+            messages.success(request, f"{it.descripcion}: cortesía de la casa{nombre}.")
+    except (AutorizacionError, MesaError) as e:
         messages.error(request, str(e))
     return redirect("mesas:cuenta", pk=it.cuenta_id)
 
@@ -234,11 +256,24 @@ def cobrar_vista(request, pk):
             raise ValueError
     except ValueError:
         return JsonResponse({"error": "Datos no válidos."}, status=400)
+    descuento_por = None
+    try:
+        descuento = Decimal(str(datos.get("descuento") or 0))
+    except Exception:  # noqa: BLE001
+        return JsonResponse({"error": "Descuento no válido."}, status=400)
+    if descuento > 0:
+        if not str(datos.get("descuento_motivo") or "").strip():
+            return JsonResponse({"error": "Indica el motivo del descuento."}, status=400)
+        try:
+            descuento_por = autorizar(request, "ventas.precio", datos.get("sup_usuario"), datos.get("sup_clave"))
+        except AutorizacionError as e:
+            return JsonResponse({"error": str(e)}, status=400)
     try:
         venta = cobrar(c, request.user, datos.get("pagos") or [], [entero(i) for i in datos.get("items") or [] if entero(i)],
                        datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
                        datos.get("nota", ""), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
-                       puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"))
+                       puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"),
+                       descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por)
     except MesaError as e:
         return JsonResponse({"error": str(e)}, status=400)
     c.refresh_from_db()

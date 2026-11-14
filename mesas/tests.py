@@ -256,3 +256,108 @@ class CasosBordeTests(TestCase):
         venta = cobrar(self.c, self.jefe, [{"metodo": "EFE", "monto": "40"}])
         r = self.client.get(reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=//sitio-falso.com")
         self.assertNotContains(r, "sitio-falso")
+
+
+class CortesiasYDescuentosTests(TestCase):
+    """Platos de la casa y descuentos al cobrar: siempre con motivo y con alguien que lo autorice."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.jefe = User.objects.create_user("jefe", password="jefe-clave-123", first_name="Ana")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        abrir(self.cajero, D("0"))
+        self.mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        self.v = asegurar_variante_unica(Producto.objects.create(nombre="Lomo", precio=D("20"), maneja_stock=False))
+        self.c = abrir_cuenta(self.mozo, self.mesa)
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 3}], self.mozo)
+        self.item = self.c.items.get()
+        self.url = reverse("mesas:cortesia", args=[self.item.pk])
+
+    def test_mozo_necesita_clave_de_supervisor(self):
+        self.client.force_login(self.mozo)
+        self.client.post(self.url, {"motivo": "Demora", "cantidad": "1"})
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.cortesia)
+        # clave equivocada o usuario sin permiso: no pasa
+        self.client.post(self.url, {"motivo": "Demora", "cantidad": "1", "sup_usuario": "jefe", "sup_clave": "mala"})
+        self.client.post(self.url, {"motivo": "Demora", "cantidad": "1", "sup_usuario": "cajero", "sup_clave": "x-clave-123"})
+        self.assertEqual(self.c.items.filter(cortesia=True).count(), 0)
+        # el supervisor autoriza una de las tres unidades
+        self.client.post(self.url, {"motivo": "Demora", "cantidad": "1", "sup_usuario": "JEFE", "sup_clave": "jefe-clave-123"})
+        regalo = self.c.items.get(cortesia=True)
+        self.assertEqual((regalo.cantidad, regalo.cortesia_por, regalo.subtotal, regalo.cortesia_motivo), (D("1"), self.jefe, D("0"), "Demora"))
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.cantidad, D("2"))
+        self.assertEqual(self.c.total_por_cobrar, D("40"))
+        # lo nuevo que se pide no se mezcla con la línea de cortesía
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 1}], self.mozo)
+        self.assertEqual(self.c.items.get(cortesia=True).cantidad, D("1"))
+        # al cobrar, la cortesía queda en la venta a 0 con su precio de lista
+        venta = cobrar(self.c, self.cajero, [{"metodo": "EFE", "monto": "60"}])
+        it = venta.items.get(cortesia=True)
+        self.assertEqual((venta.total, it.importe if hasattr(it, "importe") else it.subtotal, it.precio_lista, it.cortesia_por),
+                         (D("60"), D("0"), D("20"), self.jefe))
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("ventas:ticket", args=[venta.pk]))
+        self.assertContains(r, "CORTESÍA")
+        r = self.client.get(reverse("reportes:inicio") + "?p=hoy")
+        self.assertEqual(r.context["rebajas"]["valor_cortesias"], D("20.00"))
+        self.assertContains(r, "Demora")
+        self.assertEqual(self.client.get(reverse("reportes:inicio") + "?p=hoy&excel=1").status_code, 200)
+
+    def test_bloqueo_tras_varios_intentos(self):
+        self.client.force_login(self.mozo)
+        for _ in range(5):
+            self.client.post(self.url, {"motivo": "Demora", "sup_usuario": "jefe", "sup_clave": "mala"})
+        self.client.post(self.url, {"motivo": "Demora", "sup_usuario": "jefe", "sup_clave": "jefe-clave-123"})
+        self.assertFalse(self.c.items.filter(cortesia=True).exists())
+
+    def test_quien_tiene_permiso_no_necesita_clave_y_puede_quitarla(self):
+        self.client.force_login(self.jefe)
+        self.client.post(self.url, {"motivo": "Cumpleaños"})
+        self.item.refresh_from_db()
+        self.assertEqual((self.item.cortesia, self.item.cantidad, self.c.total_por_cobrar), (True, D("3"), D("0")))
+        self.client.post(self.url, {"motivo": "", "quitar": "1"})
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.cortesia)
+        # sin motivo no hay cortesía; cantidad absurda tampoco
+        self.client.post(self.url, {"motivo": ""})
+        self.client.post(self.url, {"motivo": "x", "cantidad": "abc"})
+        self.client.post(self.url, {"motivo": "x", "cantidad": "9"})
+        self.assertFalse(self.c.items.filter(cortesia=True).exists())
+
+    def _cobrar(self, usuario, **extra):
+        self.client.force_login(usuario)
+        datos = {"pagos": [{"metodo": "EFE", "monto": "60"}], **extra}
+        return self.client.post(reverse("mesas:cobrar", args=[self.c.pk]), json.dumps(datos), content_type="application/json")
+
+    def test_descuento_al_cobrar(self):
+        r = self._cobrar(self.cajero, descuento="10")
+        self.assertContains(r, "motivo", status_code=400)
+        r = self._cobrar(self.cajero, descuento="10", descuento_motivo="Cliente frecuente")
+        self.assertContains(r, "Necesita autorizaci", status_code=400)
+        r = self._cobrar(self.cajero, descuento="10", descuento_motivo="Cliente frecuente", sup_usuario="jefe", sup_clave="jefe-clave-123")
+        self.assertEqual(r.status_code, 200, r.content)
+        from ventas.models import Venta
+
+        v = Venta.objects.get()
+        self.assertEqual((v.total, v.descuento, v.descuento_motivo, v.descuento_por, v.usuario), (D("50"), D("10"), "Cliente frecuente", self.jefe, self.cajero))
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("reportes:inicio") + "?p=hoy")
+        self.assertEqual(r.context["rebajas"]["valor_descuentos"], D("10.00"))
+        self.assertContains(self.client.get(reverse("ventas:ticket", args=[v.pk])), "Cliente frecuente")
+
+    def test_cuenta_muestra_boton_y_modal(self):
+        self.client.force_login(self.mozo)
+        r = self.client.get(reverse("mesas:cuenta", args=[self.c.pk]))
+        self.assertContains(r, 'id="m-cortesia"')
+        self.assertContains(r, 'name="sup_clave"')
+        self.client.force_login(self.jefe)
+        self.assertNotContains(self.client.get(reverse("mesas:cuenta", args=[self.c.pk])), 'name="sup_clave"')

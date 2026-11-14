@@ -53,6 +53,9 @@ class Venta(models.Model):
     cliente_documento = models.CharField("DNI / RUC", max_length=11, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=CERO)
+    descuento_motivo = models.CharField("motivo del descuento", max_length=120, blank=True)
+    descuento_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                      verbose_name="autorizó el descuento")
     total = models.DecimalField(max_digits=12, decimal_places=2)
     propina = models.DecimalField(max_digits=12, decimal_places=2, default=CERO,
                                   help_text="No es parte de la venta: se cobra aparte y va en los pagos.")
@@ -105,6 +108,9 @@ class VentaItem(models.Model):
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
     opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, adicionales…) como estaban al vender.")
+    cortesia = models.BooleanField("cortesía", default=False)
+    cortesia_motivo = models.CharField(max_length=120, blank=True)
+    cortesia_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta:
         verbose_name = "ítem de venta"

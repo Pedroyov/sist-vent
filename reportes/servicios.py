@@ -307,3 +307,25 @@ def anuladas(desde, hasta):
 
     return list(Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.ANULADA)
                 .select_related("usuario", "anulada_por").order_by("-fecha")[:30])
+
+
+def cortesias_descuentos(desde, hasta):
+    """Lo que se regaló o rebajó en ventas vigentes: con motivo, quién atendió y quién autorizó."""
+    from ventas.models import Venta, VentaItem
+
+    vigentes = dict(venta__fecha__date__gte=desde, venta__fecha__date__lte=hasta, venta__estado=Venta.Estado.PAGADA)
+    cortesias = list(VentaItem.objects.filter(cortesia=True, **vigentes)
+                     .select_related("venta", "venta__usuario", "venta__atendio", "cortesia_por").order_by("-venta__fecha"))
+    for i in cortesias:
+        i.valor = c(i.precio_lista * i.cantidad)
+    descuentos = list(Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.PAGADA, descuento__gt=0)
+                      .select_related("usuario", "atendio", "descuento_por").order_by("-fecha"))
+    motivos = defaultdict(lambda: {"veces": 0, "valor": CERO})
+    for i in cortesias:
+        m = motivos[i.cortesia_motivo or "Sin motivo"]
+        m["veces"] += 1
+        m["valor"] += i.valor
+    return {"cortesias": cortesias, "descuentos": descuentos,
+            "valor_cortesias": sum((i.valor for i in cortesias), CERO),
+            "valor_descuentos": c(sum((v.descuento for v in descuentos), CERO)),
+            "motivos": sorted([{"etiqueta": k, **v} for k, v in motivos.items()], key=lambda f: -f["valor"])}

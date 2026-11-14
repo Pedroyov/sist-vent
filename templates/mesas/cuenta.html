@@ -58,8 +58,11 @@
         <span class="cant">{{ i.cantidad|cantidad }}</span>
         <button name="accion" value="mas" class="btn btn-sm btn-outline-secondary" aria-label="Más"><i class="bi bi-plus"></i></button>
       </form>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</div>
-      <span class="text-nowrap">{{ i.subtotal|soles }}</span>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
+      {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
+      {% if c.abierta %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
+                data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
+                title="{% if i.cortesia %}Quitar cortesía{% else %}Cortesía de la casa{% endif %}" aria-label="Cortesía"><i class="bi bi-gift{% if i.cortesia %}-fill{% endif %}"></i></button>{% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -78,8 +81,11 @@
       <span class="cant">{{ i.cantidad|cantidad }}</span>
       <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}
-          {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en cocina</span>{% endif %}</div></div>
-      <span class="text-nowrap">{{ i.subtotal|soles }}</span>
+          {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en cocina</span>{% endif %}</div>{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
+      {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
+      {% if c.abierta %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
+                data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
+                title="{% if i.cortesia %}Quitar cortesía{% else %}Cortesía de la casa{% endif %}" aria-label="Cortesía"><i class="bi bi-gift{% if i.cortesia %}-fill{% endif %}"></i></button>{% endif %}
       {% if c.abierta and puede_anular %}
       <button type="button" class="btn btn-sm btn-link text-danger px-1" data-bs-toggle="modal" data-bs-target="#m-quitar"
               data-url="{% url 'mesas:item' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
@@ -151,6 +157,30 @@
     </form>
   </div>
 </div>
+<div class="modal fade" id="m-cortesia" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" class="modal-content" id="f-cortesia">{% csrf_token %}<input type="hidden" name="quitar" id="cort-quitar" value="0">
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-gift me-1"></i><span id="cort-titulo">Cortesía de la casa</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p class="fw-semibold mb-2" id="cort-nombre"></p>
+        <div id="cort-dar">
+          <div class="mb-2" id="cort-cant-fila"><label class="form-label small mb-1" for="cort-cant">¿Cuántas unidades van por la casa?</label>
+            <select name="cantidad" id="cort-cant" class="form-select"></select></div>
+          <label class="form-label small mb-1" for="cort-motivo">Motivo</label>
+          <div class="d-flex flex-wrap gap-1 mb-2">{% for m in motivos_cortesia %}<button type="button" class="btn btn-sm btn-outline-secondary" data-motivo="{{ m }}">{{ m }}</button>{% endfor %}</div>
+          <input type="text" name="motivo" id="cort-motivo" class="form-control" maxlength="120" placeholder="O escríbelo">
+        </div>
+        <p class="small text-body-secondary mb-0 d-none" id="cort-quitar-txt">Volverá a cobrarse a su precio.</p>
+        {% if not P.mesas_cortesia %}
+        <div class="row g-2 mt-2"><div class="col-12 small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Autoriza un supervisor:</div>
+          <div class="col-6"><input type="text" name="sup_usuario" class="form-control" placeholder="Usuario" autocomplete="off" autocapitalize="none" required></div>
+          <div class="col-6"><input type="password" name="sup_clave" class="form-control" placeholder="Clave" autocomplete="new-password" required></div></div>
+        {% endif %}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-success" id="cort-ok">Confirmar</button></div>
+    </form>
+  </div>
+</div>
 <div class="modal fade" id="m-liberar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <form method="post" action="{% url 'mesas:anular' c.pk %}" class="modal-content">{% csrf_token %}
@@ -197,6 +227,7 @@
     if (!items.length) { alert("Marca lo que se va a cobrar."); return; }
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
     Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
+      descuento: {puede: {{ P.ventas_precio|yesno:"true,false" }}},
       onConfirmar: function (datos, terminar) {
         datos.token = token;
         datos.items = items.map(function (li) { return li.dataset.item; });
@@ -204,6 +235,24 @@
           if (d.ok) location.href = d.url; else terminar(d.error || "No se pudo cobrar.");
         });
       }});
+  });
+  document.getElementById("m-cortesia").addEventListener("show.bs.modal", function (e) {
+    var b = e.relatedTarget, quitar = b.dataset.es === "1", n = parseFloat(b.dataset.cant);
+    document.getElementById("f-cortesia").action = b.dataset.url;
+    document.getElementById("cort-nombre").textContent = b.dataset.nombre;
+    document.getElementById("cort-quitar").value = quitar ? "1" : "0";
+    document.getElementById("cort-titulo").textContent = quitar ? "Quitar la cortesía" : "Cortesía de la casa";
+    document.getElementById("cort-dar").classList.toggle("d-none", quitar);
+    document.getElementById("cort-quitar-txt").classList.toggle("d-none", !quitar);
+    document.getElementById("cort-motivo").required = !quitar;
+    var sel = document.getElementById("cort-cant"), html = "";
+    for (var k = 1; k <= Math.floor(n); k++) html += '<option value="' + k + '"' + (k === 1 ? " selected" : "") + ">" + k + (k === Math.floor(n) ? " (todas)" : "") + "</option>";
+    sel.innerHTML = html || '<option value="">todo</option>';
+    document.getElementById("cort-cant-fila").classList.toggle("d-none", n <= 1 || n !== Math.floor(n));
+  });
+  document.getElementById("m-cortesia").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-motivo]");
+    if (b) document.getElementById("cort-motivo").value = b.dataset.motivo;
   });
   document.getElementById("m-quitar").addEventListener("show.bs.modal", function (e) {
     document.getElementById("f-quitar").action = e.relatedTarget.dataset.url;

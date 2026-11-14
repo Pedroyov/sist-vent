@@ -60,7 +60,7 @@ def agregar(cuenta, items, usuario):
                 foto, extra, _ = resolver_opciones(v.producto, it.get("opciones") or [])
             except OpcionInvalida as e:
                 raise MesaError(str(e))
-            previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True)
+            previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True, cortesia=False)
                            if [o["id"] for o in p.opciones or []] == [o["id"] for o in foto]), None)
             if previo:  # mismo plato, misma nota, aún no enviado: se suma
                 previo.cantidad += cantidad
@@ -118,6 +118,37 @@ def quitar(item, usuario, motivo="", puede_anular=False):
         raise MesaError("Indica por qué se quita (ej.: el cliente cambió de pedido).")
     item.anulado, item.motivo_anulacion, item.anulado_por = True, motivo, usuario
     item.save(update_fields=["anulado", "motivo_anulacion", "anulado_por"])
+
+
+def cortesia(item, autoriza, motivo, cantidad=None, quitar=False):
+    """Marca un plato (o parte de sus unidades) como cortesía: se prepara y se sirve, pero no se cobra."""
+    _abierta(item.cuenta)
+    if item.venta_id or item.anulado:
+        raise MesaError("Ese plato ya se cobró o se quitó.")
+    if quitar:
+        item.cortesia, item.cortesia_motivo, item.cortesia_por = False, "", None
+        item.save(update_fields=["cortesia", "cortesia_motivo", "cortesia_por"])
+        return item
+    motivo = " ".join(str(motivo or "").split())[:120]
+    if not motivo:
+        raise MesaError("Indica el motivo de la cortesía.")
+    if item.cortesia:
+        raise MesaError("Ya es cortesía.")
+    try:
+        cantidad = Decimal(str(cantidad)) if cantidad not in (None, "") else item.cantidad
+    except ArithmeticError:
+        raise MesaError("Cantidad no válida.")
+    if not cantidad.is_finite() or cantidad <= 0 or cantidad > item.cantidad:
+        raise MesaError("Cantidad no válida.")
+    with transaction.atomic():
+        if cantidad < item.cantidad:  # solo algunas unidades: se separan en otra línea
+            item.cantidad -= cantidad
+            item.save(update_fields=["cantidad"])
+            item.pk = None
+            item.cantidad = cantidad
+        item.cortesia, item.cortesia_motivo, item.cortesia_por = True, motivo, autoriza
+        item.save()
+    return item
 
 
 def mover(cuenta, mesa):
@@ -183,7 +214,7 @@ def reabrir_por_anulacion(venta):
 
 
 def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", cliente_documento="", nota="", token=None,
-           cliente_id=None, puede_fiar=False, puede_exceder_limite=False):
+           cliente_id=None, puede_fiar=False, puede_exceder_limite=False, descuento=0, descuento_motivo="", descuento_por=None):
     """Cobra todo lo pendiente (o solo los ítems elegidos, para dividir la cuenta) creando una venta normal.
     Si ya no queda nada por cobrar, la cuenta se cierra y la mesa queda libre."""
     from ventas.servicios import VentaInvalida, registrar_venta
@@ -206,10 +237,12 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
 
     try:
         return registrar_venta(
-            cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones}
+            cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones,
+                      "cortesia": {"motivo": i.cortesia_motivo, "por": i.cortesia_por_id} if i.cortesia else None}
                      for i in pendientes],
             pagos, cliente_nombre=cliente_nombre, cliente_documento=cliente_documento, nota=(nota or cuenta.titulo)[:200],
-            token=token, puede_cambiar_precio=True, puede_descontar=False, propina=propina, atendio=cuenta.mozo, despues=marcar,
+            token=token, puede_cambiar_precio=True, puede_descontar=descuento_por is not None, propina=propina, atendio=cuenta.mozo,
+            despues=marcar, descuento=descuento, descuento_motivo=descuento_motivo, descuento_por=descuento_por,
             desde_pedido=True, cliente_id=cliente_id, puede_fiar=puede_fiar, puede_exceder_limite=puede_exceder_limite)
     except VentaInvalida as e:
         raise MesaError(str(e))

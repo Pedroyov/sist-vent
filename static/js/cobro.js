@@ -59,8 +59,16 @@ window.Cobro = (function () {
     if (enfocar && $("c-cli-q") && !cliente) setTimeout(function () { $("c-cli-q").focus(); }, 250);
   }
 
+  function descuento() {
+    if (!actual || !actual.descuento) return 0;
+    var v = parseFloat(String($("c-desc").value).replace(",", "."));
+    if (!isFinite(v) || v <= 0) return 0;
+    var c = $("c-desc-tipo").value === "P" ? Math.round(actual.total * Math.min(v, 100) / 100) : Math.round(v * 100);
+    return Math.min(c, actual.total);
+  }
+  function neto() { return actual.total - descuento(); }
   function propina() { return CON_PROPINA ? cent($("c-propina").value) : 0; }
-  function aCobrar() { return actual.total + propina(); }
+  function aCobrar() { return neto() + propina(); }
   function pagos() {
     return Array.prototype.map.call(modal.querySelectorAll("[data-metodo]"), function (i) { return {metodo: i.dataset.metodo, c: cent(i.value)}; });
   }
@@ -72,13 +80,26 @@ window.Cobro = (function () {
       sugeridos.map(function (b) { return '<button type="button" class="btn btn-sm btn-outline-success" data-billete="' + b * 100 + '">S/ ' + b + "</button>"; }).join("");
   }
   function estado() {
-    var t = aCobrar(), ps = pagos();
+    var t = aCobrar(), ps = pagos(), e = $("c-estado");
     $("c-total").textContent = soles(t);
-    $("c-detalle").textContent = propina() ? "Consumo " + soles(actual.total) + " + propina " + soles(propina()) : (actual.detalle || "Total a cobrar");
+    var partes = [];
+    if (descuento()) partes.push("Consumo " + soles(actual.total) + " − desc. " + soles(descuento()));
+    if (propina()) partes.push((descuento() ? "" : "Consumo " + soles(actual.total)) + " + propina " + soles(propina()));
+    $("c-detalle").textContent = partes.length ? partes.join(" ") : (actual.detalle || "Total a cobrar");
+    if (actual.descuento) {
+      $("c-desc-extra").classList.toggle("d-none", !descuento());
+      $("c-desc-sup").classList.toggle("d-none", !descuento() || actual.descuento.puede);
+    }
     var pagado = ps.reduce(function (a, p) { return a + p.c; }, 0);
     var efectivo = ps.filter(function (p) { return p.metodo === "EFE"; }).reduce(function (a, p) { return a + p.c; }, 0);
+    if (descuento() && !$("c-desc-motivo").value.trim()) {
+      e.className = "alert alert-warning py-2 text-center mb-3"; e.textContent = "Escribe el motivo del descuento."; $("c-confirmar").disabled = true; return false;
+    }
+    if (descuento() && !actual.descuento.puede && (!$("c-sup-usuario").value.trim() || !$("c-sup-clave").value)) {
+      e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-shield-lock"></i> El descuento lo autoriza un supervisor con su clave.'; $("c-confirmar").disabled = true; return false;
+    }
     var fiado = ps.filter(function (p) { return p.metodo === "CRE"; }).reduce(function (a, p) { return a + p.c; }, 0);
-    var e = $("c-estado"), ok = false;
+    var ok = false;
     if (fiado && !cliente && !$("c-nombre").value.trim()) { e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-person-exclamation"></i> Para fiar, elige o escribe el cliente.'; $("c-confirmar").disabled = true; return false; }
     if (fiado && cliente && parseFloat(cliente.limite) > 0 && (parseFloat(cliente.saldo) * 100 + fiado) > parseFloat(cliente.limite) * 100) {
       e.className = "alert alert-danger py-2 text-center mb-3"; e.textContent = "Supera su límite de fiado (" + soloSoles(cliente.limite) + "). Solo con permiso especial.";
@@ -102,6 +123,8 @@ window.Cobro = (function () {
     $("c-titulo").textContent = opciones.titulo || "Cobrar";
     $("c-detalle").textContent = opciones.detalle || "Total a cobrar";
     $("c-propina-fila").classList.toggle("d-none", !CON_PROPINA);
+    $("c-desc-fila").classList.toggle("d-none", !opciones.descuento);
+    $("c-desc").value = ""; $("c-desc-motivo").value = ""; $("c-sup-usuario").value = ""; $("c-sup-clave").value = "";
     $("c-propina").value = "";
     $("c-nota").value = opciones.nota || "";
     $("c-nombre").value = ""; $("c-doc").value = "";
@@ -130,6 +153,8 @@ window.Cobro = (function () {
     actual.onConfirmar({
       pagos: ps.filter(function (p) { return p.c > 0; }).map(function (p) { return {metodo: p.metodo, monto: (p.c / 100).toFixed(2)}; }),
       propina: (propina() / 100).toFixed(2),
+      descuento: (descuento() / 100).toFixed(2), descuento_motivo: $("c-desc-motivo").value,
+      sup_usuario: $("c-sup-usuario").value, sup_clave: $("c-sup-clave").value,
       cliente_id: cliente ? cliente.id : null,
       cliente_nombre: cliente ? "" : $("c-nombre").value, cliente_documento: cliente ? "" : $("c-doc").value, nota: $("c-nota").value
     }, function (error) {
@@ -141,10 +166,14 @@ window.Cobro = (function () {
   modal.addEventListener("shown.bs.modal", function () { var i = modal.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("c-metodos").addEventListener("input", estado);
   $("c-propina").addEventListener("input", function () { billetes(); estado(); });
+  ["c-desc", "c-desc-tipo", "c-desc-motivo", "c-sup-usuario", "c-sup-clave"].forEach(function (id) {
+    $(id).addEventListener("input", function () { billetes(); estado(); });
+    $(id).addEventListener("change", function () { billetes(); estado(); });
+  });
   $("c-propina-fila").addEventListener("click", function (e) {
     var b = e.target.closest("[data-pct]");
     if (!b) return;
-    $("c-propina").value = (Math.round(actual.total * parseInt(b.dataset.pct, 10) / 100 / 10) / 10).toFixed(2);
+    $("c-propina").value = (Math.round(neto() * parseInt(b.dataset.pct, 10) / 100 / 10) / 10).toFixed(2);
     billetes(); estado();
   });
   $("c-metodos").addEventListener("click", function (e) {

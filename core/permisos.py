@@ -41,6 +41,7 @@ PERMISOS = [
 
     ("mesas.atender", "mesas", "Abrir mesas, tomar pedidos, enviar a cocina, precuenta, cambiar y juntar mesas", [CAJERO, VENDEDOR]),
     ("mesas.cobrar", "mesas", "Cobrar mesas (todo o dividiendo la cuenta)", [CAJERO]),
+    ("mesas.cortesia", "mesas", "Dar cortesías (platos sin cobrar) o autorizarlas con su clave", []),
     ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
     ("mesas.cocina", "mesas", "Usar la pantalla de cocina: ver pedidos y marcarlos como listos", [COCINA]),
     ("mesas.configurar", "mesas", "Crear y editar zonas y mesas", []),
@@ -55,7 +56,7 @@ PERMISOS = [
 
     ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),
     ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),
-    ("ventas.precio", "ventas", "Cambiar precios y dar descuentos al vender", []),
+    ("ventas.precio", "ventas", "Cambiar precios y dar descuentos (o autorizarlos con su clave)", []),
     ("ventas.anular", "ventas", "Anular ventas (devuelve el stock)", []),
 
     ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR]),

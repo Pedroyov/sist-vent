@@ -13,6 +13,21 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
       </div>
       <div class="modal-body">
         <div class="text-center mb-3"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
+        <div class="mb-3 d-none" id="c-desc-fila">
+          <div class="input-group">
+            <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-tag me-1"></i>Descuento</span>
+            <input type="number" class="form-control text-end" id="c-desc" min="0" step="0.10" inputmode="decimal" placeholder="0">
+            <select class="form-select" id="c-desc-tipo" style="max-width: 5.5rem" aria-label="Tipo de descuento"><option value="S">S/</option><option value="P">%</option></select>
+          </div>
+          <div class="d-none mt-2" id="c-desc-extra">
+            <input type="text" class="form-control mb-2" id="c-desc-motivo" maxlength="120" placeholder="Motivo del descuento (obligatorio)">
+            <div class="row g-2 d-none" id="c-desc-sup">
+              <div class="col-12 small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Autoriza un supervisor:</div>
+              <div class="col-6"><input type="text" class="form-control" id="c-sup-usuario" placeholder="Usuario" autocomplete="off" autocapitalize="none"></div>
+              <div class="col-6"><input type="password" class="form-control" id="c-sup-clave" placeholder="Clave" autocomplete="new-password"></div>
+            </div>
+          </div>
+        </div>
         <div class="input-group mb-3 d-none" id="c-propina-fila">
           <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-heart me-1"></i>Propina</span>
           <input type="number" class="form-control text-end" id="c-propina" min="0" step="0.50" inputmode="decimal" placeholder="0.00">

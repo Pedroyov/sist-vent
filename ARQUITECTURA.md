@@ -68,6 +68,9 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - El stock baja al cobrar (es una venta normal). Lo que no se envió a cocina se cambia libremente. Lo ya enviado solo se quita con `mesas.anular` y un motivo.
 - El mapa se actualiza solo con HTMX cada 8 segundos, para varios mozos con celular.
 - El cuadro de cobro es compartido: `templates/ventas/partials/modal_cobro.html` + `static/js/cobro.js` (lo usan el punto de venta y las mesas). La **propina** se activa en Datos del negocio: va en `Venta.propina`, no suma al total vendido y se cobra dentro de los pagos.
+- **Cortesías** (`mesas.servicios.cortesia`): un plato, o algunas de sus unidades (la línea se separa en dos), se marca `ItemCuenta.cortesia` con motivo y quién autorizó. Su `subtotal` es 0 y `valor` guarda lo que costaba. Al cobrar pasa a `VentaItem.cortesia` con precio 0 y `precio_lista` intacto (así el reporte sabe cuánto se regaló). Lo nuevo que se pide no se suma a una línea de cortesía.
+- **Descuento al cobrar la mesa:** en el cuadro de cobro (S/ o %), con motivo obligatorio; se guarda en `Venta.descuento`, `descuento_motivo` y `descuento_por`.
+- **Autorización en el momento** (`core/autorizacion.autorizar`): si quien opera tiene el permiso (`mesas.cortesia`, `ventas.precio`) autoriza él; si no, un supervisor escribe su usuario y clave en el mismo cuadro. 5 intentos fallidos bloquean 15 minutos. Sirve para cualquier acción futura que necesite visto bueno.
 - El módulo Mesas empieza apagado y se activa solo al elegir el rubro Restaurante.
 
 ## Clientes y fiado (cómo está pensado)
@@ -81,7 +84,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 ## Reportes
 
 - `reportes/servicios.py` calcula todo a partir de lo ya registrado (ventas pagadas, cajas, cuentas de mesa, stock y fiado). No tiene tablas propias.
-- Las secciones aparecen según los módulos activos: con Mesas, la parte de mozos y mesas (platos quitados tras enviarse, gasto por persona, tiempo en mesa); con Clientes, los deudores. La ganancia y el valor del inventario solo se muestran con `productos.costos`.
+- Las secciones aparecen según los módulos activos: con Mesas, la parte de mozos y mesas (platos quitados tras enviarse, gasto por persona, tiempo en mesa); con Clientes, los deudores. En Control: diferencias de caja, anuladas y cortesías y descuentos (valor, motivo, quién atendió y quién autorizó). La ganancia y el valor del inventario solo se muestran con `productos.costos`.
 - La ganancia por producto es precio cobrado − costo guardado en la venta (antes del descuento general de la venta).
 - Los gráficos son barras hechas con HTML y CSS (sin librerías), y también salen al imprimir. `?excel=1` exporta un libro con una hoja por sección.
 - Permiso `reportes.ver`, que por defecto solo tiene Administración.

@@ -17,7 +17,7 @@ def _datos(request):
         "horas": s.por_hora(desde, hasta), "semana": s.por_dia_semana(desde, hasta),
         "productos": s.productos(desde, hasta), "categorias": s.categorias(desde, hasta),
         "sin_ventas": s.sin_ventas(desde, hasta), "opciones": s.opciones(desde, hasta), "vendedores": s.por_usuario(desde, hasta, "usuario"),
-        "anuladas": s.anuladas(desde, hasta), "cajas": s.cajas(desde, hasta),
+        "anuladas": s.anuladas(desde, hasta), "rebajas": s.cortesias_descuentos(desde, hasta), "cajas": s.cajas(desde, hasta),
         "ver_costos": puede(request.user, "productos.costos"),
         "con_mesas": modulo_activo(request.user, "mesas"), "con_clientes": modulo_activo(request.user, "clientes"),
         "con_productos": modulo_activo(request.user, "productos"),
@@ -105,6 +105,15 @@ def _excel(d):
     hoja("Anuladas", ["N°", "Fecha", "Total", "Motivo", "Vendió", "Anuló"],
          [[v.numero_str, timezone.localtime(v.fecha).strftime("%d/%m/%Y %H:%M"), v.total, v.motivo_anulacion,
            v.usuario.get_full_name(), v.anulada_por.get_full_name() if v.anulada_por else ""] for v in d["anuladas"]])
+    rb = d["rebajas"]
+    if rb["cortesias"] or rb["descuentos"]:
+        fecha = lambda f: timezone.localtime(f).strftime("%d/%m/%Y %H:%M")
+        nom = lambda u: (u.get_full_name() or u.username) if u else ""
+        hoja("Cortesías y descuentos", ["Fecha", "N°", "Tipo", "Detalle", "Valor", "Motivo", "Atendió", "Autorizó"],
+             [[fecha(i.venta.fecha), i.venta.numero_str, "Cortesía", f"{i.cantidad:g} × {i.descripcion}", i.valor, i.cortesia_motivo,
+               nom(i.venta.atendio or i.venta.usuario), nom(i.cortesia_por)] for i in rb["cortesias"]]
+             + [[fecha(v.fecha), v.numero_str, "Descuento", f"Venta de {v.subtotal}", v.descuento, v.descuento_motivo,
+                 nom(v.atendio or v.usuario), nom(v.descuento_por)] for v in rb["descuentos"]])
     resp = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = content_disposition_header(True, f"reporte_{d['desde']:%Y%m%d}_{d['hasta']:%Y%m%d}.xlsx")
     return resp

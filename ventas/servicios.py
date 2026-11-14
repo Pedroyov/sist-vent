@@ -32,7 +32,8 @@ def dinero(d):
 
 def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
                     token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
-                    desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False):
+                    desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False,
+                    descuento_motivo="", descuento_por=None):
     """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
     El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
     `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
@@ -83,12 +84,16 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         if puede_cambiar_precio and it.get("precio") not in (None, ""):
             precio = dinero(_dec(it["precio"], f"Precio de {nombre}"))
         importe = dinero(precio * cantidad)
-        lineas.append((v, cantidad, precio, lista, importe, foto))
+        cortesia = it.get("cortesia") if desde_pedido else None  # solo llega desde una mesa (ya autorizada)
+        if cortesia:
+            precio, importe = CERO, CERO
+        lineas.append((v, cantidad, precio, lista, importe, foto, cortesia))
         subtotal += importe
 
     descuento = dinero(_dec(descuento or 0, "Descuento"))
     if descuento and not puede_descontar:
         raise VentaInvalida("No tienes permiso para dar descuentos.")
+    descuento_motivo = " ".join(str(descuento_motivo or "").split())[:120]
     if descuento > subtotal:
         raise VentaInvalida("El descuento no puede ser mayor que el total.")
     total = subtotal - descuento
@@ -143,14 +148,16 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             venta = Venta.objects.create(
                 cliente=cliente,
                 numero=Correlativo.siguiente("venta"), usuario=usuario, subtotal=subtotal, descuento=descuento,
-                total=total, propina=propina, sesion_caja=sesion, atendio=atendio, recibido=efectivo if efectivo else None, vuelto=vuelto, token=token or None,
+                total=total, propina=propina, sesion_caja=sesion, atendio=atendio,
+                descuento_motivo=descuento_motivo if descuento else "", descuento_por=(descuento_por or usuario) if descuento else None, recibido=efectivo if efectivo else None, vuelto=vuelto, token=token or None,
                 cliente_nombre=" ".join(str(cliente_nombre or "").split())[:150],
                 cliente_documento="".join(c for c in str(cliente_documento or "") if c.isalnum())[:11],
                 nota=str(nota or "").strip()[:200],
             )
-            for v, cantidad, precio, lista, importe, foto in lineas:
+            for v, cantidad, precio, lista, importe, foto, cortesia in lineas:
                 VentaItem.objects.create(venta=venta, variante=v, descripcion=descripcion_con_opciones(v.nombre_completo, foto)[:240],
-                                         opciones=foto, cantidad=cantidad,
+                                         opciones=foto, cantidad=cantidad, cortesia=bool(cortesia),
+                                         cortesia_motivo=(cortesia or {}).get("motivo", "")[:120], cortesia_por_id=(cortesia or {}).get("por"),
                                          precio_unitario=precio, precio_lista=lista, costo_unitario=v.costo_efectivo,
                                          subtotal=importe)
                 if v.producto.maneja_stock:
