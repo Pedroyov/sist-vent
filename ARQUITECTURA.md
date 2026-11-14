@@ -23,6 +23,7 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | `caja/` | Turnos de caja: apertura, ingresos y egresos, cierre con arqueo por billetes, historial |
 | `mesas/` | Restaurantes: zonas y mesas, cuentas abiertas, pedidos con notas, envío a cocina, precuenta, comanda, cambiar y juntar mesas, cobro total o dividido |
 | `clientes/` | Clientes (DNI/RUC validados), ventas al fiado con límite, pagos de deudas, estado de cuenta, recordatorio por WhatsApp |
+| `reportes/` | Reportes sin tablas propias: resumen con comparación, por día/hora/semana, productos, categorías, personal, mesas, inventario, deudores y control; Excel |
 | `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
@@ -69,6 +70,14 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Pagos de deudas** (`registrar_abono`): necesitan caja abierta. Si son en efectivo, suman al efectivo esperado de esa caja. El fiado no suma (no hay dinero). Anular un pago de una caja ya cerrada saca el efectivo de la caja abierta de quien anula.
 - En el cuadro de cobro, el método "Fiado" solo aparece a quien puede fiar. Ahí mismo se busca el cliente (`clientes:buscar`) o se escribe uno nuevo.
 
+## Reportes
+
+- `reportes/servicios.py` calcula todo a partir de lo ya registrado (ventas pagadas, cajas, cuentas de mesa, stock y fiado). No tiene tablas propias.
+- Las secciones aparecen según los módulos activos: con Mesas, la parte de mozos y mesas (platos quitados tras enviarse, gasto por persona, tiempo en mesa); con Clientes, los deudores. La ganancia y el valor del inventario solo se muestran con `productos.costos`.
+- La ganancia por producto es precio cobrado − costo guardado en la venta (antes del descuento general de la venta).
+- Los gráficos son barras hechas con HTML y CSS (sin librerías), y también salen al imprimir. `?excel=1` exporta un libro con una hoja por sección.
+- Permiso `reportes.ver`, que por defecto solo tiene Administración.
+
 ## Impresión (ticketera)
 
 - Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del rollo (Datos del negocio → 80 o 58 mm). Un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4.
@@ -109,7 +118,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **Redirecciones:** toda dirección de "volver" que llegue por GET pasa por `core.utils.url_segura` (no se puede mandar al usuario a otro sitio).
 - **Respaldos:** `python manage.py respaldo` (o `respaldo.bat`). Guarda la base de datos y `media/` en un zip y conserva los últimos 30.
-- **Pruebas:** `python manage.py test core productos ventas caja mesas clientes`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
+- **Pruebas:** `python manage.py test core productos ventas caja mesas clientes reportes`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
 - **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, mesas con algunas ocupadas (`mesas/demo.py`). `demo.bat` los carga en una base aparte.
 

@@ -52,7 +52,7 @@ def cargar_clientes():
             except Exception:  # sin caja abierta u otro motivo: la demo sigue
                 continue
             fecha = ahora - timedelta(days=dias, hours=azar.randint(1, 8))
-            Venta.objects.filter(pk=venta.pk).update(fecha=fecha)
+            Venta.objects.filter(pk=venta.pk).update(fecha=fecha, sesion_caja=None)
             MovimientoStock.objects.filter(referencia=f"Venta {venta.numero_str}").update(fecha=fecha)
     for c in clientes[:2]:  # algunos ya pagaron una parte
         saldo = c.saldo

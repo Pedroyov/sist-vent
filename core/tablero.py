@@ -68,6 +68,8 @@ class Tablero:
             a.append({"texto": "Productos", "url": reverse("productos:lista"), "icono": "bi-box-seam", "color": "success"})
         if puede(u, "productos.stock"):
             a.append({"texto": "Movimientos de stock", "url": reverse("productos:kardex"), "icono": "bi-arrow-left-right", "color": "info"})
+        if puede(u, "reportes.ver"):
+            a.append({"texto": "Reportes", "url": reverse("reportes:inicio"), "icono": "bi-bar-chart", "color": "info"})
         if puede(u, "config.negocio"):
             a.append({"texto": "Datos del negocio", "url": reverse("core:datos_negocio"), "icono": "bi-shop", "color": "primary"})
         if puede(u, "config.usuarios"):

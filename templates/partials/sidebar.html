@@ -98,6 +98,15 @@
         </li>
         {% endif %}
 
+        {% if P.reportes_ver %}
+        <li class="nav-item">
+          <a href="{% url 'reportes:inicio' %}" class="nav-link {% if ns == 'reportes' %}active{% endif %}">
+            <i class="nav-icon bi bi-bar-chart"></i>
+            <p>Reportes</p>
+          </a>
+        </li>
+        {% endif %}
+
         {% if P.config_negocio or P.config_usuarios or P.acceso_total %}
         <li class="nav-header">CONFIGURACIÓN</li>
         {% endif %}

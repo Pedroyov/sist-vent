@@ -74,7 +74,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Mesas** – Mapa de mesas en vivo, pedidos desde el celular con notas, envío a cocina, precuenta, cambiar y juntar mesas, cobro total o dividido, para llevar, propina opcional, pantalla de cocina con sonido
 - [x] **Impresión** – Ticket, precuenta, comanda y cierre de caja del tamaño del rollo (80 o 58 mm)
 - [x] **Clientes y fiado** – Clientes con DNI/RUC validado, venta al fiado con límite, pagos de deudas que entran a la caja, estado de cuenta, recordatorio por WhatsApp
-- [ ] Reportes
+- [x] **Reportes** – Ventas comparadas con el periodo anterior, por día/hora/día de la semana, lo más y lo menos vendido, categorías, personal y mozos, mesas y platos quitados, inventario y mermas, deudores, diferencias de caja y anulaciones; Excel
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo

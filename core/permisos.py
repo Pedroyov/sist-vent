@@ -27,6 +27,7 @@ MODULOS = [
     ("caja", "Caja", "bi-safe2", "Apertura y cierre de caja por turno, ingresos y egresos, arqueo del efectivo."),
     ("mesas", "Mesas", "bi-grid-3x3-gap", "Para restaurantes: mapa de mesas, pedidos con notas, envío a cocina, precuenta y cobro por mesa."),
     ("clientes", "Clientes y fiado", "bi-people", "Clientes con DNI/RUC, ventas al fiado con límite, pagos de deudas y recordatorios por WhatsApp."),
+    ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control."),
     ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets, ventas del día y anulaciones."),
     ("productos", "Productos", "bi-box-seam", "Catálogo de productos y servicios, variantes (talla, color, tamaño), precios y stock."),
 ]
@@ -49,6 +50,8 @@ PERMISOS = [
     ("clientes.fiar", "clientes", "Vender al fiado", [CAJERO]),
     ("clientes.cobrar", "clientes", "Registrar pagos de deudas", [CAJERO]),
     ("clientes.limite", "clientes", "Fiar por encima del límite, cambiar límites y anular pagos de deudas", []),
+
+    ("reportes.ver", "reportes", "Ver los reportes del negocio", []),
 
     ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),
     ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),

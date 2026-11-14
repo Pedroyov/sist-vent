@@ -10,6 +10,45 @@ from .models import Cuenta, Mesa, Zona
 from .servicios import abrir_cuenta, agregar, enviar_cocina
 
 
+def _historial(mozo, variantes):
+    """Mesas ya cobradas en los últimos días (para que los reportes de mesas tengan datos)."""
+    import random
+    from decimal import Decimal
+
+    from ventas.models import Venta
+
+    from .models import ItemCuenta
+    from .servicios import cobrar, quitar
+
+    User = get_user_model()
+    cajero = User.objects.filter(username="cajero").first()
+    platos = [v for v in variantes.values() if v.producto.activo]
+    if not cajero or not platos:
+        return
+    azar = random.Random(11)
+    mesas = list(Mesa.objects.all())
+    hoy = timezone.localdate()
+    for d in range(6, 0, -1):
+        for _ in range(azar.randint(4, 8)):
+            inicio = timezone.make_aware(timezone.datetime.combine(hoy - timedelta(days=d), timezone.datetime.min.time())) \
+                + timedelta(hours=azar.randint(12, 21), minutes=azar.randint(0, 59))
+            c = abrir_cuenta(mozo, azar.choice(mesas), azar.randint(1, 5))
+            elegidos = azar.sample(platos, k=min(len(platos), azar.randint(2, 4)))
+            agregar(c, [{"variante": v.pk, "cantidad": azar.choice([1, 1, 2])} for v in elegidos], mozo)
+            enviar_cocina(c)
+            if azar.random() < .12:
+                quitar(c.items.first(), cajero, azar.choice(["El cliente cambió de pedido", "Demoró mucho", "Se equivocó el mozo"]),
+                       puede_anular=True)
+            total = c.total_por_cobrar
+            propina = (total * Decimal("0.1")).quantize(Decimal("0.50")) if azar.random() < .4 else Decimal("0")
+            venta = cobrar(c, cajero, [{"metodo": azar.choice(["EFE", "EFE", "YAP", "TAR"]), "monto": str(total + propina)}], propina=propina)
+            fin = inicio + timedelta(minutes=azar.randint(30, 95))
+            Cuenta.objects.filter(pk=c.pk).update(abierta_en=inicio, cerrada_en=fin)
+            ItemCuenta.objects.filter(cuenta=c).update(creado=inicio + timedelta(minutes=3), enviado_en=inicio + timedelta(minutes=4),
+                                                      listo_en=inicio + timedelta(minutes=20), servido_en=inicio + timedelta(minutes=22))
+            Venta.objects.filter(pk=venta.pk).update(fecha=fin, sesion_caja=None)
+
+
 def cargar_mesas():
     if Mesa.objects.exists():
         return Mesa.objects.count()
@@ -31,6 +70,8 @@ def cargar_mesas():
             if enviar:
                 enviar_cocina(cuenta)
         Cuenta.objects.filter(pk=cuenta.pk).update(abierta_en=timezone.now() - timedelta(minutes=minutos))
+
+    _historial(mozo, variantes)
 
     c = abrir_cuenta(mozo, Mesa.objects.get(nombre="2"), 3)
     pedir(c, [("Pollo a la brasa · 1/2", 1, ""), ("Chicha morada · Jarra 1 L", 1, ""), ("Papa a la huancaína", 1, "sin aceituna")], minutos=35)
