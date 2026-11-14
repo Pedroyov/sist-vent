@@ -31,7 +31,8 @@ def dinero(d):
 
 
 def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
-                    token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None):
+                    token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
+                    desde_pedido=False):
     """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
     El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
     `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
@@ -57,7 +58,7 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
     lineas, subtotal = [], CERO
     for it, vid in zip(items, ids):
         v = variantes.get(vid)
-        if v is None or not v.activa or not v.producto.activo:
+        if v is None or (not desde_pedido and (not v.activa or not v.producto.activo)):
             raise VentaInvalida("Uno de los productos ya no está disponible. Recarga la página.")
         nombre = v.nombre_completo
         cantidad = _dec(it.get("cantidad"), f"Cantidad de {nombre}")
@@ -66,6 +67,8 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         if not v.producto.fraccionable and cantidad != cantidad.to_integral_value():
             raise VentaInvalida(f"{nombre} se vende por unidades enteras.")
         lista = v.precio_venta
+        if desde_pedido and it.get("precio") not in (None, ""):
+            lista = dinero(_dec(it["precio"], f"Precio de {nombre}"))  # el precio que tenía al pedirlo
         precio = lista
         if puede_cambiar_precio and it.get("precio") not in (None, ""):
             precio = dinero(_dec(it["precio"], f"Precio de {nombre}"))
@@ -157,6 +160,9 @@ def anular_venta(venta, usuario, motivo):
                 mover_stock(item.variante, item.cantidad, MovimientoStock.Tipo.DEVOLUCION, usuario,
                             nota=f"Anulación: {motivo}", referencia=f"Venta {v.numero_str}")
         _devolver_efectivo(v, usuario, motivo)
+        from mesas.servicios import reabrir_por_anulacion
+
+        v.cuenta_reabierta = reabrir_por_anulacion(v)
         v.estado = Venta.Estado.ANULADA
         v.anulada_en = timezone.now()
         v.anulada_por = usuario

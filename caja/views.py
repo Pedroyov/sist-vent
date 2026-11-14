@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero
+from core.utils import entero, url_segura
 
 from .forms import AbrirForm, CerrarForm, MovimientoForm
 from .models import DENOMINACIONES, MovimientoCaja, SesionCaja
@@ -34,7 +34,7 @@ def mi_caja(request):
                 messages.success(request, "Caja abierta. ¡Buenas ventas!")
             except CajaError as e:
                 messages.error(request, str(e))
-            return redirect(request.GET.get("next") if request.GET.get("next", "").startswith("/") else "caja:mi_caja")
+            return redirect(url_segura(request, request.GET.get("next"), reverse("caja:mi_caja")))
         return render(request, "caja/abrir.html", {"form": form, "ultima": ultima})
     return redirect("caja:sesion", pk=sesion.pk)
 

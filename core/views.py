@@ -98,7 +98,7 @@ def archivo(request, ruta):
 
     from .permisos import puede
 
-    reglas = {"productos/": ("productos.ver",)}
+    reglas = {"productos/": ("productos.ver", "ventas.vender", "mesas.atender", "mesas.cocina")}
     publico = ruta.startswith("negocio/") and ruta.count("/") == 1
     permisos = next((p for prefijo, p in reglas.items() if ruta.startswith(prefijo)), None)
     if not publico:

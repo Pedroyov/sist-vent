@@ -91,3 +91,10 @@ document.addEventListener("click", function (e) {
   e.preventDefault();
   window.imprimir(a.dataset.imprimir);
 });
+
+// Si la sesión venció mientras una pantalla se actualizaba sola (mesas, cocina), recarga para ir al ingreso
+// en vez de meter la pantalla de ingreso dentro del mapa.
+document.addEventListener("htmx:beforeSwap", function (e) {
+  var xhr = e.detail.xhr;
+  if (xhr && xhr.responseURL && xhr.responseURL.indexOf("/ingresar/") >= 0) { e.detail.shouldSwap = false; location.reload(); }
+});

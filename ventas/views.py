@@ -15,7 +15,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero
+from core.utils import entero, url_segura
 from productos.models import Categoria, Producto, Variante
 
 from .models import MetodoPago, Venta
@@ -109,7 +109,7 @@ def ticket(request, pk):
     volver = request.GET.get("volver", "")
     return render(request, "ventas/ticket.html", {
         "v": venta, "nueva": request.GET.get("nueva") == "1",
-        "volver": volver if volver.startswith("/") and not volver.startswith("//") else "",
+        "volver": url_segura(request, volver, ""),
         "wa_texto": texto,
         "ver_costos": puede(request.user, "productos.costos"),
     })
@@ -213,8 +213,11 @@ def _excel(ventas):
 def anular(request, pk):
     venta = get_object_or_404(Venta, pk=pk)
     try:
-        anular_venta(venta, request.user, request.POST.get("motivo"))
+        v = anular_venta(venta, request.user, request.POST.get("motivo"))
         messages.success(request, f"Venta {venta.numero_str} anulada. Lo vendido volvió al stock.")
+        if getattr(v, "cuenta_reabierta", None):
+            messages.info(request, f"{v.cuenta_reabierta.titulo} volvió a quedar por cobrar.")
+            return redirect("mesas:cuenta", pk=v.cuenta_reabierta.pk)
     except VentaInvalida as e:
         messages.error(request, str(e))
     return redirect("ventas:ticket", pk=pk)

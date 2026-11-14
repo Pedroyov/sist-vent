@@ -188,3 +188,71 @@ class CocinaEImpresionTests(TestCase):
         self.assertContains(r, "CORTE DE CAJA (PARCIAL)")
         self.client.force_login(self.mozo)  # el ticket de otro no
         self.assertEqual(self.client.get(reverse("ventas:imprimir", args=[v.pk])).status_code, 403)
+
+
+class CasosBordeTests(TestCase):
+    """Situaciones entre módulos que no deben trabar el trabajo."""
+
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        abrir(self.jefe, D("0"))
+        z = Zona.objects.create(nombre="Salón")
+        self.mesa = Mesa.objects.create(zona=z, nombre="1")
+        self.prod = Producto.objects.create(nombre="Lomo", precio=D("20"), maneja_stock=False)
+        self.v = asegurar_variante_unica(self.prod)
+        self.c = abrir_cuenta(self.mozo, self.mesa)
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 2}], self.mozo)
+
+    def test_producto_desactivado_y_precio_cambiado_se_cobra_igual(self):
+        self.prod.activo = False
+        self.prod.precio = D("25")
+        self.prod.save()
+        venta = cobrar(self.c, self.jefe, [{"metodo": "EFE", "monto": "40"}])
+        self.assertEqual(venta.total, D("40"))  # el precio que tenía al pedirlo
+        self.assertFalse(venta.items.get().precio_cambiado)
+
+    def test_anular_cobro_reabre_la_mesa(self):
+        from ventas.servicios import anular_venta
+
+        venta = cobrar(self.c, self.jefe, [{"metodo": "TAR", "monto": "40"}])
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.estado, Cuenta.Estado.COBRADA)
+        v = anular_venta(venta, self.jefe, "era Yape, no tarjeta")
+        self.assertEqual(v.cuenta_reabierta, self.c)
+        self.c.refresh_from_db()
+        self.assertEqual((self.c.estado, self.c.total_por_cobrar), (Cuenta.Estado.ABIERTA, D("40")))
+        venta2 = cobrar(self.c, self.jefe, [{"metodo": "YAP", "monto": "40"}])
+        self.assertEqual(venta2.total, D("40"))
+        # si la mesa ya tiene otros clientes, la cuenta reabierta queda aparte
+        nueva = abrir_cuenta(self.mozo, self.mesa)
+        v = anular_venta(venta2, self.jefe, "otra vez")
+        self.assertIsNone(v.cuenta_reabierta.mesa)
+        self.assertIn("cobro anulado", v.cuenta_reabierta.titulo)
+        self.assertTrue(nueva.abierta)
+
+    def test_variante_pedida_no_se_borra(self):
+        self.client.force_login(self.jefe)
+        self.client.post(reverse("productos:variante_eliminar", args=[self.v.pk]))  # única con pedido: no hay error
+        p2 = Producto.objects.create(nombre="Chicha", precio=D("5"), maneja_stock=False)
+        generar_variantes(p2, "Vaso, Jarra")
+        vaso = p2.variantes.get(nombre="Vaso")
+        agregar(self.c, [{"variante": vaso.pk, "cantidad": 1}], self.mozo)
+        r = self.client.post(reverse("productos:variante_eliminar", args=[vaso.pk]))
+        self.assertEqual(r.status_code, 302)
+        vaso.refresh_from_db()
+        self.assertFalse(vaso.activa)
+
+    def test_redirecciones_externas_bloqueadas(self):
+        from caja.models import SesionCaja
+
+        SesionCaja.objects.all().delete()
+        self.client.force_login(self.jefe)
+        r = self.client.post("/caja/?next=//sitio-falso.com", {"monto_inicial": "10"})
+        self.assertEqual(r["Location"], reverse("caja:mi_caja"))
+        venta = cobrar(self.c, self.jefe, [{"metodo": "EFE", "monto": "40"}])
+        r = self.client.get(reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=//sitio-falso.com")
+        self.assertNotContains(r, "sitio-falso")

@@ -155,6 +155,25 @@ def anular_cuenta(cuenta, usuario, motivo="", puede_anular=False):
     cuenta.save(update_fields=["estado", "cerrada_en", "motivo_anulacion"])
 
 
+def reabrir_por_anulacion(venta):
+    """Si se anula la venta con que se cobró una mesa, esos platos vuelven a quedar por cobrar
+    (por ejemplo, se cobró con el método equivocado). Devuelve la cuenta reabierta o None."""
+    items = list(ItemCuenta.objects.filter(venta=venta).select_related("cuenta__mesa"))
+    if not items:
+        return None
+    cuenta = items[0].cuenta
+    ItemCuenta.objects.filter(venta=venta).update(venta=None)
+    if cuenta.estado != Cuenta.Estado.ABIERTA:
+        ocupada = cuenta.mesa_id and Cuenta.objects.filter(mesa_id=cuenta.mesa_id, estado=Cuenta.Estado.ABIERTA).exists()
+        if ocupada:  # la mesa ya tiene otros clientes: queda como cuenta aparte
+            cuenta.nombre = f"Mesa {cuenta.mesa.nombre} (cobro anulado)"[:60]
+            cuenta.mesa = None
+        cuenta.estado = Cuenta.Estado.ABIERTA
+        cuenta.cerrada_en = None
+        cuenta.save(update_fields=["estado", "cerrada_en", "mesa", "nombre"])
+    return cuenta
+
+
 def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", cliente_documento="", nota="", token=None):
     """Cobra todo lo pendiente (o solo los ítems elegidos, para dividir la cuenta) creando una venta normal.
     Si ya no queda nada por cobrar, la cuenta se cierra y la mesa queda libre."""
@@ -180,6 +199,7 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
         return registrar_venta(
             cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio)} for i in pendientes],
             pagos, cliente_nombre=cliente_nombre, cliente_documento=cliente_documento, nota=(nota or cuenta.titulo)[:200],
-            token=token, puede_cambiar_precio=True, puede_descontar=False, propina=propina, atendio=cuenta.mozo, despues=marcar)
+            token=token, puede_cambiar_precio=True, puede_descontar=False, propina=propina, atendio=cuenta.mozo, despues=marcar,
+            desde_pedido=True)
     except VentaInvalida as e:
         raise MesaError(str(e))

@@ -63,7 +63,9 @@ def generar_variantes(producto, opciones1, opciones2=None):
         if unica:
             if unica.stock != CERO:
                 raise ValueError("El producto todavía tiene stock sin talla/opción. Ajusta ese stock a 0 antes de crear variantes.")
-            if unica.movimientos.exists():
+            from mesas.models import ItemCuenta
+
+            if unica.movimientos.exists() or unica.ventas.exists() or ItemCuenta.objects.filter(variante=unica).exists():
                 unica.activa = False
                 unica.codigo = ""
                 unica.save(update_fields=["activa", "codigo"])

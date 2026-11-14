@@ -237,7 +237,10 @@ def variante_eliminar(request, pk):
 
 
 def _vendida(variante):
-    return hasattr(variante, "ventas") and variante.ventas.exists()
+    """¿Ya se vendió o está pedida en alguna mesa? Entonces no se borra: se desactiva."""
+    from mesas.models import ItemCuenta
+
+    return variante.ventas.exists() or ItemCuenta.objects.filter(variante=variante).exists()
 
 
 # --- Stock ---------------------------------------------------------------------------

@@ -22,3 +22,6 @@ db_demo.sqlite3
 
 # Archivos temporales
 _to_delete/
+
+# Copias de seguridad
+respaldos/

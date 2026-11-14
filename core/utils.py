@@ -10,6 +10,15 @@ def entero(valor):
     return int(texto) if texto.isdigit() else None
 
 
+def url_segura(request, url, defecto="/"):
+    """Solo deja volver a direcciones de este mismo sistema (evita mandar al usuario a otro sitio)."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    if url and url_has_allowed_host_and_scheme(url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return url
+    return defecto
+
+
 def numero_whatsapp(telefono):
     """'987 654 321' -> '51987654321' (para enlaces wa.me). Vacío si no hay número."""
     d = re.sub(r"\D", "", telefono or "")

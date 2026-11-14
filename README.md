@@ -52,6 +52,15 @@ Abre http://127.0.0.1:8000 e ingresa con el usuario que creaste.
 
 ---
 
+## Copias de seguridad (importante)
+
+Toda la información del negocio está en `db.sqlite3` y las fotos en `media/`. Si la PC se malogra o la roban, se pierde todo. Por eso:
+
+- `respaldo.bat` (o `python manage.py respaldo`) crea un `.zip` con la base de datos y las fotos en la carpeta `respaldos/`, y deja los últimos 30.
+- Para que sea **automático todos los días**: Programador de tareas de Windows → *Crear tarea básica* → *Diariamente* (por ejemplo a las 11 p. m.) → *Iniciar un programa* → elige `respaldo.bat`.
+- Guarda los respaldos **fuera de la PC**: `respaldo.bat "C:\Users\TU_USUARIO\Google Drive\Respaldos"` (o OneDrive, o una USB).
+- Para restaurar: cierra el sistema, descomprime el `.zip`, pon el `db.sqlite3` en la carpeta del proyecto y la carpeta `media/` junto a él.
+
 ## Estructura
 
 Ver [ARQUITECTURA.md](ARQUITECTURA.md).
