@@ -1,0 +1,129 @@
+from decimal import Decimal
+
+from django.conf import settings
+from django.db import models
+from django.db.models import Q
+from django.utils import timezone
+
+CERO = Decimal("0")
+
+
+class Zona(models.Model):
+    nombre = models.CharField(max_length=40, unique=True, help_text='Ej.: "Salón", "Terraza", "Segundo piso".')
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "zona"
+        verbose_name_plural = "zonas"
+        ordering = ["orden", "nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
+class Mesa(models.Model):
+    zona = models.ForeignKey(Zona, on_delete=models.PROTECT, related_name="mesas")
+    nombre = models.CharField(max_length=20, unique=True, help_text='Número o nombre corto: "1", "T2", "Barra 1".')
+    capacidad = models.PositiveSmallIntegerField(default=4)
+    orden = models.PositiveSmallIntegerField(default=0)
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "mesa"
+        verbose_name_plural = "mesas"
+        ordering = ["zona__orden", "orden", "nombre"]
+
+    def __str__(self):
+        return f"Mesa {self.nombre}"
+
+
+class Cuenta(models.Model):
+    """Lo que va consumiendo una mesa (o un pedido para llevar) hasta que se cobra."""
+
+    class Estado(models.TextChoices):
+        ABIERTA = "ABI", "Abierta"
+        COBRADA = "COB", "Cobrada"
+        ANULADA = "ANU", "Anulada"
+
+    mesa = models.ForeignKey(Mesa, on_delete=models.PROTECT, null=True, blank=True, related_name="cuentas",
+                             help_text="Vacío = para llevar / delivery.")
+    nombre = models.CharField("cliente o referencia", max_length=60, blank=True, help_text='Para llevar: "Juan", "Delivery Av. Grau".')
+    personas = models.PositiveSmallIntegerField(default=1)
+    mozo = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cuentas_atendidas")
+    estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.ABIERTA)
+    pidio_cuenta = models.BooleanField(default=False)
+    abierta_en = models.DateTimeField(default=timezone.now)
+    cerrada_en = models.DateTimeField(null=True, blank=True)
+    motivo_anulacion = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "cuenta"
+        verbose_name_plural = "cuentas"
+        ordering = ["-abierta_en"]
+        constraints = [models.UniqueConstraint(fields=["mesa"], condition=Q(estado="ABI"), name="una_cuenta_abierta_por_mesa")]
+
+    def __str__(self):
+        return self.titulo
+
+    @property
+    def titulo(self):
+        if self.mesa_id:
+            return f"Mesa {self.mesa.nombre}"
+        return f"Para llevar #{self.pk}" + (f" · {self.nombre}" if self.nombre else "")
+
+    @property
+    def abierta(self):
+        return self.estado == self.Estado.ABIERTA
+
+    @property
+    def minutos(self):
+        return int((timezone.now() - self.abierta_en).total_seconds() // 60)
+
+    def items_vigentes(self):
+        return self.items.filter(anulado=False)
+
+    def por_cobrar(self):
+        return self.items.filter(anulado=False, venta__isnull=True)
+
+    def por_enviar(self):
+        return self.items.filter(anulado=False, enviado_en__isnull=True)
+
+    @property
+    def total_consumido(self):
+        return sum((i.subtotal for i in self.items_vigentes()), CERO)
+
+    @property
+    def total_por_cobrar(self):
+        return sum((i.subtotal for i in self.por_cobrar()), CERO)
+
+
+class ItemCuenta(models.Model):
+    cuenta = models.ForeignKey(Cuenta, on_delete=models.CASCADE, related_name="items")
+    variante = models.ForeignKey("productos.Variante", on_delete=models.PROTECT, related_name="+")
+    descripcion = models.CharField(max_length=240)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=3)
+    precio = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio al momento de pedirlo.")
+    nota = models.CharField(max_length=120, blank=True, help_text='Ej.: "sin cebolla", "término medio".')
+    agregado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    creado = models.DateTimeField(default=timezone.now)
+    enviado_en = models.DateTimeField("enviado a cocina", null=True, blank=True)
+    anulado = models.BooleanField(default=False)
+    motivo_anulacion = models.CharField(max_length=200, blank=True)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    venta = models.ForeignKey("ventas.Venta", on_delete=models.PROTECT, null=True, blank=True, related_name="items_cuenta")
+
+    class Meta:
+        verbose_name = "ítem de cuenta"
+        verbose_name_plural = "ítems de cuenta"
+        ordering = ["creado", "id"]
+
+    def __str__(self):
+        return f"{self.cantidad.normalize():f} × {self.descripcion}"
+
+    @property
+    def subtotal(self):
+        return (self.precio * self.cantidad).quantize(Decimal("0.01"))
+
+    @property
+    def enviado(self):
+        return self.enviado_en is not None

@@ -42,6 +42,8 @@ class Command(BaseCommand):
         a.nombre = nombre
         a.nombre_corto = nombre
         a.lema = lema
+        inactivos = [m for m in (a.modulos_inactivos or []) if m != "mesas"]
+        a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + ["mesas"]
         a.ruc = a.ruc or "20123456789"
         a.direccion = a.direccion or "Av. Principal 123"
         a.distrito = a.distrito or "Lima"
@@ -63,5 +65,9 @@ class Command(BaseCommand):
         from ventas.demo import cargar_ventas
 
         nv = cargar_ventas()
+        if rubro == Rubro.RESTAURANTE:
+            from mesas.demo import cargar_mesas
+
+            cargar_mesas()
         self.stdout.write(self.style.SUCCESS(
             f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))

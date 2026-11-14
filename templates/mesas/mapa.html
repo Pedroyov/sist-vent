@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Mesas{% endblock %}
+{% block page_title %}Mesas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Mesas</li>{% endblock %}
+
+{% block content %}
+{% if not hay_mesas %}
+<div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-grid-3x3 fs-4"></i>
+  <div class="flex-grow-1">Todavía no hay mesas.{% if not P.mesas_configurar %} Pide al administrador que las cree.{% endif %}</div>
+  {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-primary">Crear mesas</a>{% endif %}
+</div>
+{% endif %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <span class="small"><span class="badge rounded-pill text-bg-success">&nbsp;</span> Libre</span>
+  <span class="small"><span class="badge rounded-pill text-bg-danger">&nbsp;</span> Ocupada</span>
+  <span class="small"><span class="badge rounded-pill text-bg-warning">&nbsp;</span> Pidió la cuenta</span>
+  {% if P.mesas_atender %}<button type="button" class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#m-llevar"><i class="bi bi-bag me-1"></i>Para llevar</button>{% endif %}
+  {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-sm btn-outline-secondary {% if not P.mesas_atender %}ms-auto{% endif %}" title="Configurar mesas"><i class="bi bi-gear"></i></a>{% endif %}
+</div>
+
+<div id="mapa" hx-get="{% url 'mesas:mapa' %}" hx-trigger="every 8s" hx-swap="innerHTML">
+  {% include "mesas/partials/mapa.html" %}
+</div>
+
+{% if P.mesas_atender %}
+{# ---------- Abrir mesa ---------- #}
+<div class="modal fade" id="m-abrir" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <form method="post" action="{% url 'mesas:abrir' %}" class="modal-content">
+      {% csrf_token %}<input type="hidden" name="mesa" id="abrir-mesa">
+      <div class="modal-header"><h5 class="modal-title">Abrir mesa <span id="abrir-nombre"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p class="mb-2">¿Cuántas personas?</p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for n in "12345678" %}<button name="personas" value="{{ n }}" class="btn btn-outline-primary btn-lg" style="width: 3.4rem">{{ n }}</button>{% endfor %}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{# ---------- Para llevar ---------- #}
+<div class="modal fade" id="m-llevar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <form method="post" action="{% url 'mesas:abrir' %}" class="modal-content">
+      {% csrf_token %}
+      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-bag me-1"></i>Para llevar</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body"><label class="form-label" for="llevar-nombre">Nombre o referencia</label>
+        <input type="text" name="nombre" id="llevar-nombre" class="form-control" maxlength="60" placeholder="Ej.: Juan, delivery Av. Grau 120"></div>
+      <div class="modal-footer"><button class="btn btn-primary w-100">Empezar pedido</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById("mapa").addEventListener("click", function (e) {
+    var m = e.target.closest("[data-libre]");
+    if (!m) return;
+    e.preventDefault();
+    document.getElementById("abrir-mesa").value = m.dataset.libre;
+    document.getElementById("abrir-nombre").textContent = m.dataset.nombre;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("m-abrir")).show();
+  });
+</script>
+{% endblock %}

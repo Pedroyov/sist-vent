@@ -20,6 +20,14 @@
         </li>
 
         {# ---------- Módulos del negocio ---------- #}
+        {% if P.mesas_atender or P.mesas_cobrar %}
+        <li class="nav-item">
+          <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' %}active{% endif %}">
+            <i class="nav-icon bi bi-grid-3x3-gap"></i>
+            <p>Mesas</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.ventas_vender %}
         <li class="nav-item">
           <a href="{% url 'ventas:pos' %}" class="nav-link {% if ns == 'ventas' and url == 'pos' %}active{% endif %}">
@@ -33,6 +41,14 @@
           <a href="{% url 'ventas:lista' %}" class="nav-link {% if ns == 'ventas' and url != 'pos' %}active{% endif %}">
             <i class="nav-icon bi bi-receipt"></i>
             <p>{% if P.ventas_ver %}Ventas{% else %}Mis ventas{% endif %}</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.caja_usar or P.caja_ver %}
+        <li class="nav-item">
+          <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' %}active{% endif %}">
+            <i class="nav-icon bi bi-safe2"></i>
+            <p>Caja</p>
           </a>
         </li>
         {% endif %}

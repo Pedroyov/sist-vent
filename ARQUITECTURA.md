@@ -20,6 +20,8 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | `core/` | Base reutilizable: datos del negocio y rubro (`Ajustes`), usuarios, **roles y permisos**, **módulos activos**, inicio (`tablero.py`), archivos privados, PWA, utilidades |
 | `productos/` | Catálogo: categorías, productos y servicios, variantes (talla/color/tamaño), stock y kardex, importar y exportar Excel, catálogos de ejemplo por rubro |
 | `ventas/` | Punto de venta, registro y anulación de ventas, ticket, lista y resumen del día, Excel |
+| `caja/` | Turnos de caja: apertura, ingresos y egresos, cierre con arqueo por billetes, historial |
+| `mesas/` | Restaurantes: zonas y mesas, cuentas abiertas, pedidos con notas, envío a cocina, precuenta, comanda, cambiar y juntar mesas, cobro total o dividido |
 | `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
@@ -31,7 +33,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **MovimientoStock** es el kardex. El stock **solo cambia** con `productos.servicios.mover_stock()` o `ajustar_a()`, que bloquean la fila y anotan el saldo. Las ventas usarán `mover_stock(variante, -cantidad, Tipo.VENTA, referencia="Venta 000123")`. Se permite stock negativo para no trabar la caja.
 - `productos/rubros.py` tiene lo que cambia por rubro: categorías sugeridas, nombres de las variantes y valores por defecto.
 - Permisos: `productos.ver`, `productos.editar`, `productos.stock` y `productos.costos`. Quien no tiene `productos.costos` no ve los costos en pantallas ni en el Excel.
-- Pruebas: `python manage.py test productos ventas`.
+- Pruebas: `python manage.py test productos ventas caja mesas`.
 
 ## Ventas (cómo está pensado)
 
@@ -41,6 +43,22 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - Las ventas descuentan stock con `mover_stock(..., VENTA)`. `anular_venta()` lo devuelve con un movimiento de DEVOLUCIÓN. Nada se borra.
 - Quien solo tiene `ventas.vender` ve solo **sus** ventas. `ventas.ver` ve todas y los totales.
 - El ticket es una "nota de venta" interna, imprimible en 80 mm y enviable por WhatsApp. La factura o boleta electrónica (SUNAT) queda pendiente.
+
+## Caja (cómo está pensado)
+
+- **SesionCaja** es un turno por cajero: solo puede tener una abierta. Cada venta guarda en `sesion_caja` la caja abierta de quien cobra (`caja.servicios.sesion_para_vender`). Si el módulo Caja está activo y en Datos del negocio no se marcó "permitir vender sin caja abierta", sin caja no se cobra.
+- **Efectivo esperado** = monto inicial + efectivo de ventas pagadas (el Pago en efectivo ya descuenta el vuelto) + ingresos − egresos. Yape, Plin y tarjeta se muestran, pero no cuentan para el cajón.
+- Al **cerrar** se guarda una foto del resumen (`esperado`, `contado`, `diferencia`, `conteo`, `resumen`), así el cierre ya no cambia. Si luego se anula una venta de una caja cerrada, el efectivo devuelto sale como egreso automático de la caja abierta de quien anula.
+- Permisos: `caja.usar` (su propia caja) y `caja.ver` (todas, historial, cerrar la de otro).
+
+## Mesas (cómo está pensado)
+
+- **Cuenta** es lo que va consumiendo una mesa (o un pedido para llevar, sin mesa). Solo puede haber una cuenta abierta por mesa. **ItemCuenta** guarda el plato, la cantidad, el precio de ese momento, la nota ("sin cebolla"), cuándo se envió a cocina, si se quitó (con motivo) y con qué venta se cobró.
+- Flujo: abrir la mesa → agregar → **enviar a cocina** (la pantalla muestra "Díctale a cocina", y hay una comanda imprimible opcional) → precuenta → **cobrar**. Al cobrar se llama a `registrar_venta()` con los precios del pedido, y la venta guarda el mozo en `atendio`. Para dividir la cuenta se eligen ítems y se cobra varias veces. Cuando no queda nada por cobrar, la mesa se libera.
+- El stock baja al cobrar (es una venta normal). Lo que no se envió a cocina se cambia libremente. Lo ya enviado solo se quita con `mesas.anular` y un motivo.
+- El mapa se actualiza solo con HTMX cada 8 segundos, para varios mozos con celular.
+- El cuadro de cobro es compartido: `templates/ventas/partials/modal_cobro.html` + `static/js/cobro.js` (lo usan el punto de venta y las mesas). La **propina** se activa en Datos del negocio: va en `Venta.propina`, no suma al total vendido y se cobra dentro de los pagos.
+- El módulo Mesas empieza apagado y se activa solo al elegir el rubro Restaurante.
 
 ## Rubros
 
@@ -67,7 +85,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Enlaces `wa.me` con el mensaje ya armado (`core.utils.numero_whatsapp` agrega el 51).
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
-- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) y una semana de ventas (`ventas/demo.py`). `demo.bat` los carga en una base aparte.
+- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, mesas con algunas ocupadas (`mesas/demo.py`). `demo.bat` los carga en una base aparte.
 
 ## Convenciones
 

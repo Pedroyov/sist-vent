@@ -15,10 +15,15 @@ class Rubro(models.TextChoices):
     OTRO = "OTR", "Otro"
 
 
+def modulos_inactivos_iniciales():
+    """Mesas solo se usa en restaurantes: empieza apagado (se activa al elegir ese rubro)."""
+    return ["mesas"]
+
+
 class Ajustes(models.Model):
     """Ajustes generales del sistema y datos del negocio (una sola fila)."""
 
-    modulos_inactivos = models.JSONField("módulos desactivados", default=list, blank=True)
+    modulos_inactivos = models.JSONField("módulos desactivados", default=modulos_inactivos_iniciales, blank=True)
 
     # --- Datos del negocio (Configuración → Datos del negocio) ---
     rubro = models.CharField("rubro", max_length=3, choices=Rubro.choices, default=Rubro.TIENDA)
@@ -40,6 +45,12 @@ class Ajustes(models.Model):
     web = models.URLField("página web o redes", blank=True)
     nota_ticket = models.CharField("nota al pie del ticket", max_length=250, blank=True,
                                    help_text='Ej.: "Gracias por su compra. No se aceptan devoluciones después de 7 días."')
+    # --- Opciones de venta ---
+    vender_sin_caja = models.BooleanField(
+        "permitir vender sin caja abierta", default=False,
+        help_text="Si está desmarcado (recomendado), cada venta queda en la caja abierta de quien cobra y así cuadra al cierre.")
+    propina_activa = models.BooleanField(
+        "pedir propina al cobrar", default=False, help_text="Muestra un campo de propina al cobrar (útil en restaurantes).")
     color = models.CharField("color principal", max_length=7, default="#0d6efd",
                              help_text="Color de la barra del celular cuando el sistema está instalado como app.")
     version_logo = models.PositiveIntegerField(default=0, editable=False)

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Vender{% endblock %}
 {% block body_class %}layout-fixed sidebar-expand-lg sidebar-collapse bg-body-tertiary{% endblock %}
@@ -20,7 +21,6 @@
   .linea .cant { width: 4.2rem; text-align: center; }
   .linea .precio { width: 5.5rem; }
   .total-grande { font-size: 2rem; font-weight: 800; line-height: 1; }
-  .metodo-fila input { font-size: 1.15rem; text-align: right; }
   .barra-movil { box-shadow: 0 -.25rem 1rem rgba(0,0,0,.12); padding-bottom: calc(.5rem + env(safe-area-inset-bottom)); }
   @media (max-width: 991.98px) { .carrito-scroll { max-height: none; } .app-content { padding-bottom: 5rem; } }
 </style>
@@ -28,6 +28,11 @@
 
 {% block content %}
 {% csrf_token %}
+{% if falta_caja %}
+<div class="alert alert-warning d-flex align-items-center gap-2"><i class="bi bi-safe2 fs-4"></i>
+  <div class="flex-grow-1">Para cobrar, primero abre tu caja.</div>
+  <a href="{% url 'caja:mi_caja' %}?next={% url 'ventas:pos' %}" class="btn btn-warning">Abrir caja</a></div>
+{% endif %}
 <div class="row g-3">
   {# ---------- Catálogo ---------- #}
   <div class="col-lg-7 col-xl-8">
@@ -85,52 +90,21 @@
   </div>
 </div>
 
-{# ---------- Cobrar ---------- #}
-<div class="modal fade" id="m-cobro" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <form class="modal-content" id="f-cobro" novalidate>
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-cash-coin me-1"></i> Cobrar</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div class="text-center mb-3"><div class="text-body-secondary small">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
-        <div id="c-metodos"></div>
-        <div class="d-flex flex-wrap gap-1 mb-3" id="c-billetes"></div>
-        <div class="alert py-2 text-center fs-5 mb-3" id="c-estado"></div>
-        <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button"><i class="bi bi-person-plus me-1"></i>Cliente y nota (opcional)</a>
-        <div class="collapse" id="c-cliente">
-          <div class="row g-2 mt-1">
-            <div class="col-8"><input type="text" class="form-control" id="c-nombre" placeholder="Nombre del cliente" maxlength="150"></div>
-            <div class="col-4"><input type="text" class="form-control" id="c-doc" placeholder="DNI/RUC" maxlength="11" inputmode="numeric"></div>
-            <div class="col-12"><input type="text" class="form-control" id="c-nota" placeholder="Nota (mesa 4, para llevar, etc.)" maxlength="200"></div>
-          </div>
-        </div>
-        <div class="alert alert-danger mt-3 mb-0 d-none" id="c-error"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver</button>
-        <button type="submit" class="btn btn-success btn-lg" id="c-confirmar"><i class="bi bi-check-lg me-1"></i>Confirmar venta</button>
-      </div>
-    </form>
-  </div>
-</div>
+{% include "ventas/partials/modal_cobro.html" %}
 
 {{ catalogo|json_script:"datos-catalogo" }}
 {{ categorias|json_script:"datos-categorias" }}
-{{ metodos|json_script:"datos-metodos" }}
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/cobro.js' %}"></script>
 <script>
 (function () {
   "use strict";
   var CAT = JSON.parse(document.getElementById("datos-catalogo").textContent);
   var CATS = JSON.parse(document.getElementById("datos-categorias").textContent);
-  var METODOS = JSON.parse(document.getElementById("datos-metodos").textContent);
   var PUEDE_PRECIO = {{ puede_precio|yesno:"true,false" }};
   var URL_REGISTRAR = "{% url 'ventas:registrar' %}";
-  var CSRF = document.querySelector("[name=csrfmiddlewaretoken]").value;
   var GUARDADO = "pos_carrito_{{ user.pk }}";
 
   var $ = function (id) { return document.getElementById(id); };
@@ -265,71 +239,20 @@
   }
 
   // ---------------- cobro ----------------
-  var BILLETES = [10, 20, 50, 100, 200];
   function abrirCobro() {
-    if (!carrito.length) return;
+    if (!carrito.length || {{ falta_caja|yesno:"true,false" }}) return;
     var t = totales();
-    $("c-total").textContent = soles(t.total);
-    $("c-metodos").innerHTML = METODOS.map(function (m) {
-      return '<div class="input-group mb-2 metodo-fila"><span class="input-group-text" style="width: 8.5rem">' + esc(m.n) + "</span>" +
-        '<input type="number" class="form-control" data-metodo="' + m.id + '" min="0" step="0.10" inputmode="decimal" placeholder="0.00">' +
-        '<button type="button" class="btn btn-outline-secondary" data-todo="' + m.id + '" title="Todo con ' + esc(m.n) + '">Todo</button></div>';
-    }).join("");
-    var sugeridos = BILLETES.filter(function (b) { return b * 100 > t.total; }).slice(0, 3);
-    $("c-billetes").innerHTML = '<span class="small text-body-secondary me-1 align-self-center">Efectivo:</span>' +
-      '<button type="button" class="btn btn-sm btn-outline-success" data-billete="' + t.total + '">Exacto</button>' +
-      sugeridos.map(function (b) { return '<button type="button" class="btn btn-sm btn-outline-success" data-billete="' + b * 100 + '">S/ ' + b + "</button>"; }).join("");
-    $("c-error").classList.add("d-none");
-    estadoCobro();
-    bootstrap.Modal.getOrCreateInstance($("m-cobro")).show();
-  }
-  function pagos() {
-    return Array.prototype.map.call(document.querySelectorAll("[data-metodo]"), function (i) { return {metodo: i.dataset.metodo, c: cent(i.value || 0)}; });
-  }
-  function estadoCobro() {
-    var t = totales().total, ps = pagos();
-    var pagado = ps.reduce(function (a, p) { return a + p.c; }, 0);
-    var efectivo = ps.filter(function (p) { return p.metodo === "EFE"; }).reduce(function (a, p) { return a + p.c; }, 0);
-    var e = $("c-estado"), ok = false;
-    if (pagado === 0) { e.className = "alert alert-secondary py-2 text-center mb-3"; e.innerHTML = "Escribe cuánto paga, o pulsa <strong>Confirmar</strong> si es efectivo exacto."; ok = true; }
-    else if (pagado < t) { e.className = "alert alert-warning py-2 text-center fs-5 mb-3"; e.innerHTML = "Falta <strong>" + soles(t - pagado) + "</strong>"; }
-    else if (pagado - t > efectivo) { e.className = "alert alert-danger py-2 text-center mb-3"; e.textContent = "El vuelto solo puede salir del efectivo: revisa los montos."; }
-    else if (pagado > t) { e.className = "alert alert-success py-2 text-center fs-4 mb-3"; e.innerHTML = "Vuelto: <strong>" + soles(pagado - t) + "</strong>"; ok = true; }
-    else { e.className = "alert alert-success py-2 text-center fs-5 mb-3"; e.innerHTML = '<i class="bi bi-check-circle"></i> Pago completo'; ok = true; }
-    $("c-confirmar").disabled = !ok;
-    return ok;
-  }
-  function confirmar() {
-    if (!estadoCobro()) return;
-    var t = totales(), ps = pagos();
-    if (ps.every(function (p) { return p.c === 0; })) ps = [{metodo: "EFE", c: t.total}];
-    var boton = $("c-confirmar");
-    boton.disabled = true;
-    boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando…';
-    fetch(URL_REGISTRAR, {
-      method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": CSRF}, credentials: "same-origin",
-      body: JSON.stringify({
-        token: token,
-        items: carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null}; }),
-        pagos: ps.filter(function (p) { return p.c > 0; }).map(function (p) { return {metodo: p.metodo, monto: (p.c / 100).toFixed(2)}; }),
-        descuento: (t.desc / 100).toFixed(2),
-        cliente_nombre: $("c-nombre").value, cliente_documento: $("c-doc").value, nota: $("c-nota").value
-      })
-    }).then(function (r) { return r.json().catch(function () { return {error: "Error del servidor (" + r.status + ")."}; }); })
-      .then(function (d) {
+    Cobro.abrir({total: t.total, titulo: "Cobrar", onConfirmar: function (datos, terminar) {
+      datos.token = token;
+      datos.items = carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null}; });
+      datos.descuento = (t.desc / 100).toFixed(2);
+      Cobro.enviar(URL_REGISTRAR, datos).then(function (d) {
         if (d.ok) {
           try { sessionStorage.removeItem(GUARDADO); } catch (e) {}
           location.href = d.url;
-          return;
-        }
-        throw new Error(d.error || "No se pudo registrar la venta.");
-      })
-      .catch(function (err) {
-        $("c-error").textContent = err.message === "Failed to fetch" ? "Sin conexión. Revisa el internet y vuelve a intentar: no se cobrará dos veces." : err.message;
-        $("c-error").classList.remove("d-none");
-        boton.disabled = false;
-        boton.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirmar venta';
+        } else terminar(d.error || "No se pudo registrar la venta.");
       });
+    }});
   }
 
   // ---------------- eventos ----------------
@@ -397,22 +320,7 @@
   });
   $("btn-cobrar").addEventListener("click", abrirCobro);
   $("btn-cobrar-m").addEventListener("click", abrirCobro);
-  $("m-cobro").addEventListener("shown.bs.modal", function () { var i = document.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("m-cobro").addEventListener("hidden.bs.modal", function () { $("buscar").focus(); });
-  $("c-metodos").addEventListener("input", estadoCobro);
-  $("c-metodos").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-todo]");
-    if (!b) return;
-    document.querySelectorAll("[data-metodo]").forEach(function (i) { i.value = i.dataset.metodo === b.dataset.todo ? (totales().total / 100).toFixed(2) : ""; });
-    estadoCobro();
-  });
-  $("c-billetes").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-billete]");
-    if (!b) return;
-    document.querySelectorAll("[data-metodo]").forEach(function (i) { i.value = i.dataset.metodo === "EFE" ? (parseInt(b.dataset.billete, 10) / 100).toFixed(2) : ""; });
-    estadoCobro();
-  });
-  $("f-cobro").addEventListener("submit", function (e) { e.preventDefault(); confirmar(); });
   document.addEventListener("keydown", function (e) {
     if (e.key === "F9") { e.preventDefault(); abrirCobro(); }
     else if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("buscar").focus(); }

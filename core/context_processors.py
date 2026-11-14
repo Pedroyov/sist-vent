@@ -18,4 +18,7 @@ def negocio(request):
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:
         contexto.update({"MIS_ROLES": roles_de(user), "P": PermisosPlantilla(user)})
+        from ventas.models import MetodoPago
+
+        contexto["METODOS_PAGO"] = MetodoPago.choices
     return contexto

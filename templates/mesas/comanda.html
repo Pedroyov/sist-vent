@@ -1,0 +1,10 @@
+{% extends "mesas/_impreso.html" %}
+{% load sis %}
+{% block titulo %}Comanda {{ c.titulo }}{% endblock %}
+{% block contenido %}
+<div class="c grande">{{ c.titulo }}</div>
+<div class="c">{% if ts %}{{ ts|date:"H:i" }}{% else %}{% now "H:i" %}{% endif %} · {{ c.mozo.first_name|default:c.mozo.username }} · {{ c.personas }} pers.</div>
+<div class="linea"></div>
+{% for i in items %}<div class="grande">{{ i.cantidad|cantidad }} × {{ i.descripcion }}</div>{% if i.nota %}<div>&nbsp;&nbsp;» {{ i.nota|upper }}</div>{% endif %}{% empty %}<p>Nada enviado.</p>{% endfor %}
+<div class="linea"></div>
+{% endblock %}

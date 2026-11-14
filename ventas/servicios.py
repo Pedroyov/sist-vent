@@ -31,9 +31,12 @@ def dinero(d):
 
 
 def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
-                    token=None, puede_cambiar_precio=False):
+                    token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None):
     """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
-    El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí."""
+    El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
+    `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
+    if puede_descontar is None:
+        puede_descontar = puede_cambiar_precio
     if token:
         previa = Venta.objects.filter(token=token).first()
         if previa:
@@ -71,11 +74,18 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         subtotal += importe
 
     descuento = dinero(_dec(descuento or 0, "Descuento"))
-    if descuento and not puede_cambiar_precio:
+    if descuento and not puede_descontar:
         raise VentaInvalida("No tienes permiso para dar descuentos.")
     if descuento > subtotal:
         raise VentaInvalida("El descuento no puede ser mayor que el total.")
     total = subtotal - descuento
+    propina = dinero(_dec(propina or 0, "Propina"))
+    if propina:
+        from core.models import Ajustes
+
+        if not Ajustes.cargar().propina_activa:
+            raise VentaInvalida("La propina no está activada.")
+    a_cobrar = total + propina
 
     # Pagos: se juntan por método. El vuelto solo puede salir del efectivo.
     por_metodo = {}
@@ -89,18 +99,25 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             m["monto"] += monto
             m["referencia"] = (m["referencia"] or str(p.get("referencia") or "").strip())[:60]
     pagado = sum((m["monto"] for m in por_metodo.values()), CERO)
-    if pagado < total:
-        raise VentaInvalida(f"Falta cobrar S/ {total - pagado:.2f}.")
-    vuelto = pagado - total
+    if pagado < a_cobrar:
+        raise VentaInvalida(f"Falta cobrar S/ {a_cobrar - pagado:.2f}.")
+    vuelto = pagado - a_cobrar
     efectivo = por_metodo.get(MetodoPago.EFECTIVO, {}).get("monto", CERO)
     if vuelto > efectivo:
         raise VentaInvalida("Con Yape, Plin, tarjeta o transferencia se cobra el monto exacto: el vuelto solo sale del efectivo.")
+
+    from caja.servicios import CajaError, sesion_para_vender
+
+    try:
+        sesion = sesion_para_vender(usuario)
+    except CajaError as e:
+        raise VentaInvalida(str(e))
 
     try:
         with transaction.atomic():
             venta = Venta.objects.create(
                 numero=Correlativo.siguiente("venta"), usuario=usuario, subtotal=subtotal, descuento=descuento,
-                total=total, recibido=efectivo if efectivo else None, vuelto=vuelto, token=token or None,
+                total=total, propina=propina, sesion_caja=sesion, atendio=atendio, recibido=efectivo if efectivo else None, vuelto=vuelto, token=token or None,
                 cliente_nombre=" ".join(str(cliente_nombre or "").split())[:150],
                 cliente_documento="".join(c for c in str(cliente_documento or "") if c.isalnum())[:11],
                 nota=str(nota or "").strip()[:200],
@@ -115,6 +132,8 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 monto = m["monto"] - (vuelto if metodo == MetodoPago.EFECTIVO else CERO)
                 if monto > 0:
                     Pago.objects.create(venta=venta, metodo=metodo, monto=monto, referencia=m["referencia"])
+            if despues:
+                despues(venta)
     except IntegrityError:
         if token:  # doble clic: la otra petición ya la registró
             previa = Venta.objects.filter(token=token).first()
@@ -137,6 +156,7 @@ def anular_venta(venta, usuario, motivo):
             if item.variante.producto.maneja_stock:
                 mover_stock(item.variante, item.cantidad, MovimientoStock.Tipo.DEVOLUCION, usuario,
                             nota=f"Anulación: {motivo}", referencia=f"Venta {v.numero_str}")
+        _devolver_efectivo(v, usuario, motivo)
         v.estado = Venta.Estado.ANULADA
         v.anulada_en = timezone.now()
         v.anulada_por = usuario
@@ -145,12 +165,26 @@ def anular_venta(venta, usuario, motivo):
     return v
 
 
+def _devolver_efectivo(venta, usuario, motivo):
+    """Si la venta era de una caja ya cerrada, el efectivo que se devuelve sale de la caja abierta de quien anula."""
+    from caja.models import MovimientoCaja, SesionCaja
+    from caja.servicios import movimiento
+
+    if venta.sesion_caja_id is None or venta.sesion_caja.abierta:
+        return  # mientras la caja siga abierta, la venta anulada simplemente deja de sumar
+    efectivo = sum((p.monto for p in venta.pagos.filter(metodo=MetodoPago.EFECTIVO)), CERO)
+    actual = SesionCaja.abierta_de(usuario)
+    if efectivo and actual:
+        movimiento(actual, MovimientoCaja.Tipo.EGRESO, efectivo, f"Devolución por anular la venta {venta.numero_str}: {motivo}",
+                   usuario, MovimientoCaja.Categoria.DEVOLUCION, automatico=True)
+
+
 def resumen(ventas):
     """Totales de un conjunto de ventas pagadas: total, cantidad, ticket promedio, por método, costo."""
     from django.db.models import Count, Sum
 
     pagadas = ventas.filter(estado=Venta.Estado.PAGADA)
-    t = pagadas.aggregate(total=Sum("total"), n=Count("id"), descuentos=Sum("descuento"))
+    t = pagadas.aggregate(total=Sum("total"), n=Count("id"), descuentos=Sum("descuento"), propinas=Sum("propina"))
     total, n = t["total"] or CERO, t["n"] or 0
     metodos = (Pago.objects.filter(venta__in=pagadas).values("metodo").annotate(total=Sum("monto"), n=Count("venta", distinct=True))
                .order_by("-total"))
@@ -163,5 +197,6 @@ def resumen(ventas):
         "total": total, "n": n, "promedio": dinero(total / n) if n else CERO, "descuentos": t["descuentos"] or CERO,
         "metodos": [{"metodo": nombres.get(m["metodo"], m["metodo"]), "codigo": m["metodo"], "total": m["total"], "n": m["n"]} for m in metodos],
         "ganancia": total - dinero(costo), "sin_costo": sin_costo,
+        "propinas": t["propinas"] or CERO,
         "anuladas": ventas.filter(estado=Venta.Estado.ANULADA).count(),
     }

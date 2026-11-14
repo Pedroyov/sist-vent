@@ -43,11 +43,17 @@ class Venta(models.Model):
     estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.PAGADA)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="ventas",
                                 verbose_name="vendedor")
+    atendio = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                verbose_name="mozo", help_text="Quien atendió la mesa (si no es quien cobró).")
+    sesion_caja = models.ForeignKey("caja.SesionCaja", on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name="ventas", verbose_name="caja")
     cliente_nombre = models.CharField("cliente", max_length=150, blank=True)
     cliente_documento = models.CharField("DNI / RUC", max_length=11, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
     descuento = models.DecimalField(max_digits=12, decimal_places=2, default=CERO)
     total = models.DecimalField(max_digits=12, decimal_places=2)
+    propina = models.DecimalField(max_digits=12, decimal_places=2, default=CERO,
+                                  help_text="No es parte de la venta: se cobra aparte y va en los pagos.")
     recibido = models.DecimalField("efectivo recibido", max_digits=12, decimal_places=2, null=True, blank=True)
     vuelto = models.DecimalField(max_digits=12, decimal_places=2, default=CERO)
     nota = models.CharField(max_length=200, blank=True)

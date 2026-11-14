@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% load sis static %}
+
+{% block title %}{{ c.titulo }}{% endblock %}
+{% block page_title %}{{ c.titulo }}{% if c.pidio_cuenta and c.abierta %} <span class="badge text-bg-warning fs-6 align-middle">Pidió la cuenta</span>{% endif %}
+  {% if not c.abierta %} <span class="badge text-bg-secondary fs-6 align-middle">{{ c.get_estado_display }}</span>{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item active">{{ c.titulo }}</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .items .list-group-item { padding-top: .6rem; padding-bottom: .6rem; }
+  .items .cant { min-width: 2.2rem; text-align: center; font-weight: 700; }
+  .dictar li { font-size: 1.2rem; }
+  .barra-mesa { box-shadow: 0 -.25rem 1rem rgba(0,0,0,.12); padding-bottom: calc(.5rem + env(safe-area-inset-bottom)); }
+  .app-content { padding-bottom: 5.5rem; }
+  .chk-dividir { display: none; }
+  .dividiendo .chk-dividir { display: inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="d-flex flex-wrap gap-3 small text-body-secondary mb-3">
+  <span><i class="bi bi-people me-1"></i>{{ c.personas }} persona{{ c.personas|pluralize }}</span>
+  <span><i class="bi bi-person-badge me-1"></i>{{ c.mozo|nombre }}</span>
+  <span><i class="bi bi-clock me-1"></i>{{ c.abierta_en|date:"H:i" }}{% if c.abierta %} · hace {{ c.abierta_en|hace }}{% endif %}</span>
+</div>
+
+{% if recien %}
+<div class="alert alert-info">
+  <div class="d-flex align-items-center mb-2"><strong><i class="bi bi-megaphone me-1"></i>Díctale a cocina:</strong>
+    <a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-printer me-1"></i>Comanda</a></div>
+  <ul class="list-unstyled mb-0 dictar">
+    {% for i in recien %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
+  </ul>
+  <div class="small mt-2">{{ c.titulo }}</div>
+</div>
+{% endif %}
+
+{% if falta_caja and c.abierta %}
+<div class="alert alert-warning py-2 small"><i class="bi bi-safe2 me-1"></i>Para cobrar, primero <a href="{% url 'caja:mi_caja' %}?next={{ request.path|urlencode }}">abre tu caja</a>.</div>
+{% endif %}
+
+<div id="lista">
+{# ---------- Por enviar ---------- #}
+{% if por_enviar %}
+<div class="card card-outline card-primary mb-3">
+  <div class="card-header d-flex align-items-center">
+    <h3 class="card-title mb-0"><i class="bi bi-pencil-square me-1"></i> Por enviar a cocina</h3>
+    <form method="post" action="{% url 'mesas:enviar' c.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-primary btn-sm"><i class="bi bi-send me-1"></i>Enviar a cocina</button></form>
+  </div>
+  <ul class="list-group list-group-flush items">
+    {% for i in por_enviar %}
+    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
+      <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
+      <form method="post" action="{% url 'mesas:item' i.pk %}" class="d-flex align-items-center gap-1">{% csrf_token %}
+        <button name="accion" value="menos" class="btn btn-sm btn-outline-secondary" aria-label="Menos"><i class="bi bi-dash"></i></button>
+        <span class="cant">{{ i.cantidad|cantidad }}</span>
+        <button name="accion" value="mas" class="btn btn-sm btn-outline-secondary" aria-label="Más"><i class="bi bi-plus"></i></button>
+      </form>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</div>
+      <span class="text-nowrap">{{ i.subtotal|soles }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# ---------- En cocina / servido ---------- #}
+{% if enviados %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-fire me-1"></i> Pedido</h3></div>
+  <ul class="list-group list-group-flush items">
+    {% for i in enviados %}
+    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
+      <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
+      <span class="cant">{{ i.cantidad|cantidad }}</span>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>
+        <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}</div></div>
+      <span class="text-nowrap">{{ i.subtotal|soles }}</span>
+      {% if c.abierta and puede_anular %}
+      <button type="button" class="btn btn-sm btn-link text-danger px-1" data-bs-toggle="modal" data-bs-target="#m-quitar"
+              data-url="{% url 'mesas:item' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+</div>
+
+{% if not por_enviar and not enviados and c.abierta %}
+<div class="text-center text-body-secondary py-4"><i class="bi bi-journal-plus display-6"></i><p class="mt-2">Aún no hay pedidos.</p>
+  <a href="{% url 'mesas:agregar' c.pk %}" class="btn btn-primary btn-lg"><i class="bi bi-plus-lg me-1"></i>Tomar pedido</a></div>
+{% endif %}
+
+{% if por_enviar or enviados %}
+<div class="d-flex align-items-end mb-3 px-1">
+  <span class="fw-semibold">Por cobrar</span><span class="ms-auto total-grande" id="total-mesa">{{ pendiente|soles }}</span>
+</div>
+{% endif %}
+
+{% if ventas %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-check2-circle me-1"></i> Ya cobrado</h3></div>
+  <ul class="list-group list-group-flush">
+    {% for v in ventas %}<li class="list-group-item d-flex"><a href="{% url 'ventas:ticket' v.pk %}">Venta {{ v.numero_str }}</a><span class="ms-auto">{{ v.total|soles }}</span></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% if anulados %}
+<details class="small text-body-secondary mb-3"><summary>Quitados ({{ anulados|length }})</summary>
+  <ul class="mb-0">{% for i in anulados %}<li>{{ i.cantidad|cantidad }} × {{ i.descripcion }}: {{ i.motivo_anulacion }} ({{ i.anulado_por|nombre }})</li>{% endfor %}</ul></details>
+{% endif %}
+{% if not c.abierta and c.motivo_anulacion %}<p class="small text-body-secondary">{{ c.motivo_anulacion }}</p>{% endif %}
+
+{# ---------- Barra de acciones ---------- #}
+{% if c.abierta %}
+<div class="fixed-bottom bg-body border-top barra-mesa px-2 pt-2 no-print">
+  <div class="d-flex gap-2 align-items-center mx-auto" style="max-width: 900px">
+    <a href="{% url 'mesas:mapa' %}" class="btn btn-outline-secondary" aria-label="Volver a las mesas"><i class="bi bi-grid-3x3-gap"></i></a>
+    {% if P.mesas_atender %}<a href="{% url 'mesas:agregar' c.pk %}" class="btn btn-primary flex-grow-1"><i class="bi bi-plus-lg me-1"></i>Agregar</a>{% endif %}
+    {% if por_enviar or enviados %}
+      {% if P.mesas_cobrar %}<button type="button" class="btn btn-success flex-grow-1" id="btn-cobrar" {% if falta_caja %}disabled{% endif %}><i class="bi bi-cash-coin me-1"></i>Cobrar</button>{% endif %}
+    {% endif %}
+    <div class="dropup">
+      <button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Más opciones"><i class="bi bi-three-dots-vertical"></i></button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% if por_enviar or enviados %}
+        <li><form method="post" action="{% url 'mesas:pedir_cuenta' c.pk %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-receipt me-2"></i>{% if c.pidio_cuenta %}Quitar «pidió la cuenta»{% else %}Pidió la cuenta (precuenta){% endif %}</button></form></li>
+        <li><a class="dropdown-item" href="{% url 'mesas:precuenta' c.pk %}"><i class="bi bi-printer me-2"></i>Imprimir precuenta</a></li>
+        {% if P.mesas_cobrar %}<li><button type="button" class="dropdown-item" id="btn-dividir"><i class="bi bi-scissors me-2"></i>Dividir cuenta</button></li>{% endif %}
+        {% endif %}
+        {% if c.mesa and P.mesas_atender %}<li><a class="dropdown-item" href="{% url 'mesas:cambiar' c.pk %}"><i class="bi bi-arrow-left-right me-2"></i>Cambiar o juntar mesa</a></li>{% endif %}
+        <li><hr class="dropdown-divider"></li>
+        <li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#m-liberar"><i class="bi bi-x-circle me-2"></i>{% if enviados %}Anular cuenta{% else %}Liberar mesa{% endif %}</button></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="m-quitar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" class="modal-content" id="f-quitar">{% csrf_token %}<input type="hidden" name="accion" value="quitar">
+      <div class="modal-header"><h5 class="modal-title">Quitar <span id="quitar-nombre"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body"><p class="small">Ya se envió a cocina. Indica el motivo (queda registrado).</p>
+        <input type="text" name="motivo" class="form-control" required maxlength="200" placeholder="Ej.: el cliente cambió de pedido"></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger">Quitar</button></div>
+    </form>
+  </div>
+</div>
+<div class="modal fade" id="m-liberar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'mesas:anular' c.pk %}" class="modal-content">{% csrf_token %}
+      <div class="modal-header"><h5 class="modal-title">{% if enviados %}Anular la cuenta{% else %}Liberar la mesa{% endif %}</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        {% if enviados %}<p class="small">Hay productos ya enviados a cocina que no se cobrarán. {% if not puede_anular %}Necesitas permiso para hacerlo.{% endif %}</p>
+        <input type="text" name="motivo" class="form-control" maxlength="200" placeholder="Motivo" required>
+        {% else %}<p class="mb-0">La mesa quedará libre. {% if por_enviar %}Lo que no se envió a cocina se descarta.{% endif %}</p>{% endif %}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger">Confirmar</button></div>
+    </form>
+  </div>
+</div>
+{% include "ventas/partials/modal_cobro.html" %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if c.abierta %}
+<script src="{% static 'js/cobro.js' %}"></script>
+<script>
+(function () {
+  var lista = document.getElementById("lista"), token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+  var soles = function (c) { return "S/ " + (c / 100).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+  function elegidos() {
+    var dividiendo = lista.classList.contains("dividiendo");
+    return Array.prototype.filter.call(lista.querySelectorAll("[data-item]"), function (li) {
+      return !dividiendo || li.querySelector(".chk-dividir").checked;
+    });
+  }
+  function total() { return elegidos().reduce(function (a, li) { return a + parseInt(li.dataset.cent, 10); }, 0); }
+  function refrescar() { var t = document.getElementById("total-mesa"); if (t) t.textContent = soles(total()); }
+  lista.addEventListener("change", refrescar);
+  var div = document.getElementById("btn-dividir");
+  if (div) div.addEventListener("click", function () {
+    lista.classList.toggle("dividiendo");
+    div.innerHTML = lista.classList.contains("dividiendo") ? '<i class="bi bi-x me-2"></i>Cobrar todo junto' : '<i class="bi bi-scissors me-2"></i>Dividir cuenta';
+    refrescar();
+  });
+  var cobrar = document.getElementById("btn-cobrar");
+  if (cobrar) cobrar.addEventListener("click", function () {
+    var items = elegidos();
+    if (!items.length) { alert("Marca lo que se va a cobrar."); return; }
+    var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
+    Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
+      onConfirmar: function (datos, terminar) {
+        datos.token = token;
+        datos.items = items.map(function (li) { return li.dataset.item; });
+        Cobro.enviar("{% url 'mesas:cobrar' c.pk %}", datos).then(function (d) {
+          if (d.ok) location.href = d.url; else terminar(d.error || "No se pudo cobrar.");
+        });
+      }});
+  });
+  document.getElementById("m-quitar").addEventListener("show.bs.modal", function (e) {
+    document.getElementById("f-quitar").action = e.relatedTarget.dataset.url;
+    document.getElementById("quitar-nombre").textContent = e.relatedTarget.dataset.nombre;
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

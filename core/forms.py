@@ -131,7 +131,8 @@ class DatosNegocioForm(forms.ModelForm):
 
         model = Ajustes
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
-                  "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color"]
+                  "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
+                  "vender_sin_caja", "propina_activa"]
         widgets = {
             "logo": forms.ClearableFileInput(attrs={"accept": "image/png,image/jpeg,image/webp"}),
             "color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),

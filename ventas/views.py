@@ -46,10 +46,17 @@ def _catalogo():
 @permiso_requerido("ventas.vender")
 def pos(request):
     categorias = Categoria.objects.filter(activa=True, productos__activo=True).distinct()
+    from caja.servicios import CajaError, sesion_para_vender
+
+    try:
+        sesion_para_vender(request.user)
+        falta_caja = False
+    except CajaError:
+        falta_caja = True
     return render(request, "ventas/pos.html", {
+        "falta_caja": falta_caja,
         "catalogo": _catalogo(),
         "categorias": [{"id": c.pk, "n": c.nombre} for c in categorias],
-        "metodos": [{"id": k, "n": v} for k, v in MetodoPago.choices],
         "puede_precio": puede(request.user, "ventas.precio"),
     })
 
@@ -68,7 +75,7 @@ def registrar(request):
             request.user, datos.get("items") or [], datos.get("pagos") or [], datos.get("descuento") or 0,
             datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""), datos.get("nota", ""),
             token=str(datos.get("token") or "")[:40] or None,
-            puede_cambiar_precio=puede(request.user, "ventas.precio"),
+            puede_cambiar_precio=puede(request.user, "ventas.precio"), propina=datos.get("propina") or 0,
         )
     except VentaInvalida as e:
         return JsonResponse({"error": str(e)}, status=400)
@@ -82,7 +89,7 @@ def _puede_ver(user, venta):
 
 @permiso_requerido("ventas.vender", "ventas.ver")
 def ticket(request, pk):
-    venta = get_object_or_404(Venta.objects.select_related("usuario", "anulada_por").prefetch_related("items", "pagos"), pk=pk)
+    venta = get_object_or_404(Venta.objects.select_related("usuario", "anulada_por", "atendio").prefetch_related("items", "pagos"), pk=pk)
     if not _puede_ver(request.user, venta):
         raise PermissionDenied
     from core.models import Ajustes
@@ -94,11 +101,15 @@ def ticket(request, pk):
     if venta.descuento:
         lineas.append(f"Descuento: -S/ {venta.descuento}")
     lineas += ["", f"*Total: S/ {venta.total}*"]
+    if venta.propina:
+        lineas.append(f"Propina: S/ {venta.propina}")
     if negocio.nota_ticket:
         lineas += ["", negocio.nota_ticket]
     texto = quote("\n".join(lineas))
+    volver = request.GET.get("volver", "")
     return render(request, "ventas/ticket.html", {
         "v": venta, "nueva": request.GET.get("nueva") == "1",
+        "volver": volver if volver.startswith("/") and not volver.startswith("//") else "",
         "wa_texto": texto,
         "ver_costos": puede(request.user, "productos.costos"),
     })
@@ -128,6 +139,9 @@ def _filtrar(request):
         ventas = ventas.filter(usuario=request.user)
     elif usuario:
         ventas = ventas.filter(usuario_id=usuario)
+    caja = entero(request.GET.get("caja"))
+    if caja:
+        ventas = ventas.filter(sesion_caja_id=caja)
     metodo = request.GET.get("metodo", "")
     if metodo in MetodoPago.values:
         ventas = ventas.filter(pagos__metodo=metodo).distinct()
@@ -140,7 +154,7 @@ def _filtrar(request):
         if q.isdigit():
             filtro |= Q(numero=int(q))
         ventas = ventas.filter(filtro).distinct()
-    f = {"desde": desde, "hasta": hasta, "usuario": usuario, "metodo": metodo, "estado": estado, "q": q, "solo_mias": solo_mias}
+    f = {"caja": caja, "desde": desde, "hasta": hasta, "usuario": usuario, "metodo": metodo, "estado": estado, "q": q, "solo_mias": solo_mias}
     return ventas, f
 
 

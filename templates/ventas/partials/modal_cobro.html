@@ -1,0 +1,41 @@
+{% comment %}
+Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro.js:
+  Cobro.abrir({total: centimos, titulo: "...", onConfirmar: function (datos, terminar) {...}})
+{% endcomment %}
+<div class="modal fade" id="m-cobro" tabindex="-1" aria-hidden="true"
+     data-metodos='[{% for k, v in METODOS_PAGO %}{"id": "{{ k }}", "n": "{{ v }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+     data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <form class="modal-content" id="f-cobro" novalidate>
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-cash-coin me-1"></i> <span id="c-titulo">Cobrar</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center mb-3"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
+        <div class="input-group mb-3 d-none" id="c-propina-fila">
+          <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-heart me-1"></i>Propina</span>
+          <input type="number" class="form-control text-end" id="c-propina" min="0" step="0.50" inputmode="decimal" placeholder="0.00">
+          <button type="button" class="btn btn-outline-secondary" data-pct="5">5%</button>
+          <button type="button" class="btn btn-outline-secondary" data-pct="10">10%</button>
+        </div>
+        <div id="c-metodos"></div>
+        <div class="d-flex flex-wrap gap-1 mb-3" id="c-billetes"></div>
+        <div class="alert py-2 text-center fs-5 mb-3" id="c-estado"></div>
+        <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button"><i class="bi bi-person-plus me-1"></i>Cliente y nota (opcional)</a>
+        <div class="collapse" id="c-cliente">
+          <div class="row g-2 mt-1">
+            <div class="col-8"><input type="text" class="form-control" id="c-nombre" placeholder="Nombre del cliente" maxlength="150"></div>
+            <div class="col-4"><input type="text" class="form-control" id="c-doc" placeholder="DNI/RUC" maxlength="11" inputmode="numeric"></div>
+            <div class="col-12"><input type="text" class="form-control" id="c-nota" placeholder="Nota" maxlength="200"></div>
+          </div>
+        </div>
+        <div class="alert alert-danger mt-3 mb-0 d-none" id="c-error"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver</button>
+        <button type="submit" class="btn btn-success btn-lg" id="c-confirmar"><i class="bi bi-check-lg me-1"></i>Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>

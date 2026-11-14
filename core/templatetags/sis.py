@@ -36,3 +36,16 @@ def cantidad(valor):
     except (InvalidOperation, TypeError, ValueError):
         return valor
     return f"{d:f}"
+
+
+@register.filter
+def hace(fecha):
+    """Tiempo transcurrido corto: "8 min", "1 h 05"."""
+    from django.utils import timezone
+
+    if not fecha:
+        return ""
+    minutos = max(0, int((timezone.now() - fecha).total_seconds() // 60))
+    if minutos < 60:
+        return f"{minutos} min"
+    return f"{minutos // 60} h {minutos % 60:02d}"

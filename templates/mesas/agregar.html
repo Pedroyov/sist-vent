@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Pedido · {{ c.titulo }}{% endblock %}
+{% block page_title %}{{ c.titulo }} <small class="text-body-secondary fs-6">tomar pedido</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item"><a href="{% url 'mesas:cuenta' c.pk %}">{{ c.titulo }}</a></li><li class="breadcrumb-item active">Agregar</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pos-card { cursor: pointer; user-select: none; height: 100%; }
+  .pos-card:active { transform: scale(.97); }
+  .pos-card .nombre { font-size: .9rem; font-weight: 600; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.3em; }
+  .pos-card .cuantos { position: absolute; top: .35rem; right: .35rem; }
+  .pos-chips { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .25rem; }
+  .pos-chips .btn { white-space: nowrap; }
+  .hoja { box-shadow: 0 -.25rem 1rem rgba(0,0,0,.15); max-height: 60vh; overflow-y: auto; padding-bottom: calc(.5rem + env(safe-area-inset-bottom)); }
+  .app-content { padding-bottom: 12rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<input type="search" id="buscar" class="form-control form-control-lg mb-2" placeholder="Buscar plato o bebida…" autocomplete="off">
+<div class="pos-chips mb-3" id="cats"></div>
+<div class="row g-2" id="grid"></div>
+
+<div class="fixed-bottom bg-body border-top hoja px-3 pt-2">
+  <div class="mx-auto" style="max-width: 900px">
+    <div class="d-flex align-items-center mb-1">
+      <strong>Pedido nuevo</strong><span class="badge text-bg-primary ms-2" id="n">0</span>
+      <span class="ms-auto fw-semibold" id="total">S/ 0.00</span>
+    </div>
+    <ul class="list-unstyled mb-2 small" id="lineas"></ul>
+    <div class="alert alert-danger py-2 small d-none" id="error"></div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'mesas:cuenta' c.pk %}" class="btn btn-outline-secondary">Volver</a>
+      <button type="button" class="btn btn-outline-primary flex-grow-1" id="btn-agregar" disabled>Agregar</button>
+      <button type="button" class="btn btn-primary flex-grow-1" id="btn-enviar" disabled><i class="bi bi-send me-1"></i>Agregar y enviar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="m-variante" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="mv-titulo"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body"><div class="row g-2" id="mv-lista"></div></div>
+  </div></div>
+</div>
+{{ catalogo|json_script:"datos-catalogo" }}
+{{ categorias|json_script:"datos-categorias" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  "use strict";
+  var CAT = JSON.parse(document.getElementById("datos-catalogo").textContent);
+  var CATS = JSON.parse(document.getElementById("datos-categorias").textContent);
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+  var cent = function (t) { return Math.round(parseFloat(t) * 100); };
+  var soles = function (c) { return "S/ " + (c / 100).toFixed(2); };
+  var norm = function (s) { return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); };
+  var GUARDADO = "pedido_cuenta_{{ c.pk }}";
+  var porVar = {};
+  CAT.forEach(function (p) { p.busca = norm(p.n + " " + p.v.map(function (v) { return v.n; }).join(" ")); p.v.forEach(function (v) { porVar[v.id] = {p: p, v: v}; }); });
+  var lineas = [], categoria = "";
+  try { lineas = (JSON.parse(sessionStorage.getItem(GUARDADO) || "[]") || []).filter(function (l) { return porVar[l.vid]; }); } catch (e) {}
+
+  function chips() {
+    $("cats").innerHTML = '<button type="button" class="btn btn-sm ' + (categoria === "" ? "btn-primary" : "btn-outline-secondary") + '" data-cat="">Todo</button>' +
+      CATS.map(function (c) { return '<button type="button" class="btn btn-sm ' + (String(categoria) === String(c.id) ? "btn-primary" : "btn-outline-secondary") + '" data-cat="' + c.id + '">' + esc(c.n) + "</button>"; }).join("");
+  }
+  function cuantos(p) { return lineas.filter(function (l) { return porVar[l.vid].p === p; }).reduce(function (a, l) { return a + l.cant; }, 0); }
+  function grid() {
+    var palabras = norm($("buscar").value.trim()).split(/\s+/).filter(Boolean);
+    $("grid").innerHTML = CAT.filter(function (p) {
+      return (categoria === "" || String(p.c) === String(categoria)) && palabras.every(function (w) { return p.busca.indexOf(w) >= 0; });
+    }).slice(0, 150).map(function (p) {
+      var n = cuantos(p), min = Math.min.apply(null, p.v.map(function (v) { return cent(v.p); }));
+      return '<div class="col-6 col-sm-4 col-lg-3"><div class="card pos-card position-relative" data-p="' + p.id + '"><div class="card-body p-2">' +
+        (n ? '<span class="badge rounded-pill text-bg-primary cuantos">' + n + "</span>" : "") +
+        '<div class="nombre">' + esc(p.n) + '</div><div class="small mt-1">' + (p.v.length > 1 ? "desde " : "") + soles(min) +
+        (p.v.length > 1 ? ' · <span class="text-primary">' + p.v.length + " opciones</span>" : "") + "</div></div></div></div>";
+    }).join("");
+  }
+  function pintar() {
+    var total = 0;
+    $("lineas").innerHTML = lineas.map(function (l, i) {
+      var x = porVar[l.vid], sub = Math.round(cent(x.v.p) * l.cant);
+      total += sub;
+      return '<li class="d-flex align-items-center gap-1 mb-1">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-menos="' + i + '">−</button><strong class="px-1">' + l.cant + "</strong>" +
+        '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-mas="' + i + '">+</button>' +
+        '<span class="text-truncate ms-1" style="max-width: 40%">' + esc(x.p.n) + (x.v.n ? " · " + esc(x.v.n) : "") + "</span>" +
+        '<input type="text" class="form-control form-control-sm ms-auto" style="max-width: 45%" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="Nota (sin cebolla…)"></li>';
+    }).join("");
+    var n = lineas.reduce(function (a, l) { return a + l.cant; }, 0);
+    $("n").textContent = n;
+    $("total").textContent = soles(total);
+    $("btn-agregar").disabled = $("btn-enviar").disabled = !lineas.length;
+    try { sessionStorage.setItem(GUARDADO, JSON.stringify(lineas)); } catch (e) {}
+    grid();
+  }
+  function sumar(vid) {
+    var l = lineas.find(function (l) { return l.vid === vid && !l.nota; });
+    if (l) l.cant += 1; else lineas.push({vid: vid, cant: 1, nota: ""});
+    pintar();
+  }
+  function guardar(enviar) {
+    $("btn-agregar").disabled = $("btn-enviar").disabled = true;
+    $("error").classList.add("d-none");
+    fetch("{% url 'mesas:agregar' c.pk %}", {method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
+      body: JSON.stringify({enviar: enviar, items: lineas.map(function (l) { return {variante: l.vid, cantidad: l.cant, nota: l.nota}; })})})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) throw new Error(d.error || "No se pudo guardar.");
+        try { sessionStorage.removeItem(GUARDADO); } catch (e) {}
+        location.href = d.url;
+      })
+      .catch(function (e) {
+        $("error").textContent = e.message === "Failed to fetch" ? "Sin conexión: el pedido sigue aquí, vuelve a intentar." : e.message;
+        $("error").classList.remove("d-none");
+        $("btn-agregar").disabled = $("btn-enviar").disabled = false;
+      });
+  }
+
+  $("cats").addEventListener("click", function (e) { var b = e.target.closest("[data-cat]"); if (b) { categoria = b.dataset.cat; chips(); grid(); } });
+  $("buscar").addEventListener("input", grid);
+  $("grid").addEventListener("click", function (e) {
+    var card = e.target.closest("[data-p]");
+    if (!card) return;
+    var p = CAT.find(function (p) { return String(p.id) === card.dataset.p; });
+    if (p.v.length === 1) return sumar(p.v[0].id);
+    $("mv-titulo").textContent = p.n;
+    $("mv-lista").innerHTML = p.v.map(function (v) {
+      return '<div class="col-6"><button type="button" class="btn btn-outline-primary w-100 py-3" data-v="' + v.id + '"><div class="fw-semibold">' + esc(v.n) + "</div>" + soles(cent(v.p)) + "</button></div>";
+    }).join("");
+    bootstrap.Modal.getOrCreateInstance($("m-variante")).show();
+  });
+  $("mv-lista").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-v]");
+    if (!b) return;
+    sumar(parseInt(b.dataset.v, 10));
+    bootstrap.Modal.getInstance($("m-variante")).hide();
+  });
+  $("lineas").addEventListener("click", function (e) {
+    var b;
+    if ((b = e.target.closest("[data-mas]"))) { lineas[b.dataset.mas].cant += 1; pintar(); }
+    else if ((b = e.target.closest("[data-menos]"))) { var l = lineas[b.dataset.menos]; l.cant -= 1; if (l.cant <= 0) lineas.splice(b.dataset.menos, 1); pintar(); }
+  });
+  $("lineas").addEventListener("change", function (e) {
+    if (e.target.dataset.nota !== undefined) { lineas[e.target.dataset.nota].nota = e.target.value.trim(); try { sessionStorage.setItem(GUARDADO, JSON.stringify(lineas)); } catch (x) {} }
+  });
+  $("btn-agregar").addEventListener("click", function () { guardar(false); });
+  $("btn-enviar").addEventListener("click", function () { guardar(true); });
+  chips(); pintar();
+})();
+</script>
+{% endblock %}

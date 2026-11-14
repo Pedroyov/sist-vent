@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Caja {{ s.numero }}{% endblock %}
+{% block page_title %}{% if s.abierta and es_mia %}Mi caja{% else %}Caja {{ s.numero }}{% endif %}
+  <small class="text-body-secondary fs-6">{{ s.usuario|nombre }}</small>
+  {% if s.abierta %}<span class="badge text-bg-success fs-6 align-middle">Abierta</span>{% else %}<span class="badge text-bg-secondary fs-6 align-middle">Cerrada</span>{% endif %}{% endblock %}
+{% block breadcrumb %}{% if P.caja_ver %}<li class="breadcrumb-item"><a href="{% url 'caja:historial' %}">Cajas</a></li>{% else %}<li class="breadcrumb-item">Caja</li>{% endif %}<li class="breadcrumb-item active">{{ s.numero }}</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cuadro td { padding: .35rem .75rem; }
+  .cuadro .total td { border-top: 2px solid var(--bs-border-color); font-weight: 700; font-size: 1.1rem; }
+  @media print {
+    .app-content > .container-fluid > *:not(.reporte) { display: none !important; }
+    .reporte .no-print { display: none !important; }
+    .reporte { max-width: 76mm; font-size: 11.5px; }
+    .reporte .col-lg-7, .reporte .col-lg-5 { width: 100% !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if s.de_dias_anteriores %}
+<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Esta caja está abierta desde el {{ s.abierta_en|date:"d/m" }}. Ciérrala y abre una nueva cada día para que cuadre mejor.</div>
+{% endif %}
+{% if puede_operar %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if es_mia and P.ventas_vender %}<a href="{% url 'ventas:pos' %}" class="btn btn-success"><i class="bi bi-cart-plus me-1"></i>Vender</a>{% endif %}
+  <a href="{% url 'caja:egreso' s.pk %}" class="btn btn-outline-danger"><i class="bi bi-box-arrow-up me-1"></i>Sacar dinero</a>
+  <a href="{% url 'caja:ingreso' s.pk %}" class="btn btn-outline-success"><i class="bi bi-box-arrow-in-down me-1"></i>Meter dinero</a>
+  <a href="{% url 'caja:cerrar' s.pk %}" class="btn btn-dark ms-sm-auto"><i class="bi bi-lock me-1"></i>Cerrar caja</a>
+</div>
+{% endif %}
+
+<div class="row g-3 reporte">
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-cash-stack me-1"></i> Efectivo en el cajón</h3>
+        {% if not s.abierta %}<button class="btn btn-sm btn-outline-secondary ms-auto no-print" onclick="window.print()"><i class="bi bi-printer"></i></button>{% endif %}
+      </div>
+      <table class="table table-sm mb-0 cuadro">
+        <tr><td>Abrió el {{ s.abierta_en|date:"d/m/Y H:i" }} con</td><td class="text-end">{{ r.inicial|soles }}</td></tr>
+        <tr><td>+ Ventas en efectivo</td><td class="text-end text-success">{{ r.efectivo_ventas|soles }}</td></tr>
+        {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="text-end text-success">{{ r.ingresos|soles }}</td></tr>{% endif %}
+        {% if r.egresos %}<tr><td>− Egresos</td><td class="text-end text-danger">{{ r.egresos|soles }}</td></tr>{% endif %}
+        <tr class="total"><td>Debe haber</td><td class="text-end">{{ r.esperado|soles }}</td></tr>
+        {% if not s.abierta %}
+        <tr><td>Se contó</td><td class="text-end fw-semibold">{{ s.contado|soles }}</td></tr>
+        <tr class="{% if s.diferencia < 0 %}table-danger{% elif s.diferencia > 0 %}table-warning{% else %}table-success{% endif %}">
+          <td>{% if s.diferencia < 0 %}Faltante{% elif s.diferencia > 0 %}Sobrante{% else %}Diferencia{% endif %}</td>
+          <td class="text-end fw-bold">{% if s.diferencia == 0 %}Cuadró exacto{% else %}{{ s.diferencia|soles }}{% endif %}</td></tr>
+        {% endif %}
+      </table>
+      {% if not s.abierta %}
+      <div class="card-footer small text-body-secondary">Cerrada el {{ s.cerrada_en|date:"d/m/Y H:i" }}{% if s.cerrada_por_id != s.usuario_id %} por {{ s.cerrada_por|nombre }}{% endif %}.
+        {% if s.nota_cierre %}<br>Nota: {{ s.nota_cierre }}{% endif %}
+        {% if conteo %}<br>Conteo: {% for d, n in conteo %}{{ n }}×{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+      {% endif %}
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Ventas del turno</h3></div>
+      <table class="table table-sm mb-0 cuadro">
+        {% for m in r.metodos %}<tr><td>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></td><td class="text-end">{{ m.total|soles }}</td></tr>{% endfor %}
+        <tr class="total"><td>Total vendido ({{ r.n_ventas }})</td><td class="text-end">{{ r.total_ventas|soles }}</td></tr>
+        {% if r.propinas %}<tr><td>Propinas (incluidas en los pagos)</td><td class="text-end">{{ r.propinas|soles }}</td></tr>{% endif %}
+        {% if r.anuladas %}<tr><td class="text-danger">Ventas anuladas</td><td class="text-end text-danger">{{ r.anuladas }}</td></tr>{% endif %}
+      </table>
+      <div class="card-footer small no-print"><a href="{% url 'ventas:lista' %}?caja={{ s.pk }}&desde={{ s.abierta_en|date:'Y-m-d' }}&hasta={% if s.cerrada_en %}{{ s.cerrada_en|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">Ver las ventas de este turno</a></div>
+    </div>
+  </div>
+
+  <div class="col-lg-7 no-print">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-arrow-left-right me-1"></i> Ingresos y egresos</h3></div>
+      {% if movimientos %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th class="ps-3">Hora</th><th>Detalle</th><th class="text-end pe-3">Monto</th></tr></thead>
+          <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m H:i" }}</td>
+              <td>{{ m.concepto }}<div class="small text-body-secondary">{{ m.get_categoria_display }}{% if m.usuario_id != s.usuario_id %} · {{ m.usuario|nombre }}{% endif %}{% if m.automatico %} · automático{% endif %}</div></td>
+              <td class="text-end pe-3 fw-semibold text-nowrap {% if m.tipo == 'ING' %}text-success{% else %}text-danger{% endif %}">{% if m.tipo == 'ING' %}+{% else %}−{% endif %}{{ m.monto|soles }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body small text-body-secondary">Sin ingresos ni egresos. Si pagas a un proveedor o sacas dinero del cajón, regístralo con <strong>Sacar dinero</strong> para que la caja cuadre.</div>
+      {% endif %}
+    </div>
+    {% if r.otros_medios %}
+    <div class="alert alert-light border small"><i class="bi bi-phone me-1"></i>Yape, Plin, tarjeta y transferencias ({{ r.otros_medios|soles }}) no están en el cajón: revísalos en tu app o en el voucher.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

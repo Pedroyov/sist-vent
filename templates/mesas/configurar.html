@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Configurar mesas{% endblock %}
+{% block page_title %}Zonas y mesas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item active">Configurar</li>{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% for z in zonas %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0">{{ z.nombre }} <small class="text-body-secondary">({{ z.n }} mesas)</small></h3>
+        {% if not z.n %}<form method="post" class="ms-auto">{% csrf_token %}<input type="hidden" name="accion" value="borrar_zona"><input type="hidden" name="pk" value="{{ z.pk }}"><button class="btn btn-sm btn-link text-danger">Eliminar zona</button></form>{% endif %}</div>
+      <ul class="list-group list-group-flush">
+        {% for m in z.mesas.all %}
+        <li class="list-group-item">
+          <form method="post" class="row g-2 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="mesa"><input type="hidden" name="pk" value="{{ m.pk }}">
+            <div class="col-3 col-md-2"><input name="nombre" value="{{ m.nombre }}" class="form-control form-control-sm" maxlength="20" aria-label="Nombre"></div>
+            <div class="col-3 col-md-2"><div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-people"></i></span><input name="capacidad" type="number" min="1" value="{{ m.capacidad }}" class="form-control" aria-label="Capacidad"></div></div>
+            <div class="col-6 col-md-3"><select name="zona" class="form-select form-select-sm" aria-label="Zona">{% for zz in zonas %}<option value="{{ zz.pk }}" {% if zz.pk == m.zona_id %}selected{% endif %}>{{ zz.nombre }}</option>{% endfor %}</select></div>
+            <div class="col-6 col-md-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="activa" id="act{{ m.pk }}" {% if m.activa %}checked{% endif %}><label class="form-check-label small" for="act{{ m.pk }}">Activa</label></div></div>
+            <div class="col-6 col-md-3 text-end"><button class="btn btn-sm btn-outline-primary">Guardar</button>
+              <button name="accion" value="borrar_mesa" class="btn btn-sm btn-link text-danger" onclick="return confirm('¿Quitar la mesa {{ m.nombre|escapejs }}?')"><i class="bi bi-trash"></i></button></div>
+          </form>
+        </li>
+        {% empty %}<li class="list-group-item small text-body-secondary">Sin mesas.</li>{% endfor %}
+      </ul>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">Empieza creando una zona (por ejemplo «Salón») y luego sus mesas.</div>
+    {% endfor %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card card-outline card-primary mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-plus-lg me-1"></i> Crear mesas</h3></div>
+      <form method="post" class="card-body">{% csrf_token %}<input type="hidden" name="accion" value="lote">
+        {% if zonas %}
+        <label class="form-label" for="zona">Zona</label>
+        <select name="zona" id="zona" class="form-select mb-2">{% for z in zonas %}<option value="{{ z.pk }}">{{ z.nombre }}</option>{% endfor %}</select>
+        <div class="row g-2 mb-2">
+          <div class="col-4"><label class="form-label small" for="prefijo">Prefijo</label><input name="prefijo" id="prefijo" class="form-control" maxlength="8" placeholder="T"></div>
+          <div class="col-4"><label class="form-label small" for="desde">Del</label><input name="desde" id="desde" type="number" min="0" value="1" class="form-control"></div>
+          <div class="col-4"><label class="form-label small" for="hasta">al</label><input name="hasta" id="hasta" type="number" min="0" value="10" class="form-control"></div>
+        </div>
+        <label class="form-label small" for="capacidad">Personas por mesa</label><input name="capacidad" id="capacidad" type="number" min="1" value="4" class="form-control mb-2">
+        <div class="form-text mb-2">Ej.: prefijo «T», del 1 al 5 → T1, T2… T5. Sin prefijo → 1, 2, 3…</div>
+        <button class="btn btn-primary w-100">Crear mesas</button>
+        {% else %}<p class="small text-body-secondary mb-0">Primero crea una zona.</p>{% endif %}
+      </form>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">Nueva zona</h3></div>
+      <form method="post" class="card-body d-flex gap-2">{% csrf_token %}<input type="hidden" name="accion" value="zona">
+        <input name="nombre" class="form-control" maxlength="40" placeholder="Salón, Terraza…" required><button class="btn btn-outline-primary">Crear</button></form>
+    </div>
+  </div>
+</div>
+{% endblock %}

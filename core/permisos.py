@@ -23,6 +23,8 @@ ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR]
 #   ("caja", "Caja", "bi-cash-stack", "Apertura, cierre, ingresos y egresos."),
 #   ("clientes", "Clientes", "bi-people", "Clientes, historial y deudas."),
 MODULOS = [
+    ("caja", "Caja", "bi-safe2", "Apertura y cierre de caja por turno, ingresos y egresos, arqueo del efectivo."),
+    ("mesas", "Mesas", "bi-grid-3x3-gap", "Para restaurantes: mapa de mesas, pedidos con notas, envío a cocina, precuenta y cobro por mesa."),
     ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets, ventas del día y anulaciones."),
     ("productos", "Productos", "bi-box-seam", "Catálogo de productos y servicios, variantes (talla, color, tamaño), precios y stock."),
 ]
@@ -31,6 +33,14 @@ MODULOS_BASE = ("config",)
 # (código, módulo, descripción, roles que lo tienen por defecto)
 # Administración y el superusuario siempre tienen todos.
 PERMISOS = [
+    ("caja.usar", "caja", "Abrir y cerrar su propia caja, registrar ingresos y egresos", [CAJERO, VENDEDOR]),
+    ("caja.ver", "caja", "Ver todas las cajas, sus cierres y diferencias; cerrar la caja de otro", []),
+
+    ("mesas.atender", "mesas", "Abrir mesas, tomar pedidos, enviar a cocina, precuenta, cambiar y juntar mesas", [CAJERO, VENDEDOR]),
+    ("mesas.cobrar", "mesas", "Cobrar mesas (todo o dividiendo la cuenta)", [CAJERO]),
+    ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
+    ("mesas.configurar", "mesas", "Crear y editar zonas y mesas", []),
+
     ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),
     ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),
     ("ventas.precio", "ventas", "Cambiar precios y dar descuentos al vender", []),

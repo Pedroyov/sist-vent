@@ -15,6 +15,7 @@
   </div>
 </div>
 
+{% if f.caja %}<div class="alert alert-info py-2 small"><i class="bi bi-safe2 me-1"></i>Solo las ventas de la caja {{ f.caja|stringformat:"05d" }}. <a href="{% url 'ventas:lista' %}">Ver todas</a></div>{% endif %}
 {# ---------- Resumen ---------- #}
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100"><div class="inner"><h3>{{ r.total|soles }}</h3><p class="mb-0">Vendido{% if f.desde == f.hasta %} el {{ f.desde|date:"d/m" }}{% endif %}</p></div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
@@ -27,6 +28,7 @@
       <ul class="list-group list-group-flush small">
         {% for m in r.metodos %}<li class="list-group-item d-flex py-1"><span>{{ m.metodo }}</span><span class="ms-auto fw-semibold">{{ m.total|soles }}</span></li>
         {% empty %}<li class="list-group-item text-body-secondary">Sin cobros</li>{% endfor %}
+        {% if r.propinas %}<li class="list-group-item d-flex py-1"><span>Propinas (en los pagos)</span><span class="ms-auto">{{ r.propinas|soles }}</span></li>{% endif %}
         {% if r.anuladas %}<li class="list-group-item d-flex py-1 text-danger"><span>Anuladas</span><span class="ms-auto">{{ r.anuladas }}</span></li>{% endif %}
       </ul>
     </div>

@@ -39,6 +39,10 @@ class Tablero:
     def construir(self):
         self._atajos()
         self._configuracion()
+        if puede(self.user, "caja.usar", "caja.ver"):
+            self._caja()
+        if puede(self.user, "mesas.atender", "mesas.cobrar"):
+            self._mesas()
         if puede(self.user, "ventas.vender", "ventas.ver"):
             self._ventas()
         if puede(self.user, "productos.ver"):
@@ -47,6 +51,8 @@ class Tablero:
 
     def _atajos(self):
         a, u = self.atajos, self.user
+        if puede(u, "mesas.atender", "mesas.cobrar"):
+            a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
         if puede(u, "ventas.vender"):
             a.append({"texto": "Vender", "url": reverse("ventas:pos"), "icono": "bi-cart-plus", "color": "success"})
         if puede(u, "ventas.vender", "ventas.ver"):
@@ -67,6 +73,42 @@ class Tablero:
         if puede(self.user, "config.negocio") and not Ajustes.cargar().nombre:
             self.pendientes.append(_pend("Completa los datos del negocio", reverse("core:datos_negocio"), "bi-shop",
                                          detalle="Nombre, logo, RUC y contacto: salen en el ingreso y en los tickets."))
+
+    def _caja(self):
+        from caja.models import SesionCaja
+
+        if puede(self.user, "caja.usar"):
+            mia = SesionCaja.abierta_de(self.user)
+            if mia is None:
+                self.atajos.insert(0, {"texto": "Abrir caja", "url": reverse("caja:mi_caja"), "icono": "bi-unlock", "color": "warning"})
+                if puede(self.user, "ventas.vender"):
+                    self.pendientes.append(_pend("Abre tu caja para empezar a cobrar", reverse("caja:mi_caja"), "bi-safe2", "warning"))
+            else:
+                self.atajos.append({"texto": "Mi caja", "url": reverse("caja:sesion", args=[mia.pk]), "icono": "bi-safe2", "color": "dark"})
+                if mia.de_dias_anteriores:
+                    self.pendientes.append(_pend(f"Tu caja sigue abierta desde el {timezone.localtime(mia.abierta_en):%d/%m}",
+                                                 reverse("caja:cerrar", args=[mia.pk]), "bi-safe2", "danger", "Ciérrala y abre una nueva."))
+        if puede(self.user, "caja.ver"):
+            viejas = [s for s in SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA).exclude(usuario=self.user).select_related("usuario")
+                      if s.de_dias_anteriores]
+            for s in viejas:
+                self.pendientes.append(_pend(f"La caja de {s.usuario.get_full_name() or s.usuario.username} sigue abierta desde el {timezone.localtime(s.abierta_en):%d/%m}",
+                                             reverse("caja:sesion", args=[s.pk]), "bi-safe2", "danger"))
+
+    def _mesas(self):
+        from mesas.models import Cuenta, Mesa
+
+        abiertas = Cuenta.objects.filter(estado=Cuenta.Estado.ABIERTA)
+        total = Mesa.objects.filter(activa=True).count()
+        ocupadas = abiertas.filter(mesa__isnull=False).count()
+        if total:
+            self.tarjetas.append({"titulo": "Mesas ocupadas", "valor": f"{ocupadas} de {total}", "icono": "bi-grid-3x3-gap",
+                                  "color": "danger" if ocupadas else "secondary", "url": reverse("mesas:mapa")})
+        if puede(self.user, "mesas.cobrar"):
+            n = abiertas.filter(pidio_cuenta=True).count()
+            if n:
+                self.pendientes.append(_pend(f"{_plural(n, 'mesa')} pidió la cuenta" if n == 1 else f"{n} mesas pidieron la cuenta",
+                                             reverse("mesas:mapa"), "bi-receipt", "warning"))
 
     def _ventas(self):
         from ventas.models import Venta

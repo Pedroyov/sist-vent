@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load sis crispy_forms_tags %}
+
+{% block title %}Cerrar caja{% endblock %}
+{% block page_title %}Cerrar caja <small class="text-body-secondary fs-6">{{ s.usuario|nombre }}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'caja:sesion' s.pk %}">Caja {{ s.numero }}</a></li><li class="breadcrumb-item active">Cerrar</li>{% endblock %}
+
+{% block content %}
+<form method="post" novalidate id="f-cierre">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card card-outline card-dark mb-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-coin me-1"></i> Cuenta el efectivo del cajón</h3></div>
+        <div class="card-body">
+          <p class="small text-body-secondary">Escribe cuántos billetes y monedas hay de cada uno (o pon el total directamente abajo).</p>
+          <div class="row g-2">
+            {% for d in denominaciones %}
+            <div class="col-6 col-sm-4 col-md-3">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text" style="width: 4.6rem">{% if d == "0.50" %}50 cént.{% elif d == "0.20" %}20 cént.{% elif d == "0.10" %}10 cént.{% else %}S/ {{ d }}{% endif %}</span>
+                <input type="number" min="0" step="1" inputmode="numeric" class="form-control text-end" name="d_{{ d }}" data-den="{{ d }}" placeholder="0">
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-body">
+          {{ form.contado|as_crispy_field }}
+          <div class="alert text-center py-2 mb-3" id="dif"></div>
+          {{ form.nota|as_crispy_field }}
+          <p class="small text-body-secondary mb-0">Ventas del turno: {{ r.n_ventas }} por {{ r.total_ventas|soles }}. {% if r.otros_medios %}Yape, Plin y tarjeta ({{ r.otros_medios|soles }}) no cuentan aquí.{% endif %}</p>
+        </div>
+        <div class="card-footer d-flex gap-2">
+          <a href="{% url 'caja:sesion' s.pk %}" class="btn btn-outline-secondary">Volver</a>
+          <button class="btn btn-dark ms-auto"><i class="bi bi-lock me-1"></i>Cerrar caja</button>
+        </div>
+      </div>
+      <p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i>Cuenta primero y luego mira la diferencia: así el conteo es honesto. Una vez cerrada, la caja ya no cambia.</p>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var ESPERADO = Math.round({{ r.esperado|stringformat:".2f" }} * 100);
+    var total = document.getElementById("id_contado"), dif = document.getElementById("dif");
+    var soles = function (c) { return "S/ " + (Math.abs(c) / 100).toFixed(2); };
+    function mostrar() {
+      if (total.value === "") { dif.className = "alert alert-light border text-center py-2 mb-3"; dif.textContent = "Ingresa lo contado"; return; }
+      var c = Math.round(parseFloat(total.value) * 100) - ESPERADO;
+      if (c === 0) { dif.className = "alert alert-success text-center py-2 mb-3 fs-5"; dif.innerHTML = '<i class="bi bi-check-circle"></i> Cuadra exacto'; }
+      else if (c > 0) { dif.className = "alert alert-warning text-center py-2 mb-3 fs-5"; dif.textContent = "Sobran " + soles(c); }
+      else { dif.className = "alert alert-danger text-center py-2 mb-3 fs-5"; dif.textContent = "Faltan " + soles(c); }
+    }
+    document.getElementById("f-cierre").addEventListener("input", function (e) {
+      if (e.target.dataset.den !== undefined) {
+        var t = 0;
+        document.querySelectorAll("[data-den]").forEach(function (i) { t += Math.round(parseFloat(i.dataset.den) * 100) * (parseInt(i.value, 10) || 0); });
+        total.value = (t / 100).toFixed(2);
+      }
+      mostrar();
+    });
+    mostrar();
+  })();
+</script>
+{% endblock %}

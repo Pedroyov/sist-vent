@@ -16,6 +16,9 @@ D = Decimal
 
 class Base(TestCase):
     def setUp(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"vender_sin_caja": True})
         self.admin = User.objects.create_user("admin", password="x-clave-123", is_superuser=True)
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
         self.cajero.groups.add(Group.objects.get(name="Cajero"))

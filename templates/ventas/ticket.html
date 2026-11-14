@@ -31,7 +31,11 @@
       <div class="fs-5"><i class="bi bi-check-circle me-1"></i>Venta registrada</div>
       {% if v.vuelto %}<div class="fs-3 fw-bold mt-1">Vuelto: {{ v.vuelto|soles }}</div>{% endif %}
     </div>
+    {% if volver %}
+    <a href="{{ volver }}" class="btn btn-success btn-lg w-100 mb-2" id="btn-nueva" autofocus><i class="bi bi-grid-3x3-gap me-1"></i>Volver a las mesas <small class="opacity-75">(Enter)</small></a>
+    {% else %}
     <a href="{% url 'ventas:pos' %}" class="btn btn-success btn-lg w-100 mb-2" id="btn-nueva" autofocus><i class="bi bi-plus-lg me-1"></i>Nueva venta <small class="opacity-75">(Enter)</small></a>
+    {% endif %}
     {% endif %}
     <div class="d-grid gap-2 mb-3">
       <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir ticket</button>
@@ -92,7 +96,7 @@
           <div class="text-center"><strong>NOTA DE VENTA N° {{ v.numero_str }}</strong></div>
           <div>Fecha: {{ v.fecha|date:"d/m/Y H:i" }}</div>
           {% if v.cliente_nombre or v.cliente_documento %}<div>Cliente: {{ v.cliente_nombre }}{% if v.cliente_documento %} ({{ v.cliente_documento }}){% endif %}</div>{% endif %}
-          <div>Atendió: {{ v.usuario.first_name|default:v.usuario.username }}</div>
+          <div>{% if v.atendio %}Mozo: {{ v.atendio.first_name|default:v.atendio.username }} · Caja: {% else %}Atendió: {% endif %}{{ v.usuario.first_name|default:v.usuario.username }}</div>
           <div class="linea"></div>
           <table>
             {% for i in v.items.all %}
@@ -107,6 +111,7 @@
             <tr><td>Descuento</td><td class="der">-{{ v.descuento }}</td></tr>
             {% endif %}
             <tr style="font-size: 1.25em"><td><strong>TOTAL S/</strong></td><td class="der"><strong>{{ v.total }}</strong></td></tr>
+            {% if v.propina %}<tr><td>Propina</td><td class="der">{{ v.propina }}</td></tr>{% endif %}
             {% for p in v.pagos.all %}
             <tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="der">{{ p.monto }}</td></tr>
             {% endfor %}

@@ -1,0 +1,120 @@
+"""Abrir, mover y cerrar la caja. El efectivo esperado se calcula siempre igual: aquí."""
+from decimal import Decimal, InvalidOperation
+
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Sum
+from django.utils import timezone
+
+from .models import CERO, DENOMINACIONES, MovimientoCaja, SesionCaja
+
+
+class CajaError(Exception):
+    pass
+
+
+def caja_activa():
+    from core.permisos import modulos_activos
+
+    return "caja" in modulos_activos()
+
+
+def sesion_para_vender(usuario):
+    """Caja abierta de quien cobra. Si el módulo está activo y es obligatoria, sin caja no se vende."""
+    if not caja_activa():
+        return None
+    sesion = SesionCaja.abierta_de(usuario)
+    if sesion is None:
+        from core.models import Ajustes
+
+        if not Ajustes.cargar().vender_sin_caja:
+            raise CajaError("Abre tu caja antes de cobrar (menú Caja).")
+    return sesion
+
+
+def abrir(usuario, monto_inicial, nota=""):
+    try:
+        with transaction.atomic():
+            return SesionCaja.objects.create(usuario=usuario, monto_inicial=monto_inicial, nota_apertura=nota[:200])
+    except IntegrityError:
+        raise CajaError("Ya tienes una caja abierta.")
+
+
+def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False):
+    if not sesion.abierta:
+        raise CajaError("La caja ya está cerrada.")
+    return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150],
+                                         categoria=categoria, usuario=usuario, automatico=automatico)
+
+
+def calcular(sesion):
+    """Resumen del turno. El efectivo esperado = inicial + efectivo de ventas + ingresos − egresos."""
+    from ventas.models import MetodoPago, Pago, Venta
+
+    ventas = Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.PAGADA)
+    v = ventas.aggregate(n=Count("id"), total=Sum("total"), propinas=Sum("propina"))
+    nombres = dict(MetodoPago.choices)
+    metodos = []
+    efectivo_ventas = CERO
+    for m in Pago.objects.filter(venta__in=ventas).values("metodo").annotate(total=Sum("monto"), n=Count("venta", distinct=True)).order_by("-total"):
+        metodos.append({"codigo": m["metodo"], "metodo": nombres.get(m["metodo"], m["metodo"]), "total": m["total"], "n": m["n"]})
+        if m["metodo"] == MetodoPago.EFECTIVO:
+            efectivo_ventas = m["total"]
+    movs = sesion.movimientos.values("tipo").annotate(t=Sum("monto"))
+    ingresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.INGRESO), CERO)
+    egresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.EGRESO), CERO)
+    return {
+        "inicial": sesion.monto_inicial, "n_ventas": v["n"] or 0, "total_ventas": v["total"] or CERO,
+        "propinas": v["propinas"] or CERO, "metodos": metodos, "efectivo_ventas": efectivo_ventas,
+        "otros_medios": sum((m["total"] for m in metodos if m["codigo"] != MetodoPago.EFECTIVO), CERO),
+        "ingresos": ingresos, "egresos": egresos,
+        "esperado": sesion.monto_inicial + efectivo_ventas + ingresos - egresos,
+        "anuladas": Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.ANULADA).count(),
+    }
+
+
+def total_conteo(conteo):
+    """{"200": 1, "0.50": 3} -> 201.50 (ignora lo que no sea una denominación válida)."""
+    total = CERO
+    limpio = {}
+    for d in DENOMINACIONES:
+        try:
+            n = int(conteo.get(d) or 0)
+        except (TypeError, ValueError):
+            n = 0
+        if n > 0:
+            limpio[d] = n
+            total += Decimal(d) * n
+    return total, limpio
+
+
+def cerrar(sesion, contado, usuario, conteo=None, nota=""):
+    with transaction.atomic():
+        s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
+        if not s.abierta:
+            raise CajaError("Esta caja ya estaba cerrada.")
+        r = calcular(s)
+        s.estado = SesionCaja.Estado.CERRADA
+        s.cerrada_en = timezone.now()
+        s.cerrada_por = usuario
+        s.esperado = r["esperado"]
+        s.contado = contado
+        s.diferencia = contado - r["esperado"]
+        s.conteo = conteo or {}
+        s.nota_cierre = nota[:300]
+        s.resumen = {k: (str(v) if isinstance(v, Decimal) else v) for k, v in r.items() if k != "metodos"}
+        s.resumen["metodos"] = [{**m, "total": str(m["total"])} for m in r["metodos"]]
+        s.save()
+    return s
+
+
+def resumen_guardado(sesion):
+    """Para una caja cerrada: el resumen tal como quedó al cerrar (con números Decimal)."""
+    r = dict(sesion.resumen or {})
+    for k, v in list(r.items()):
+        if isinstance(v, str):
+            try:
+                r[k] = Decimal(v)
+            except InvalidOperation:
+                pass
+    r["metodos"] = [{**m, "total": Decimal(m["total"])} for m in r.get("metodos", [])]
+    return r

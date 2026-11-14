@@ -61,7 +61,8 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Base** – Login con bloqueo, usuarios, roles y permisos, módulos activables, datos del negocio (rubro, logo, RUC), PWA instalable
 - [x] **Productos** – Productos y servicios, categorías, variantes (talla, color, tamaño), códigos de barras, stock con kardex, importar y exportar Excel
 - [x] **Punto de venta** – Venta rápida con lectora de códigos, variantes, cobro en efectivo con vuelto, Yape, Plin, tarjeta o mixto, ticket 80 mm y WhatsApp, ventas del día por método, anulaciones
-- [ ] Caja (apertura, cierre, ingresos y egresos)
+- [x] **Caja** – Turno por cajero, ingresos y egresos, cierre con conteo de billetes y diferencia, historial
+- [x] **Mesas** – Mapa de mesas en vivo, pedidos desde el celular con notas, envío a cocina, precuenta, cambiar y juntar mesas, cobro total o dividido, para llevar, propina opcional
 - [ ] Clientes
 - [ ] Reportes
 - [ ] Despliegue con HTTPS

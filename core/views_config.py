@@ -201,6 +201,12 @@ def datos_negocio(request):
         if not a.logo and a.version_logo:
             a.version_logo = 0
             a.save(update_fields=["version_logo"])
+        from .models import Rubro
+
+        if a.rubro == Rubro.RESTAURANTE and "mesas" in a.modulos_inactivos:
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "mesas"]
+            a.save(update_fields=["modulos_inactivos"])
+            messages.info(request, "Se activó el módulo Mesas, porque el negocio es un restaurante.")
         messages.success(request, "Datos del negocio guardados. Si instalaste la app en el celular, el ícono nuevo puede tardar en aparecer (o reinstálala).")
         return redirect("core:datos_negocio")
     return render(request, "core/config/negocio.html", {"form": form, "c": ajustes})
