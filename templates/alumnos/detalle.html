@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}{{ alumno.nombre_completo }}{% endblock %}
+{% block page_title %}Ficha del alumno{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'alumnos:lista' %}">Alumnos</a></li>
+  <li class="breadcrumb-item active">{{ alumno.apellidos }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  {# ---------- Columna izquierda: datos ---------- #}
+  <div class="col-lg-4">
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-body text-center">
+        {% include "alumnos/partials/avatar.html" with alumno=alumno size=96 %}
+        <h4 class="mt-3 mb-0">{{ alumno.nombres }}</h4>
+        <div class="text-body-secondary">{{ alumno.apellidos }}</div>
+        <div class="mt-2">
+          {% if mat_actual %}
+            <span class="badge text-bg-primary fs-6">{{ mat_actual.seccion.grado.nombre }} «{{ mat_actual.seccion.nombre }}»</span>
+            <div class="small text-body-secondary mt-1">{{ mat_actual.seccion.grado.nivel }} · {{ mat_actual.seccion.get_turno_display }} · {{ anio }}</div>
+            {% if mat_actual.estado != "MAT" %}<span class="badge text-bg-danger mt-1">{{ mat_actual.get_estado_display }}</span>{% endif %}
+          {% elif anio %}
+            <span class="badge text-bg-warning">Sin matrícula en {{ anio }}</span>
+            {% if P.alumnos_editar %}<div class="mt-2"><a href="{% url 'alumnos:matricular' alumno.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-pencil-square me-1"></i>Matricular</a></div>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between"><span class="text-body-secondary">{{ alumno.get_tipo_documento_display }}</span><strong>{{ alumno.numero_documento }}</strong></li>
+        {% if alumno.codigo %}<li class="list-group-item d-flex justify-content-between"><span class="text-body-secondary">Código</span><span>{{ alumno.codigo }}</span></li>{% endif %}
+        <li class="list-group-item d-flex justify-content-between"><span class="text-body-secondary">Nacimiento</span>
+          <span>{% if alumno.fecha_nacimiento %}{{ alumno.fecha_nacimiento|date:"d/m/Y" }} ({{ alumno.edad }} años){% else %}—{% endif %}</span></li>
+        <li class="list-group-item d-flex justify-content-between"><span class="text-body-secondary">Sexo</span><span>{{ alumno.get_sexo_display|default:"—" }}</span></li>
+        <li class="list-group-item"><span class="text-body-secondary">Dirección</span><div>{{ alumno.direccion|default:"—" }}</div></li>
+      </ul>
+      {% if alumno.observaciones %}
+      <div class="card-body border-top">
+        <div class="alert alert-warning small mb-0 py-2"><i class="bi bi-heart-pulse me-1"></i>{{ alumno.observaciones|linebreaksbr }}</div>
+      </div>
+      {% endif %}
+      <div class="card-footer">
+        {% if P.alumnos_editar %}<a href="{% url 'alumnos:editar' alumno.pk %}" class="btn btn-outline-primary w-100"><i class="bi bi-pencil me-1"></i>Editar datos</a>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ---------- Columna derecha ---------- #}
+  <div class="col-lg-8">
+    {# Apoderados #}
+    <div class="card mb-4" id="apoderados">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-person-heart me-1"></i> Apoderados</h3>
+        {% if P.alumnos_editar %}<a href="{% url 'alumnos:apoderado_agregar' alumno.pk %}" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-lg"></i> Agregar</a>{% endif %}
+      </div>
+      {% if vinculos %}
+      <ul class="list-group list-group-flush">
+        {% for v in vinculos %}
+        <li class="list-group-item">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ v.apoderado.nombres }} {{ v.apoderado.apellidos }}
+                <span class="badge text-bg-light border fw-normal">{{ v.get_parentesco_display }}</span>
+                {% if v.responsable_pago %}<span class="badge text-bg-success fw-normal"><i class="bi bi-cash-coin"></i> Responsable de pagos</span>{% endif %}
+              </div>
+              <div class="small text-body-secondary">
+                {{ v.apoderado.get_tipo_documento_display }} {{ v.apoderado.numero_documento }}
+                {% if v.apoderado.email %} · {{ v.apoderado.email }}{% endif %}
+              </div>
+            </div>
+            <div class="d-flex gap-1">
+              {% if v.apoderado.celular %}
+              <a href="tel:{{ v.apoderado.celular }}" class="btn btn-sm btn-outline-secondary" title="Llamar"><i class="bi bi-telephone"></i><span class="d-none d-md-inline ms-1">{{ v.apoderado.celular }}</span></a>
+              {% endif %}
+              {% if v.apoderado.whatsapp %}
+              <a href="https://wa.me/{{ v.apoderado.whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+              {% endif %}
+              {% if P.alumnos_editar %}<a href="{% url 'alumnos:vinculo_editar' v.pk %}" class="btn btn-sm btn-outline-secondary" title="Editar"><i class="bi bi-pencil"></i></a>
+              <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar"
+                      data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                      data-url="{% url 'alumnos:vinculo_quitar' v.pk %}"
+                      data-mensaje="¿Quitar a {{ v.apoderado.nombres }} {{ v.apoderado.apellidos }} como apoderado de {{ alumno.nombres }}?">
+                <i class="bi bi-x-lg"></i>
+              </button>{% endif %}
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body text-body-secondary small">
+        <i class="bi bi-exclamation-circle text-warning me-1"></i>Sin apoderado registrado. Agrégalo para poder enviarle recordatorios de pago.
+      </div>
+      {% endif %}
+    </div>
+
+    {# Matrículas #}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-journal-bookmark me-1"></i> Matrículas</h3>
+      </div>
+      {% if matriculas %}
+      <ul class="list-group list-group-flush">
+        {% for m in matriculas %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <span class="badge text-bg-secondary">{{ m.anio_lectivo }}</span>
+          <div class="flex-grow-1">
+            <div>{{ m.seccion.grado.nombre }} «{{ m.seccion.nombre }}» · {{ m.seccion.grado.nivel }}</div>
+            <div class="small text-body-secondary">
+              {{ m.get_tipo_display }} · {{ m.fecha|date:"d/m/Y" }}
+              {% if m.fecha_retiro %} · {{ m.get_estado_display }} el {{ m.fecha_retiro|date:"d/m/Y" }}{% endif %}
+              {% if m.observacion %} · {{ m.observacion }}{% endif %}
+            </div>
+          </div>
+          <span class="badge {% if m.estado == 'MAT' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ m.get_estado_display }}</span>
+          {% if P.alumnos_editar %}<a href="{% url 'alumnos:matricula_editar' m.pk %}" class="btn btn-sm btn-outline-secondary" title="Editar / retirar"><i class="bi bi-pencil"></i></a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body text-body-secondary small">Sin matrículas.</div>
+      {% endif %}
+    </div>
+
+    {% if hermanos %}
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-people me-1"></i> Hermanos en el colegio</h3></div>
+      <div class="list-group list-group-flush">
+        {% for h in hermanos %}
+        <a href="{% url 'alumnos:detalle' h.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          {% include "alumnos/partials/avatar.html" with alumno=h size=32 %}
+          {{ h.nombre_completo }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if cuenta and P.cobranza_ver %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Pagos {{ anio }}</h3>
+        <a href="{% url 'cobranza:cobrar' alumno.pk %}" class="btn btn-sm btn-success ms-auto"><i class="bi bi-wallet2 me-1"></i>Estado de cuenta / cobrar</a>
+      </div>
+      <div class="card-body d-flex flex-wrap gap-4">
+        <div><div class="small text-body-secondary">Pagado</div><div class="fs-5 fw-semibold">{{ cuenta.pagado|soles }}</div></div>
+        <div><div class="small text-body-secondary">Pendiente</div><div class="fs-5 fw-semibold">{{ cuenta.saldo|soles }}</div></div>
+        <div><div class="small text-body-secondary">Vencido</div><div class="fs-5 fw-semibold {% if cuenta.vencido %}text-danger{% else %}text-success{% endif %}">{{ cuenta.vencido|soles }}</div></div>
+        {% if cuenta.n_vencidos %}<div class="align-self-center"><span class="badge text-bg-danger">{{ cuenta.n_vencidos }} cuota{{ cuenta.n_vencidos|pluralize }} vencida{{ cuenta.n_vencidos|pluralize }}</span></div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if asist and P.mod_asistencia %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-calendar-check me-1"></i> Asistencia {{ anio }}</h3>
+        {% if P.asistencia_reportes or P.asistencia_todas %}<a href="{% url 'asistencia:reporte' %}?seccion={{ mat_actual.seccion_id }}" class="ms-auto small">Reporte de la sección</a>{% endif %}
+      </div>
+      <div class="card-body">
+        {% if asist.dias %}
+        <div class="d-flex flex-wrap gap-4">
+          <div><div class="small text-body-secondary">Asistencia</div><div class="fs-5 fw-semibold {% if asist.porcentaje < 85 %}text-danger{% else %}text-success{% endif %}">{{ asist.porcentaje }} %</div></div>
+          <div><div class="small text-body-secondary">Faltas</div><div class="fs-5 fw-semibold">{{ asist.F }}</div></div>
+          <div><div class="small text-body-secondary">Justificadas</div><div class="fs-5 fw-semibold">{{ asist.J }}</div></div>
+          <div><div class="small text-body-secondary">Tardanzas</div><div class="fs-5 fw-semibold">{{ asist.T }}</div></div>
+          <div><div class="small text-body-secondary">Días registrados</div><div class="fs-5 fw-semibold">{{ asist.dias }}</div></div>
+        </div>
+        {% if asist.ultimas_faltas %}<div class="small text-body-secondary mt-2">Últimas faltas: {% for f in asist.ultimas_faltas %}{{ f|date:"d/m" }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+        {% else %}
+        <span class="small text-body-secondary">Aún no hay asistencia registrada.</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if mat_actual and P.mod_notas and P.notas_libretas %}
+    <div class="card mb-4">
+      <div class="card-body d-flex flex-wrap align-items-center gap-2">
+        <i class="bi bi-journal-check fs-4 text-primary"></i>
+        <div class="flex-grow-1">Notas, conducta y asistencia de {{ anio }} en su libreta.</div>
+        <a href="{% url 'evaluacion:libreta' alumno.pk %}" class="btn btn-outline-primary btn-sm"><i class="bi bi-file-earmark-text me-1"></i>Ver libreta</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

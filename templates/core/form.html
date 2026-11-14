@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ titulo }}{% endblock %}
+{% block page_title %}{{ titulo }}{% if subtitulo %} <small class="text-body-secondary fs-6">{{ subtitulo }}</small>{% endif %}{% endblock %}
+{% block breadcrumb %}
+  {% for texto, url in breadcrumb %}<li class="breadcrumb-item"><a href="{{ url }}">{{ texto }}</a></li>{% endfor %}
+  <li class="breadcrumb-item active">{{ titulo }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8 col-xl-6">
+    <div class="card card-outline card-primary mb-4">
+      <form method="post" novalidate{% if multipart %} enctype="multipart/form-data"{% endif %}>
+        {% csrf_token %}
+        <div class="card-body">
+          {% if ayuda %}<div class="alert alert-info small py-2"><i class="bi bi-info-circle me-1"></i>{{ ayuda }}</div>{% endif %}
+          {{ form|crispy }}
+        </div>
+        <div class="card-footer d-flex gap-2 justify-content-end">
+          <a href="{{ cancelar }}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Cobranza{% endblock %}
+{% block page_title %}Cobranza <small class="text-body-secondary fs-6">{{ anio }}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Cobranza</li>{% endblock %}
+
+{% block content %}
+{% if not config %}
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle fs-4"></i>
+  <div class="flex-grow-1">Aún no se configuró el cronograma de pagos de {{ anio }} (montos de matrícula y pensión).</div>
+  {% if P.cobranza_configurar %}<a href="{% url 'cobranza:configuracion' %}" class="btn btn-warning">Configurar</a>{% else %}<span class="small">Pide a Dirección que lo configure.</span>{% endif %}
+</div>
+{% endif %}
+
+<div class="row">
+  <div class="col-6 col-lg-4">
+    <div class="small-box text-bg-success">
+      <div class="inner"><h3 class="text-nowrap" style="font-size: clamp(1.4rem, 5vw, 2.2rem)">{{ cobrado_hoy|soles }}</h3><p>Cobrado hoy ({{ n_pagos_hoy }} pago{{ n_pagos_hoy|pluralize }})</p></div>
+      <i class="small-box-icon bi bi-cash-stack"></i>
+      <a href="{% url 'cobranza:pagos' %}" class="small-box-footer link-light link-underline-opacity-0">Ver caja del día <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+  <div class="col-6 col-lg-4">
+    <div class="small-box text-bg-info">
+      <div class="inner"><h3 class="text-nowrap" style="font-size: clamp(1.4rem, 5vw, 2.2rem)">{{ cobrado_mes|soles }}</h3><p>Cobrado este mes</p></div>
+      <i class="small-box-icon bi bi-graph-up-arrow"></i>
+      <a href="{% url 'cobranza:pagos' %}?desde={% now 'Y-m' %}-01&hasta={% now 'Y-m-d' %}" class="small-box-footer link-light link-underline-opacity-0">Ver pagos del mes <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="small-box text-bg-danger">
+      <div class="inner"><h3 class="text-nowrap" style="font-size: clamp(1.4rem, 5vw, 2.2rem)">{{ vencido|soles }}</h3><p>Deuda vencida</p></div>
+      <i class="small-box-icon bi bi-exclamation-triangle"></i>
+      <a href="{% url 'cobranza:morosos' %}" class="small-box-footer link-light link-underline-opacity-0">Ver morosos y enviar recordatorios <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Cobrar</h3>
+        {% if P.cobranza_cobrar %}<a href="{% url 'cobranza:rapido' %}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-lightning-charge me-1"></i>Cobro rápido por cuota</a>{% endif %}</div>
+      <div class="card-body">
+        <form method="get" hx-get="{% url 'cobranza:inicio' %}" hx-target="#resultados" hx-trigger="input changed delay:300ms from:#q, submit" hx-push-url="true">
+          <div class="input-group input-group-lg">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="search" name="q" id="q" value="{{ q }}" class="form-control" placeholder="Alumno, DNI o apoderado" autocomplete="off" autofocus>
+          </div>
+        </form>
+      </div>
+      <div id="resultados">{% include "cobranza/partials/resultados.html" %}</div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Últimos recibos</h3>
+        <a href="{% url 'cobranza:pagos' %}" class="ms-auto small">Ver todos</a>
+      </div>
+      {% if ultimos %}
+      <div class="list-group list-group-flush">
+        {% for p in ultimos %}
+        <a href="{% url 'cobranza:recibo' p.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if p.anulado %}text-decoration-line-through text-body-secondary{% endif %}">
+          <div class="flex-grow-1" style="min-width:0">
+            <div class="text-truncate">{{ p.alumno.apellidos }}, {{ p.alumno.nombres }}</div>
+            <div class="small text-body-secondary">N° {{ p.numero_texto }} · {{ p.fecha|date:"d/m" }} · {{ p.get_metodo_display }}</div>
+          </div>
+          <strong class="text-nowrap">{{ p.total|soles }}</strong>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body small text-body-secondary">Todavía no hay pagos registrados.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Tomar asistencia{% endblock %}
+{% block page_title %}{% if asignacion %}{{ asignacion.curso }} · {% endif %}{{ seccion.grado.nombre }} «{{ seccion.nombre }}»{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'asistencia:hoy' %}?fecha={{ fecha|date:'Y-m-d' }}">Asistencia</a></li>
+  <li class="breadcrumb-item active">Tomar</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .estado .btn { min-width: 2.6rem; font-weight: 600; }
+  .estado .btn-check:checked + .btn-outline-success { background: var(--bs-success); color: #fff; }
+  .estado .btn-check:checked + .btn-outline-warning { background: var(--bs-warning); color: #000; }
+  .estado .btn-check:checked + .btn-outline-danger  { background: var(--bs-danger);  color: #fff; }
+  .estado .btn-check:checked + .btn-outline-info    { background: var(--bs-info);    color: #000; }
+  .fila-F { background: rgba(var(--bs-danger-rgb), .07); }
+  .fila-T { background: rgba(var(--bs-warning-rgb), .10); }
+  .fila-J { background: rgba(var(--bs-info-rgb), .08); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="fs-6"><i class="bi bi-calendar3 me-1"></i>{{ dia }} {{ fecha|date:"d/m/Y" }}</span>
+  {% if sesion %}<span class="badge text-bg-success">Ya tomada · editando</span>{% endif %}
+  <button type="button" class="btn btn-sm btn-outline-success ms-auto" id="todos-presentes"><i class="bi bi-check2-all me-1"></i>Todos presentes</button>
+</div>
+
+{% if not alumnos %}
+<div class="alert alert-info">No hay alumnos matriculados en esta sección.</div>
+{% else %}
+<form method="post" id="form-asistencia">
+  {% csrf_token %}
+  <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+  <div class="card mb-5 pb-4">
+    <ul class="list-group list-group-flush">
+      {% for a in alumnos %}
+      <li class="list-group-item fila fila-{{ a.estado }}">
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-body-secondary small" style="width: 1.6rem">{{ forloop.counter }}</span>
+          <div class="flex-grow-1" style="min-width: 0">
+            <div class="lh-sm">{{ a.apellidos }}</div>
+            <div class="small text-body-secondary lh-sm">{{ a.nombres }}</div>
+          </div>
+          <div class="btn-group btn-group-sm estado" role="group" aria-label="Asistencia de {{ a.nombres }}">
+            <input type="radio" class="btn-check" name="e_{{ a.pk }}" id="p{{ a.pk }}" value="P" {% if a.estado == "P" %}checked{% endif %}>
+            <label class="btn btn-outline-success" for="p{{ a.pk }}" title="Presente">P</label>
+            <input type="radio" class="btn-check" name="e_{{ a.pk }}" id="t{{ a.pk }}" value="T" {% if a.estado == "T" %}checked{% endif %}>
+            <label class="btn btn-outline-warning" for="t{{ a.pk }}" title="Tardanza">T</label>
+            <input type="radio" class="btn-check" name="e_{{ a.pk }}" id="f{{ a.pk }}" value="F" {% if a.estado == "F" %}checked{% endif %}>
+            <label class="btn btn-outline-danger" for="f{{ a.pk }}" title="Falta">F</label>
+            <input type="radio" class="btn-check" name="e_{{ a.pk }}" id="j{{ a.pk }}" value="J" {% if a.estado == "J" %}checked{% endif %}>
+            <label class="btn btn-outline-info" for="j{{ a.pk }}" title="Falta justificada">J</label>
+          </div>
+        </div>
+        <input type="text" name="o_{{ a.pk }}" value="{{ a.obs }}" maxlength="200" placeholder="Motivo / observación (opcional)"
+               class="form-control form-control-sm mt-2 obs {% if a.estado == 'P' and not a.obs %}d-none{% endif %}">
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="position-fixed bottom-0 end-0 start-0 p-2 bg-body border-top shadow" id="barra-asistencia" style="z-index: 1030">
+    <div class="container-fluid d-flex align-items-center gap-2">
+      <div class="small">
+        <span class="text-success fw-semibold" id="n-P">0</span> P ·
+        <span class="text-warning-emphasis fw-semibold" id="n-T">0</span> T ·
+        <span class="text-danger fw-semibold" id="n-F">0</span> F ·
+        <span class="text-info-emphasis fw-semibold" id="n-J">0</span> J
+      </div>
+      <button class="btn btn-primary ms-auto px-4"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+    </div>
+  </div>
+</form>
+<p class="small text-body-secondary">P = presente · T = tardanza · F = falta · J = falta justificada</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById("form-asistencia");
+    if (!form) return;
+    function contar() {
+      var n = { P: 0, T: 0, F: 0, J: 0 };
+      form.querySelectorAll(".fila").forEach(function (li) {
+        var sel = li.querySelector("input.btn-check:checked"), e = sel ? sel.value : "P";
+        n[e]++;
+        li.className = li.className.replace(/fila-[PTFJ]/, "fila-" + e);
+        var obs = li.querySelector(".obs");
+        if (e !== "P") obs.classList.remove("d-none");
+        else if (!obs.value) obs.classList.add("d-none");
+      });
+      ["P", "T", "F", "J"].forEach(function (k) { document.getElementById("n-" + k).textContent = n[k]; });
+    }
+    form.addEventListener("change", contar);
+    document.getElementById("todos-presentes").addEventListener("click", function () {
+      form.querySelectorAll('input.btn-check[value="P"]').forEach(function (r) { r.checked = true; });
+      contar();
+    });
+    contar();
+  })();
+</script>
+{% endblock %}

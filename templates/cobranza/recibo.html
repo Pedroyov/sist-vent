@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load sis %}
+{% load static %}
+
+{% block title %}Recibo {{ pago.numero_texto }}{% endblock %}
+{% block page_title %}Recibo N° {{ pago.numero_texto }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:cobrar' pago.alumno_id %}">{{ pago.alumno.apellidos }}</a></li>
+  <li class="breadcrumb-item active">Recibo</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3 no-print">
+  <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer me-1"></i>Imprimir / PDF</button>
+  {% if wa and not pago.anulado %}
+  <a href="{{ wa }}" target="_blank" rel="noopener" class="btn btn-success"><i class="bi bi-whatsapp me-1"></i>Enviar por WhatsApp</a>
+  {% endif %}
+  <a href="{% url 'cobranza:cobrar' pago.alumno_id %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Estado de cuenta</a>
+  <a href="{% url 'cobranza:inicio' %}" class="btn btn-outline-secondary"><i class="bi bi-cash-coin me-1"></i>Cobrar a otro</a>
+  {% if puede_anular and not pago.anulado %}
+  <button class="btn btn-outline-danger ms-sm-auto" data-bs-toggle="collapse" data-bs-target="#anular"><i class="bi bi-x-circle me-1"></i>Anular</button>
+  {% endif %}
+</div>
+
+{% if puede_anular and not pago.anulado %}
+<div class="collapse no-print" id="anular">
+  <form method="post" action="{% url 'cobranza:anular' pago.pk %}" class="card card-body border-danger mb-3" style="max-width: 560px">
+    {% csrf_token %}
+    <label for="motivo" class="form-label">Motivo de la anulación</label>
+    <input type="text" name="motivo" id="motivo" class="form-control mb-2" maxlength="200" required placeholder="Ej.: se registró dos veces">
+    <p class="small text-body-secondary">La deuda volverá a quedar pendiente. El recibo queda en el historial como anulado.</p>
+    <button class="btn btn-danger align-self-start"><i class="bi bi-x-circle me-1"></i>Confirmar anulación</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card recibo mx-auto mb-4 position-relative" style="max-width: 720px">
+  {% if pago.anulado %}
+  <div class="sello-anulado">ANULADO</div>
+  {% endif %}
+  <div class="card-body p-4">
+    <div class="d-flex align-items-start gap-3 border-bottom pb-3 mb-3">
+      <img src="{{ COLEGIO.logo_url }}" alt="" style="max-width: 72px; max-height: 64px" class="rounded">
+      <div class="flex-grow-1">
+        <h5 class="mb-0">{{ COLEGIO_NOMBRE }}</h5>
+        {% if COLEGIO.ruc %}<div class="small">RUC {{ COLEGIO.ruc }}</div>{% endif %}
+        {% if COLEGIO.linea_contacto %}<div class="small text-body-secondary">{{ COLEGIO.linea_contacto }}</div>{% endif %}
+        <div class="small text-body-secondary">Recibo interno de pago</div>
+      </div>
+      <div class="text-end">
+        <div class="small text-body-secondary">N°</div>
+        <div class="fw-bold fs-5 text-nowrap">{{ pago.numero_texto }}</div>
+        <div class="small">{{ pago.fecha|date:"d/m/Y" }}</div>
+      </div>
+    </div>
+
+    <div class="row small mb-3">
+      <div class="col-sm-7">
+        <div class="text-body-secondary">Alumno(a)</div>
+        <div class="fw-semibold">{{ pago.alumno.apellidos }}, {{ pago.alumno.nombres }}</div>
+        <div>DNI {{ pago.alumno.numero_documento }}{% if mat %} · {{ mat.seccion.grado.nombre }} «{{ mat.seccion.nombre }}» {{ mat.seccion.grado.nivel }}{% endif %}</div>
+      </div>
+      {% if apoderado %}
+      <div class="col-sm-5 mt-2 mt-sm-0">
+        <div class="text-body-secondary">Apoderado(a)</div>
+        <div>{{ apoderado.nombres }} {{ apoderado.apellidos }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <table class="table table-sm mb-3">
+      <thead><tr><th>Concepto</th><th class="text-end">Importe</th></tr></thead>
+      <tbody>
+        {% for d in detalles %}
+        <tr>
+          <td>{{ d.cargo.concepto }}{% if d.monto < d.cargo.total and d.cargo.saldo %} <span class="small text-body-secondary">(pago parcial)</span>{% endif %}</td>
+          <td class="text-end">{{ d.monto|soles }}</td>
+        </tr>
+        {% if d.mora %}
+        <tr><td class="ps-3 small text-body-secondary">Mora – {{ d.cargo.concepto }}</td><td class="text-end">{{ d.mora|soles }}</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="fs-5"><th>Total</th><th class="text-end">{{ pago.total|soles }}</th></tr>
+      </tfoot>
+    </table>
+
+    <div class="small">
+      <span class="text-body-secondary">Forma de pago:</span> {{ pago.get_metodo_display }}
+      {% if pago.numero_operacion %} · Operación {{ pago.numero_operacion }}{% endif %}
+      {% if pago.observacion %}<div><span class="text-body-secondary">Observación:</span> {{ pago.observacion }}</div>{% endif %}
+      <div class="text-body-secondary mt-2">Registrado por {{ pago.registrado_por.get_full_name|default:pago.registrado_por.username }} el {{ pago.registrado_en|date:"d/m/Y H:i" }}</div>
+      {% if COLEGIO.nota_recibo %}<div class="mt-2 fst-italic">{{ COLEGIO.nota_recibo }}</div>{% endif %}
+      {% if pago.anulado %}
+      <div class="text-danger mt-1">Anulado por {{ pago.anulado_por.get_full_name|default:pago.anulado_por.username }} el {{ pago.anulado_en|date:"d/m/Y H:i" }}: {{ pago.motivo_anulacion }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if pago.voucher %}
+<div class="card mx-auto mb-4 no-print" style="max-width: 720px">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-image me-1"></i> Voucher</h3></div>
+  <div class="card-body text-center"><a href="{{ pago.voucher.url }}" target="_blank"><img src="{{ pago.voucher.url }}" alt="Voucher" class="img-fluid rounded" style="max-height: 420px"></a></div>
+</div>
+{% endif %}
+{% endblock %}

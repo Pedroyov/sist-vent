@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Calendario {{ anio }}{% endblock %}
+{% block page_title %}1. Calendario <small class="text-body-secondary fs-6">{{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'academico:panel' %}?anio={{ anio.pk }}">Programación</a></li>
+  <li class="breadcrumb-item active">Calendario</li>
+{% endblock %}
+
+{% block content %}
+{% include "academico/prog/partials/pasos.html" with paso=1 %}
+<div class="row">
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-calendar-range me-1"></i> Año escolar</h3>
+        <a href="{% url 'core:anio_editar' anio.pk %}" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-pencil"></i> Fechas</a>
+      </div>
+      <div class="card-body">
+        <div class="d-flex gap-4">
+          <div><div class="small text-body-secondary">Inicio</div><div class="fw-semibold">{{ anio.fecha_inicio|date:"d/m/Y" }}</div></div>
+          <div><div class="small text-body-secondary">Fin</div><div class="fw-semibold">{{ anio.fecha_fin|date:"d/m/Y" }}</div></div>
+          <div><div class="small text-body-secondary">Días de clase</div><div class="fw-semibold text-success">{{ total_lectivos }}</div></div>
+        </div>
+      </div>
+      <div class="card-header border-top d-flex align-items-center">
+        <h3 class="card-title mb-0">Periodos</h3>
+        <a href="{% url 'core:anio_detalle' anio.pk %}#periodos" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-pencil"></i> Editar</a>
+      </div>
+      {% if periodos %}
+      <ul class="list-group list-group-flush">
+        {% for p in periodos %}
+        <li class="list-group-item d-flex">
+          <div><div class="fw-semibold">{{ p.nombre }}</div><div class="small text-body-secondary">{{ p.fecha_inicio|date:"d M" }} – {{ p.fecha_fin|date:"d M" }}</div></div>
+          <span class="ms-auto small text-body-secondary align-self-center">{{ p.lectivos }} días de clase</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small"><a href="{% url 'core:anio_detalle' anio.pk %}#periodos">Genera los bimestres o trimestres</a> para continuar.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h3 class="card-title mb-0"><i class="bi bi-calendar-x me-1"></i> Días sin clases</h3>
+        <form method="post" class="ms-auto">{% csrf_token %}<input type="hidden" name="anio" value="{{ anio.pk }}">
+          <button name="accion" value="feriados" class="btn btn-sm btn-outline-primary"><i class="bi bi-flag me-1"></i>Cargar feriados nacionales {{ anio }}</button>
+        </form>
+      </div>
+      <form method="post" class="card-body border-bottom" novalidate>
+        {% csrf_token %}<input type="hidden" name="anio" value="{{ anio.pk }}">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-4">{{ form.tipo|as_crispy_field }}</div>
+          <div class="col-sm-8">{{ form.motivo|as_crispy_field }}</div>
+          <div class="col-6 col-sm-4">{{ form.fecha|as_crispy_field }}</div>
+          <div class="col-6 col-sm-4">{{ form.fecha_fin|as_crispy_field }}</div>
+          <div class="col-sm-4 mb-3"><button name="accion" value="agregar" class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Agregar</button></div>
+        </div>
+        <div class="form-text">Ejemplo: <em>Vacaciones de medio año</em>, del 27/07 al 07/08. Para un solo día deja vacío "hasta".</div>
+      </form>
+      {% if dias %}
+      <ul class="list-group list-group-flush">
+        {% for d in dias %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <span class="badge {% if d.tipo == 'FER' %}text-bg-danger{% elif d.tipo == 'VAC' %}text-bg-info{% else %}text-bg-secondary{% endif %}" style="min-width: 5.5rem">{{ d.get_tipo_display|truncatewords:1 }}</span>
+          <div class="flex-grow-1">
+            <div>{{ d.motivo }}</div>
+            <div class="small text-body-secondary">{{ d.fecha|date:"D d/m/Y" }}{% if d.fecha_fin %} al {{ d.fecha_fin|date:"D d/m/Y" }} ({{ d.dias }} días){% endif %}</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                  data-url="{% url 'academico:calendario_eliminar' d.pk %}" data-mensaje="¿Quitar «{{ d.motivo }}» del calendario?"><i class="bi bi-trash"></i></button>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small text-body-secondary">Aún no hay feriados ni vacaciones. Empieza con <strong>Cargar feriados nacionales</strong>.</div>
+      {% endif %}
+    </div>
+    <p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i>En estos días la asistencia no se pide y no cuentan en los reportes ni en las horas a pagar por clases. Revisa cada año si el Gobierno declara días no laborables adicionales.</p>
+  </div>
+</div>
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

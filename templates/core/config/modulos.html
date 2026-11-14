@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Módulos del sistema{% endblock %}
+{% block page_title %}Módulos del sistema{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Módulos</li>{% endblock %}
+
+{% block content %}
+{# ---------- Módulos ---------- #}
+<div class="card mb-4">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-toggles me-1"></i> Módulos del sistema</h3></div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="card-body">
+      <p class="small text-body-secondary mb-3">Elige qué módulos usa el colegio. Uno apagado desaparece del menú para todos, incluida Dirección, y sus permisos no se muestran en Roles y permisos. Los datos no se borran: si lo vuelves a activar, todo sigue ahí. <strong>Alumnos</strong> y <strong>Configuración</strong> siempre están activos.
+        <br><i class="bi bi-shield-lock me-1"></i>Solo tú, como administrador principal, puedes cambiar esto.</p>
+      <div class="row g-3">
+        {% for m in modulos %}
+        <div class="col-md-6 col-xl-4">
+          <label class="d-flex gap-3 border rounded p-3 h-100" for="mod-{{ m.codigo }}" style="cursor: pointer">
+            <i class="bi {{ m.icono }} fs-3 text-primary"></i>
+            <span class="flex-grow-1"><strong>{{ m.nombre }}</strong><br><span class="small text-body-secondary">{{ m.texto }}</span></span>
+            <span class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" name="modulo" value="{{ m.codigo }}" id="mod-{{ m.codigo }}" {% if m.activo %}checked{% endif %} style="width: 2.5em; height: 1.3em"></span>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card-footer text-end"><button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar módulos</button></div>
+  </form>
+</div>
+
+{% endblock %}

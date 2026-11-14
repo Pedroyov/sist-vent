@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Control de carga docente{% endblock %}
+{% block page_title %}Control de carga docente <small class="text-body-secondary fs-6">{{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'academico:panel' %}?anio={{ anio.pk }}">Programación</a></li>
+  <li class="breadcrumb-item active">Carga docente</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  {% if n_problemas %}
+  <span class="badge text-bg-danger fs-6"><i class="bi bi-exclamation-octagon me-1"></i>{{ n_problemas }} con problemas</span>
+  {% elif filas %}
+  <span class="badge text-bg-success fs-6"><i class="bi bi-check2-circle me-1"></i>Sin cruces ni excesos de horas</span>
+  {% endif %}
+  <span class="small text-body-secondary ms-md-2">El máximo de horas de cada docente se define en su ficha de <a href="{% url 'personal:lista' %}">Personal</a>.</span>
+</div>
+
+<div class="card mb-4">
+  {% if filas %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Docente</th>
+          <th class="text-center" title="Horas que le tocan según el plan de estudios y los cursos asignados">Asignadas</th>
+          <th class="text-center" title="Horas ya puestas en el horario de clases">En horario</th>
+          <th class="text-center">Máximo</th>
+          <th class="d-none d-lg-table-cell text-center">Lun · Mar · Mié · Jue · Vie</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in filas %}
+        <tr class="{% if f.problemas %}table-danger{% endif %}">
+          <td>
+            <a href="{% url 'academico:horario_docente' f.docente.pk %}?anio={{ anio.pk }}" class="fw-semibold text-body text-decoration-none">{{ f.docente.get_full_name|default:f.docente.username }}</a>
+            <div class="small text-body-secondary">{{ f.horas_reloj }} h reloj/semana</div>
+          </td>
+          <td class="text-center fw-semibold">{{ f.plan }}</td>
+          <td class="text-center">{{ f.horario }}</td>
+          <td class="text-center" style="min-width: 110px">
+            {% if f.maximo is not None %}
+              {{ f.maximo }}
+              <div class="progress mt-1" style="height: 5px"><div class="progress-bar {% if f.plan > f.maximo %}bg-danger{% elif f.pct >= 90 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ f.pct }}%"></div></div>
+            {% else %}
+              {% if f.trabajador %}<a href="{% url 'personal:editar' f.trabajador.pk %}" class="small">definir</a>{% else %}—{% endif %}
+            {% endif %}
+          </td>
+          <td class="d-none d-lg-table-cell text-center small text-nowrap">{% for n in f.dias %}<span class="d-inline-block text-center {% if not n %}text-body-tertiary{% endif %}" style="width: 1.8rem">{{ n }}</span>{% endfor %}</td>
+          <td class="small">
+            {% for p in f.problemas %}<div class="text-danger fw-semibold"><i class="bi bi-x-octagon"></i> {{ p }}</div>{% endfor %}
+            {% for c in f.cruces|slice:":3" %}
+              <div class="text-danger ms-3">· {{ c.0.get_dia_display }} {{ c.0.bloque.inicio|time:"H:i" }}:
+                <a href="{% url 'academico:horario_seccion' c.0.seccion_id %}" class="link-danger">{{ c.0.seccion.grado.nombre }} {{ c.0.seccion.nombre }}</a> y
+                <a href="{% url 'academico:horario_seccion' c.1.seccion_id %}" class="link-danger">{{ c.1.seccion.grado.nombre }} {{ c.1.seccion.nombre }}</a></div>
+            {% endfor %}
+            {% for a in f.avisos %}<div class="text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> {{ a }}</div>{% endfor %}
+            {% if not f.problemas and not f.avisos %}<span class="text-success"><i class="bi bi-check2-circle"></i> Todo bien</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-body-secondary">Aún no hay docentes con cursos asignados en {{ anio }}.</div>
+  {% endif %}
+</div>
+<p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i><strong>Asignadas</strong>: suma de las horas del plan de estudios de los cursos que dicta. <strong>En horario</strong>: horas ya ubicadas en el horario semanal. Un <strong>cruce</strong> es cuando el docente tiene dos clases a la misma hora.</p>
+{% endblock %}

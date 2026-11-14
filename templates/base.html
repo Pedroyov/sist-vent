@@ -1,0 +1,81 @@
+{% load static %}<!doctype html>
+<html lang="es" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ COLEGIO_NOMBRE_CORTO }}{% endblock %} · {{ COLEGIO_NOMBRE }}</title>
+
+  {# PWA #}
+  <link rel="manifest" href="{% url 'core:manifest' %}">
+  <meta name="theme-color" content="{{ COLEGIO.color|default:'#0d6efd' }}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="{{ COLEGIO_NOMBRE_CORTO }}">
+  <link rel="apple-touch-icon" href="{{ COLEGIO.icono_url_180 }}">
+  <link rel="icon" type="image/png" href="{{ COLEGIO.icono_url_192 }}">
+
+  <script>
+    // Aplica el tema guardado (claro/oscuro) antes de pintar la página
+    (function () {
+      try {
+        var t = localStorage.getItem("tema");
+        if (t) document.documentElement.setAttribute("data-bs-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/adminlte/adminlte.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+
+<body class="{% block body_class %}layout-fixed sidebar-expand-lg bg-body-tertiary{% endblock %}"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% block layout %}
+<div class="app-wrapper">
+
+  {% include "partials/navbar.html" %}
+  {% include "partials/sidebar.html" %}
+
+  <main class="app-main">
+    {% if DEMO %}<div class="alert alert-info rounded-0 border-0 border-bottom py-2 mb-0 small text-center no-print">
+      <i class="bi bi-eye me-1"></i><strong>Demostración</strong> con datos de ejemplo: puedes probar todo con libertad; los datos se reinician solos.</div>{% endif %}
+    <div class="app-content-header">
+      <div class="container-fluid">
+        <div class="row align-items-center">
+          <div class="col-sm-6">
+            <h3 class="mb-0">{% block page_title %}{% endblock %}</h3>
+          </div>
+          <div class="col-sm-6 d-none d-sm-block">
+            <ol class="breadcrumb float-sm-end mb-0">
+              <li class="breadcrumb-item"><a href="{% url 'core:inicio' %}">Inicio</a></li>
+              {% block breadcrumb %}{% endblock %}
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-content">
+      <div class="container-fluid">
+        {% include "partials/messages.html" %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer small">
+    <div class="float-end d-none d-sm-inline">Sistema de gestión escolar</div>
+    <strong>{{ COLEGIO_NOMBRE }}</strong> &copy; {% now "Y" %}
+  </footer>
+</div>
+{% endblock %}
+
+<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'vendor/adminlte/adminlte.min.js' %}"></script>
+<script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

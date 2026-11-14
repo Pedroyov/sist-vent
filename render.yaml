@@ -1,0 +1,29 @@
+# Demo gratuita en Render (https://render.com). Ver DEMO_RENDER.md.
+# Cada vez que Render reinicia el servicio, la demo vuelve a los datos de ejemplo.
+services:
+  - type: web
+    name: sistema-escolar-demo
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: COLEGIO_NOMBRE
+        value: "I.E.P. Colegio Demo"
+      - key: COLEGIO_NOMBRE_CORTO
+        value: "Colegio Demo"

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Configuración de evaluación{% endblock %}
+{% block page_title %}Configuración de evaluación <small class="text-body-secondary fs-6">{{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'evaluacion:inicio' %}">Notas</a></li>
+  <li class="breadcrumb-item active">Configuración</li>
+{% endblock %}
+
+{% block content %}
+<div class="alert alert-info small"><i class="bi bi-info-circle me-1"></i>
+  El Minedu anunció el retorno de la escala de 0 a 20 desde 2027, con comentarios del docente y nota de conducta. Cuando se publique la norma con el detalle por nivel, ajusta aquí la escala de cada nivel.
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row">
+    {% for c, f in pares %}
+    <div class="col-lg-4">
+      <div class="card card-outline card-primary mb-4">
+        <div class="card-header"><h3 class="card-title mb-0">{{ c.nivel }}</h3></div>
+        <div class="card-body">
+          {{ f.escala|as_crispy_field }}
+          {{ f.por_competencia|as_crispy_field }}
+          <div class="js-aprob">{{ f.nota_aprobatoria|as_crispy_field }}</div>
+          {{ f.comentarios|as_crispy_field }}
+          {{ f.conducta|as_crispy_field }}
+          <a href="{% url 'evaluacion:competencias' %}?nivel={{ c.nivel_id }}" class="small">Ver / editar competencias de {{ c.nivel }}</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="d-flex justify-content-end mb-4"><button name="accion" value="config" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar configuración</button></div>
+</form>
+
+<div class="card mb-4" style="max-width: 640px">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-lock me-1"></i> Cierre de notas por periodo</h3></div>
+  <ul class="list-group list-group-flush">
+    {% for p in periodos %}
+    <li class="list-group-item d-flex align-items-center gap-2">
+      <div class="flex-grow-1"><div class="fw-semibold">{{ p.nombre }}</div><div class="small text-body-secondary">{{ p.fecha_inicio|date:"d/m" }} – {{ p.fecha_fin|date:"d/m/Y" }}</div></div>
+      <form method="post">{% csrf_token %}<input type="hidden" name="periodo_id" value="{{ p.pk }}">
+        <button name="accion" value="periodo" class="btn btn-sm {% if p.notas_cerradas %}btn-outline-success{% else %}btn-outline-secondary{% endif %}">
+          {% if p.notas_cerradas %}<i class="bi bi-unlock me-1"></i>Abrir{% else %}<i class="bi bi-lock me-1"></i>Cerrar{% endif %}</button>
+      </form>
+      {% if p.notas_cerradas %}<span class="badge text-bg-secondary">Cerrado</span>{% endif %}
+    </li>
+    {% empty %}
+    <li class="list-group-item small text-body-secondary">No hay periodos.</li>
+    {% endfor %}
+  </ul>
+  <div class="card-footer small text-body-secondary">Al cerrar un periodo, los docentes ya no pueden cambiar sus notas (Dirección sí).</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('select[name$="-escala"]').forEach(function (s) {
+    var caja = s.closest(".card-body").querySelector(".js-aprob");
+    function f() { caja.style.display = s.value === "VIG" ? "" : "none"; }
+    s.addEventListener("change", f); f();
+  });
+</script>
+{% endblock %}

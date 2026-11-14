@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Horario de {{ docente.get_full_name|default:docente.username }}{% endblock %}
+{% block page_title %}Horario de {{ docente.get_full_name|default:docente.username }} <small class="text-body-secondary fs-6">{{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  {% if P.programacion_horarios or P.programacion_editar %}<li class="breadcrumb-item"><a href="{% url 'academico:horarios' %}?anio={{ anio.pk }}">Horarios</a></li>{% endif %}
+  <li class="breadcrumb-item active">Docente</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+  <span><strong>{{ n }}</strong> horas pedagógicas · <strong>{{ horas_reloj }}</strong> horas reloj por semana</span>
+  <button class="btn btn-sm btn-outline-secondary ms-auto no-print" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+</div>
+<div class="card mb-4">
+  {% if filas %}
+  <div class="table-responsive">
+    <table class="table table-bordered align-middle mb-0">
+      <thead class="table-light"><tr><th style="width: 92px">Hora</th>{% for d, nombre in dias %}<th class="text-center">{{ nombre }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for f in filas %}
+        <tr>
+          <td class="small text-body-secondary">{{ f.inicio|time:"H:i" }}<br>{{ f.fin|time:"H:i" }}</td>
+          {% for lista in f.celdas %}
+          <td class="small {% if lista|length > 1 %}table-danger{% endif %}">
+            {% for c in lista %}<div><strong>{{ c.asignacion.curso.corto }}</strong> · {{ c.seccion.grado.nombre }} {{ c.seccion.nombre }}</div>{% endfor %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-body-secondary">Aún no tiene clases en el horario.</div>
+  {% endif %}
+</div>
+{% endblock %}

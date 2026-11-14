@@ -1,0 +1,6 @@
+{% if aviso %}{% with dia=aviso.fecha|date:"Y-m-d" %}
+<span class="{% if dia == hoy|date:'Y-m-d' %}text-success{% else %}text-body-secondary{% endif %}" title="Último recordatorio">
+  <i class="bi bi-check2{% if dia == hoy|date:'Y-m-d' %}-all{% endif %}"></i>
+  Avisado {% if dia == hoy|date:'Y-m-d' %}hoy{% else %}el {{ aviso.fecha|date:"d/m" }}{% endif %}
+</span>
+{% endwith %}{% else %}<span class="text-body-secondary">Sin avisos</span>{% endif %}

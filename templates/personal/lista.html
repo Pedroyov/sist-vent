@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Personal{% endblock %}
+{% block page_title %}Personal{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Personal</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{% url 'personal:nuevo' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Nuevo trabajador</a>
+  <a href="{% url 'personal:planilla' %}?mes={{ mes|date:'Y-m' }}" class="btn btn-outline-success"><i class="bi bi-cash-stack me-1"></i>Planilla estimada de {{ nombre_mes }}</a>
+</div>
+
+{% if sin_ficha %}
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+  <i class="bi bi-person-exclamation fs-4"></i>
+  <div class="flex-grow-1">{{ sin_ficha|length }} docente{{ sin_ficha|length|pluralize }} con cursos asignados no tiene{{ sin_ficha|length|pluralize:"n" }} ficha de personal ({% for u in sin_ficha|slice:":4" %}{{ u.get_full_name|default:u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if sin_ficha|length > 4 %}…{% endif %}). Sin ficha no se calculan sus horas ni su pago.</div>
+  <form method="post" action="{% url 'personal:importar_usuarios' %}">{% csrf_token %}<button class="btn btn-warning btn-sm">Crear sus fichas</button></form>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-6 col-md-3">
+        <select name="cargo" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">Todos los cargos</option>
+          {% for v, t in cargos %}<option value="{{ v }}" {% if cargo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <select name="estado" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="activos" {% if estado == "activos" %}selected{% endif %}>Activos</option>
+          <option value="inactivos" {% if estado == "inactivos" %}selected{% endif %}>Inactivos</option>
+          <option value="todos" {% if estado == "todos" %}selected{% endif %}>Todos</option>
+        </select>
+      </div>
+      <div class="col-md-3"><input type="month" name="mes" value="{{ mes|date:'Y-m' }}" class="form-control form-control-sm" onchange="this.form.submit()" aria-label="Mes"></div>
+      {% if P.personal_planilla %}<div class="col-md-3 text-md-end small">Pago estimado de {{ nombre_mes }}: <strong>{{ total|soles }}</strong></div>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  {% if trabajadores %}
+  <div class="list-group list-group-flush">
+    {% for t in trabajadores %}
+    <a href="{% url 'personal:detalle' t.pk %}?mes={{ mes|date:'Y-m' }}" class="list-group-item list-group-item-action {% if not t.activo %}text-body-secondary{% endif %}">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1" style="min-width: 0">
+          <div class="fw-semibold">{{ t.apellidos }}, {{ t.nombres }} {% if not t.activo %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+            {% if t.numero_documento|slice:":5" == "PEND-" or t.modalidad == "HOR" and not t.pago_hora or t.modalidad == "MES" and not t.sueldo %}<span class="badge text-bg-warning">Completar datos</span>{% endif %}</div>
+          <div class="small text-body-secondary">
+            {{ t.get_cargo_display }}{% if t.especialidad %} · {{ t.especialidad }}{% endif %}
+            {% if t.usuario %} · <i class="bi bi-key"></i> {{ t.usuario.username }}{% endif %}
+          </div>
+        </div>
+        <div class="text-end small" style="min-width: 7rem">
+          <div><strong>{{ t.sem.total }}</strong> h/semana</div>
+          <div class="text-body-secondary">{% if t.sem.clases %}{{ t.sem.clases }} h de clase{% else %}&nbsp;{% endif %}</div>
+        </div>
+        <div class="text-end" style="min-width: 7.5rem">
+          {% if P.personal_planilla %}<div class="fw-semibold">{{ t.mes.pago|soles }}</div>{% endif %}
+          {% if P.personal_planilla %}<div class="small text-body-secondary">{% if t.modalidad == "MES" %}sueldo fijo{% else %}{{ t.mes.horas }} h × {{ t.pago_hora|soles }}{% endif %}</div>{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card-body text-center py-5 text-body-secondary">
+    <i class="bi bi-person-vcard display-5"></i>
+    <p class="mt-2">Aún no hay trabajadores registrados.</p>
+    <a href="{% url 'personal:nuevo' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Registrar al primero</a>
+  </div>
+  {% endif %}
+</div>
+<p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i>Los pagos son <strong>estimados</strong> según horas y tarifas; no incluyen descuentos ni aportes de ley (ONP/AFP, EsSalud, renta), gratificaciones ni CTS.</p>
+{% endblock %}

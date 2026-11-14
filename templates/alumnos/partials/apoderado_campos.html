@@ -1,0 +1,43 @@
+{% load crispy_forms_tags %}
+{# Campos del apoderado. Al salir del campo DNI se busca si la persona ya existe (HTMX). #}
+<div id="apoderado-campos">
+  {% if encontrado %}
+  <div class="alert alert-success small py-2">
+    <i class="bi bi-person-check me-1"></i> <strong>{{ encontrado.nombres }} {{ encontrado.apellidos }}</strong> ya está registrado
+    {% with hijos=encontrado.alumnos.all %}{% if hijos %}como apoderado de {% for h in hijos %}{{ h.nombres }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}{% endwith %}.
+    Se vinculará también a este alumno.
+  </div>
+  {% endif %}
+  <div class="row">
+    <div class="col-5">{{ form_apo.tipo_documento|as_crispy_field }}</div>
+    <div class="col-7">
+      {% with campo=form_apo.numero_documento %}
+      <div class="mb-3">
+        <label for="{{ campo.id_for_label }}" class="form-label">N° de documento*</label>
+        <div class="input-group">
+          <input type="text" name="{{ campo.html_name }}" id="{{ campo.id_for_label }}" value="{{ campo.value|default:'' }}"
+                 class="form-control{% if campo.errors %} is-invalid{% endif %}" inputmode="numeric" autocomplete="off"
+                 hx-get="{% url 'alumnos:apoderado_buscar' %}" hx-trigger="change, keyup[target.value.length==8] delay:200ms"
+                 hx-target="#apoderado-campos" hx-swap="outerHTML" hx-include="#apoderado-campos"
+                 hx-vals='{"prefix": "{{ prefijo }}"}' hx-indicator="#buscando-apo">
+          <span class="input-group-text"><span id="buscando-apo" class="htmx-indicator spinner-border spinner-border-sm"></span><i class="bi bi-search"></i></span>
+          {% for e in campo.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-text">Si ya es apoderado de un hermano, sus datos se completan solos.</div>
+      </div>
+      {% endwith %}
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-sm-6">{{ form_apo.apellidos|as_crispy_field }}</div>
+    <div class="col-sm-6">{{ form_apo.nombres|as_crispy_field }}</div>
+  </div>
+  <div class="row">
+    <div class="col-sm-6">{{ form_apo.celular|as_crispy_field }}</div>
+    <div class="col-sm-6">{{ form_apo.email|as_crispy_field }}</div>
+  </div>
+  <div class="row align-items-end">
+    <div class="col-sm-6">{{ form_apo.parentesco|as_crispy_field }}</div>
+    <div class="col-sm-6">{{ form_apo.responsable_pago|as_crispy_field }}</div>
+  </div>
+</div>

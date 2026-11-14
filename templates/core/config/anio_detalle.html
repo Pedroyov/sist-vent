@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Año {{ anio }}{% endblock %}
+{% block page_title %}2. Grados y secciones · {{ anio }}{% if anio.activo %} <span class="badge text-bg-primary fs-6 align-middle">En curso</span>{% endif %}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'academico:panel' %}?anio={{ anio.pk }}">Programación</a></li>
+  <li class="breadcrumb-item active">{{ anio }}</li>
+{% endblock %}
+
+{% block content %}
+{% include "academico/prog/partials/pasos.html" with paso=2 %}
+{# Barra de acciones del año #}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  {% if anios|length > 1 %}
+  <div class="dropdown">
+    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-calendar3 me-1"></i>Cambiar año</button>
+    <ul class="dropdown-menu">
+      {% for a in anios %}
+      <li><a class="dropdown-item {% if a.pk == anio.pk %}active{% endif %}" href="{% url 'core:anio_detalle' a.pk %}">{{ a.anio }}{% if a.activo %} (en curso){% endif %}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  <a href="{% url 'core:anio_editar' anio.pk %}" class="btn btn-outline-primary"><i class="bi bi-pencil me-1"></i>Editar año</a>
+  {% if not anio.activo %}
+  <form method="post" action="{% url 'core:anio_activar' anio.pk %}">{% csrf_token %}
+    <button class="btn btn-outline-success"><i class="bi bi-check2-circle me-1"></i>Marcar como año en curso</button>
+  </form>
+  {% endif %}
+  {% if anios|length > 1 %}
+  <a href="{% url 'alumnos:pase' %}?destino={{ anio.pk }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-up-right-circle me-1"></i>Pase de año</a>
+  {% endif %}
+  <a href="{% url 'core:anio_nuevo' %}" class="btn btn-link ms-auto"><i class="bi bi-plus-lg"></i> Nuevo año</a>
+</div>
+
+<div class="row">
+  <div class="col-6 col-md-3">
+    <div class="info-box"><span class="info-box-icon text-bg-primary"><i class="bi bi-calendar-range"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Clases</span><span class="info-box-number small">{{ anio.fecha_inicio|date:"d/m" }} – {{ anio.fecha_fin|date:"d/m" }}</span></div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="info-box"><span class="info-box-icon text-bg-info"><i class="bi bi-bookmark"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Periodos</span><span class="info-box-number">{{ periodos|length }}</span></div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="info-box"><span class="info-box-icon text-bg-success"><i class="bi bi-grid-3x3-gap"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Secciones</span><span class="info-box-number">{{ total_secciones }}</span></div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="info-box"><span class="info-box-icon text-bg-warning"><i class="bi bi-person-check"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Vacantes</span><span class="info-box-number">{{ total_vacantes }}</span></div></div>
+  </div>
+</div>
+
+<div class="row">
+  {# ---------------- Periodos ---------------- #}
+  <div class="col-xl-5" id="periodos">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-bookmark me-1"></i> Periodos</h3>
+        {% if periodos %}
+        <a href="{% url 'core:periodo_nuevo' anio.pk %}" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-lg"></i> Agregar</a>
+        {% endif %}
+      </div>
+      {% if periodos %}
+      <ul class="list-group list-group-flush">
+        {% for p in periodos %}
+        <li class="list-group-item d-flex align-items-center">
+          <div>
+            <div class="fw-semibold">{{ p.nombre }}</div>
+            <div class="small text-body-secondary">{{ p.fecha_inicio|date:"d M" }} – {{ p.fecha_fin|date:"d M Y" }}</div>
+          </div>
+          <div class="ms-auto btn-group btn-group-sm">
+            <a href="{% url 'core:periodo_editar' p.pk %}" class="btn btn-outline-secondary" title="Editar"><i class="bi bi-pencil"></i></a>
+            <button type="button" class="btn btn-outline-danger" title="Eliminar"
+                    data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                    data-url="{% url 'core:periodo_eliminar' p.pk %}" data-mensaje="¿Eliminar el periodo «{{ p.nombre }}»?">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body">
+        <p class="text-body-secondary">Genera los periodos automáticamente repartiendo las fechas del año. Luego puedes ajustarlas.</p>
+        <form method="post" action="{% url 'core:periodos_generar' anio.pk %}" class="d-flex flex-wrap gap-2 align-items-end">
+          {% csrf_token %}
+          <div class="flex-grow-1">{{ form_generar.tipo|as_crispy_field }}</div>
+          <button class="btn btn-primary mb-3"><i class="bi bi-magic me-1"></i>Generar</button>
+        </form>
+        <a href="{% url 'core:periodo_nuevo' anio.pk %}" class="small">o agregar uno por uno</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------------- Secciones ---------------- #}
+  <div class="col-xl-7" id="secciones">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <h3 class="card-title mb-0"><i class="bi bi-grid-3x3-gap me-1"></i> Grados y secciones</h3>
+        <div class="ms-auto d-flex gap-2">
+          <a href="{% url 'core:seccion_nueva' anio.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i> Una sección</a>
+          <a href="{% url 'core:secciones_crear' anio.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-lightning-charge"></i> Crear varias</a>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% if total_secciones %}
+          {% for nivel, grados in niveles %}
+            <div class="px-3 pt-3 pb-1 text-uppercase small fw-bold text-body-secondary">{{ nivel.nombre }}</div>
+            <ul class="list-group list-group-flush">
+              {% for g in grados %}
+                <li class="list-group-item">
+                  <div class="fw-semibold mb-1">{{ g.nombre }}</div>
+                  <div class="d-flex flex-wrap gap-2">
+                    {% for s in g.secs %}
+                    <div class="border rounded px-2 py-1 d-flex align-items-center gap-2 bg-body-tertiary">
+                      <span class="badge text-bg-primary">{{ s.nombre }}</span>
+                      <span class="small text-body-secondary">
+                        {{ s.get_turno_display }} · {{ s.vacantes }} vac.{% if s.por_curso %} · <i class="bi bi-journal-check" title="Asistencia por curso"></i>{% endif %}
+                        {% if s.tutor %}· <i class="bi bi-person"></i> {{ s.tutor.get_full_name|default:s.tutor.username }}{% endif %}
+                      </span>
+                      <a href="{% url 'academico:asignar' s.pk %}" class="text-body-secondary" title="Tutor, cursos y docentes"><i class="bi bi-person-badge"></i></a>
+                      <a href="{% url 'core:seccion_editar' s.pk %}" class="text-body-secondary" title="Editar"><i class="bi bi-pencil"></i></a>
+                      <a href="#" class="text-danger" title="Eliminar"
+                         data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                         data-url="{% url 'core:seccion_eliminar' s.pk %}" data-mensaje="¿Eliminar la sección {{ g.nombre }} «{{ s.nombre }}»?"><i class="bi bi-trash"></i></a>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endfor %}
+        {% else %}
+          <div class="text-center py-5 px-3">
+            <i class="bi bi-grid-3x3-gap display-5 text-body-secondary"></i>
+            <p class="mt-2 text-body-secondary">Aún no hay secciones en {{ anio }}.</p>
+            <a href="{% url 'core:secciones_crear' anio.pk %}" class="btn btn-primary"><i class="bi bi-lightning-charge me-1"></i>Crear secciones</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Agregar apoderado{% endblock %}
+{% block page_title %}Agregar apoderado <small class="text-body-secondary fs-6">{{ alumno.nombre_completo }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'alumnos:lista' %}">Alumnos</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'alumnos:detalle' alumno.pk %}">{{ alumno.apellidos }}</a></li>
+  <li class="breadcrumb-item active">Agregar apoderado</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8 col-xl-6">
+    <div class="card card-outline card-primary mb-4">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">
+          {% include "alumnos/partials/apoderado_campos.html" with form_apo=form prefijo="" %}
+        </div>
+        <div class="card-footer d-flex gap-2 justify-content-end">
+          <a href="{% url 'alumnos:detalle' alumno.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

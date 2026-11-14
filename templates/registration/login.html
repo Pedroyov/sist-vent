@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Ingresar{% endblock %}
+{% block body_class %}login-page bg-body-secondary{% endblock %}
+
+{% block layout %}
+<div class="login-box">
+  <div class="text-center mb-3">
+    <img src="{{ COLEGIO.logo_url }}" alt="Logo de {{ COLEGIO_NOMBRE }}" style="max-width: 120px; max-height: 96px" class="{% if not COLEGIO.tiene_logo %}rounded-3 shadow-sm {% endif %}mb-2">
+    <h1 class="h4 mb-0">{{ COLEGIO_NOMBRE }}</h1>
+    <div class="text-body-secondary small">{% if COLEGIO.lema %}{{ COLEGIO.lema }}{% else %}Sistema de gestión escolar{% endif %}</div>
+  </div>
+
+  <div class="card card-outline card-primary">
+    <div class="card-body login-card-body">
+      <p class="login-box-msg">Ingresa con tu usuario y contraseña</p>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2 small">
+          {% for e in form.non_field_errors.as_data %}{% if e.code == "bloqueado" %}{{ e.message }}{% elif e.code == "inactive" %}Tu usuario está desactivado. Consulta con Dirección.{% else %}Usuario o contraseña incorrectos. Vuelve a intentarlo.{% endif %}{% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="input-group mb-3">
+          <div class="form-floating">
+            <input type="text" name="username" id="id_username" class="form-control" placeholder="Usuario"
+                   value="{{ form.username.value|default:'' }}" autocomplete="username" autocapitalize="none" autofocus required>
+            <label for="id_username">Usuario</label>
+          </div>
+          <div class="input-group-text"><i class="bi bi-person"></i></div>
+        </div>
+
+        <div class="input-group mb-3">
+          <div class="form-floating">
+            <input type="password" name="password" id="id_password" class="form-control" placeholder="Contraseña"
+                   autocomplete="current-password" required>
+            <label for="id_password">Contraseña</label>
+          </div>
+          <div class="input-group-text"><i class="bi bi-lock"></i></div>
+        </div>
+
+        <div class="d-grid">
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-box-arrow-in-right me-1"></i> Ingresar
+          </button>
+        </div>
+      </form>
+      {% if DEMO %}
+      <div class="alert alert-info small mt-3 mb-0">
+        <strong>Demostración.</strong> Entra con cualquiera de estos usuarios (clave <strong>demo1234</strong>):
+        <ul class="mb-0 mt-1 ps-3">
+          <li><strong>director</strong> – Dirección, ve todo</li>
+          <li><strong>tesoreria</strong> – cobranza</li>
+          <li><strong>lmedina</strong> – docente de primaria</li>
+          <li><strong>lrios</strong> – docente de secundaria</li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

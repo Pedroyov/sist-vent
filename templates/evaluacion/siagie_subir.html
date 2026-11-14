@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Llenar plantilla SIAGIE{% endblock %}
+{% block page_title %}Llenar plantilla del SIAGIE{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'evaluacion:inicio' %}">Notas</a></li>
+  <li class="breadcrumb-item active">SIAGIE</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-6">
+    <form method="post" enctype="multipart/form-data" class="card card-outline card-primary mb-4">
+      {% csrf_token %}
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-upload me-1"></i> 1. Sube la plantilla</h3></div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-sm-7">
+            <label class="form-label">Sección</label>
+            <select name="seccion" class="form-select" required>
+              <option value="">— Elegir —</option>
+              {% for s in secciones %}<option value="{{ s.pk }}">{{ s.grado.nombre }} «{{ s.nombre }}» · {{ s.grado.nivel }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label">Periodo</label>
+            <select name="periodo" class="form-select" required>
+              {% for p in periodos %}<option value="{{ p.pk }}" {% if p.pk == periodo_actual.pk %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <label class="form-label mt-3">Plantilla Excel descargada del SIAGIE</label>
+        <input type="file" name="archivo" accept=".xlsx,.xlsm,.xls" class="form-control" required>
+        <div class="form-text">Súbela tal como la descargaste, sin cambiarle el nombre.</div>
+      </div>
+      <div class="card-footer d-flex justify-content-end">
+        <button name="accion" value="analizar" class="btn btn-primary"><i class="bi bi-search me-1"></i>Analizar plantilla</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-info-circle me-1"></i> Cómo funciona</h3></div>
+      <div class="card-body small">
+        <ol class="ps-3 mb-2">
+          <li>En el SIAGIE: <em>Evaluación → Registro de notas → por Excel</em>. Elige periodo, grado y sección y descarga la plantilla.</li>
+          <li>Súbela aquí. El sistema busca a los estudiantes (por DNI, código o nombre), las columnas de cada competencia y la de conclusión descriptiva.</li>
+          <li>Revisa la vista previa y corrige lo que no calce.</li>
+          <li>Descarga el archivo lleno <strong>con el mismo nombre</strong> y súbelo al SIAGIE.</li>
+        </ol>
+        <p class="mb-0 text-body-secondary">Solo se escriben las calificaciones y conclusiones; el resto del archivo queda igual. Revisa siempre en el SIAGIE que la carga haya sido aceptada.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

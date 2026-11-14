@@ -1,0 +1,12 @@
+{# Barra de pasos de la programación. Variable: paso (1..6) #}
+<nav class="mb-3 no-print" aria-label="Pasos de la programación">
+  <div class="d-flex flex-wrap gap-1 small">
+    <a href="{% url 'academico:panel' %}?anio={{ anio.pk }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-check"></i><span class="d-none d-md-inline"> Panel</span></a>
+    <a href="{% url 'academico:calendario' %}?anio={{ anio.pk }}" class="btn btn-sm {% if paso == 1 %}btn-primary{% else %}btn-outline-primary{% endif %}">1<span class="d-none d-lg-inline"> Calendario</span></a>
+    <a href="{% url 'core:anio_detalle' anio.pk %}" class="btn btn-sm {% if paso == 2 %}btn-primary{% else %}btn-outline-primary{% endif %}">2<span class="d-none d-lg-inline"> Secciones</span></a>
+    <a href="{% url 'academico:plan' %}?anio={{ anio.pk }}" class="btn btn-sm {% if paso == 3 %}btn-primary{% else %}btn-outline-primary{% endif %}">3<span class="d-none d-lg-inline"> Plan de estudios</span></a>
+    <a href="{% url 'academico:docentes' %}" class="btn btn-sm {% if paso == 4 %}btn-primary{% else %}btn-outline-primary{% endif %}">4<span class="d-none d-lg-inline"> Docentes</span></a>
+    <a href="{% url 'academico:jornada' %}?anio={{ anio.pk }}" class="btn btn-sm {% if paso == 5 %}btn-primary{% else %}btn-outline-primary{% endif %}">5<span class="d-none d-lg-inline"> Jornada</span></a>
+    <a href="{% url 'academico:horarios' %}?anio={{ anio.pk }}" class="btn btn-sm {% if paso == 6 %}btn-primary{% else %}btn-outline-primary{% endif %}">6<span class="d-none d-lg-inline"> Horario</span></a>
+  </div>
+</nav>

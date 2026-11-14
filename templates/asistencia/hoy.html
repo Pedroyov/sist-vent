@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Asistencia{% endblock %}
+{% block page_title %}Asistencia{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Asistencia</li>{% endblock %}
+
+{% block content %}
+{# Navegación por fecha #}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="?fecha={{ ayer|date:'Y-m-d' }}" class="btn btn-outline-secondary" aria-label="Día anterior"><i class="bi bi-chevron-left"></i></a>
+  <form method="get" class="flex-grow-1">
+    <input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control text-center fw-semibold" onchange="this.form.submit()">
+  </form>
+  {% if fecha < hoy %}<a href="?fecha={{ manana|date:'Y-m-d' }}" class="btn btn-outline-secondary" aria-label="Día siguiente"><i class="bi bi-chevron-right"></i></a>{% endif %}
+</div>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="fs-5">{{ dia }} {{ fecha|date:"d/m/Y" }}{% if fecha == hoy %} <span class="badge text-bg-primary">Hoy</span>{% endif %}</span>
+  {% if pendientes %}<span class="badge text-bg-warning">{{ pendientes }} pendiente{{ pendientes|pluralize }}</span>{% endif %}
+  <div class="ms-auto d-flex gap-2">
+    {% if ver_resumen %}<a href="{% url 'asistencia:resumen' %}?fecha={{ fecha|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-clipboard-data me-1"></i>Resumen del día</a>{% endif %}
+    <a href="{% url 'asistencia:reporte' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-calendar3 me-1"></i>Reporte mensual</a>
+  </div>
+</div>
+
+{% if no_lectivo %}
+<div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-calendar-x fs-4"></i>
+  <div>No hay clases: <strong>{{ no_lectivo }}</strong>. No es necesario tomar asistencia.</div></div>
+{% endif %}
+
+{% if not secciones and not asignaciones %}
+<div class="card"><div class="card-body text-center py-5 text-body-secondary">
+  <i class="bi bi-calendar-x display-5"></i>
+  <p class="mt-2 mb-0">No tienes secciones ni cursos asignados para tomar asistencia.</p>
+  <p class="small">Dirección asigna tutores y docentes en <em>Cursos y docentes</em>.</p>
+</div></div>
+{% endif %}
+
+{% if no_lectivo and secciones or no_lectivo and asignaciones %}
+<details class="mb-3"><summary class="text-body-secondary small mb-2">Tomar asistencia de todas formas</summary>
+{% endif %}
+{% if secciones %}
+<h6 class="text-uppercase small fw-bold text-body-secondary">Asistencia diaria</h6>
+<div class="list-group mb-4">
+  {% for s in secciones %}
+  <a href="{% url 'asistencia:tomar' s.pk %}?fecha={{ fecha|date:'Y-m-d' }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3">
+    <span class="fs-3 {% if s.sesion %}text-success{% else %}text-warning{% endif %}"><i class="bi {% if s.sesion %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i></span>
+    <div class="flex-grow-1">
+      <div class="fw-semibold">{{ s.grado.nombre }} «{{ s.nombre }}» <span class="fw-normal small text-body-secondary">{{ s.grado.nivel }}</span></div>
+      <div class="small text-body-secondary">
+        {% if s.conteo %}{{ s.conteo.P }} presentes{% if s.conteo.T %} · {{ s.conteo.T }} tarde{% endif %}{% if s.conteo.F %} · <span class="text-danger">{{ s.conteo.F }} falta{{ s.conteo.F|pluralize }}</span>{% endif %}{% if s.conteo.J %} · {{ s.conteo.J }} just.{% endif %}
+        {% else %}Pendiente{% endif %}
+      </div>
+    </div>
+    <span class="btn btn-sm {% if s.sesion %}btn-outline-secondary{% else %}btn-primary{% endif %}">{% if s.sesion %}Editar{% else %}Tomar{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if asignaciones %}
+<h6 class="text-uppercase small fw-bold text-body-secondary">Por curso{% if hay_horario %} <span class="fw-normal text-lowercase">(según tu horario de hoy)</span>{% endif %}</h6>
+<div class="list-group mb-4">
+  {% for a in asignaciones %}{% if a.toca_hoy or no_lectivo %}
+  <a href="{% url 'asistencia:tomar_curso' a.seccion_id a.pk %}?fecha={{ fecha|date:'Y-m-d' }}" class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3">
+    <span class="fs-3 {% if a.sesion %}text-success{% else %}text-body-tertiary{% endif %}"><i class="bi {% if a.sesion %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i></span>
+    <div class="flex-grow-1">
+      <div class="fw-semibold">
+        {% if a.ahora %}<span class="badge text-bg-danger me-1">Ahora</span>{% endif %}
+        {% if a.hora %}<span class="badge text-bg-light border me-1">{{ a.hora|time:"H:i" }}</span>{% endif %}
+        {{ a.curso }} <span class="fw-normal">· {{ a.seccion.grado.nombre }} «{{ a.seccion.nombre }}»</span></div>
+      <div class="small text-body-secondary">
+        {% if es_dir %}{{ a.docente|nombre:"Sin docente" }} · {% endif %}
+        {% if a.conteo %}{{ a.conteo.P }} presentes{% if a.conteo.T %} · {{ a.conteo.T }} tarde{% endif %}{% if a.conteo.F %} · <span class="text-danger">{{ a.conteo.F }} falta{{ a.conteo.F|pluralize }}</span>{% endif %}
+        {% else %}Sin tomar{% endif %}
+      </div>
+    </div>
+    <span class="btn btn-sm {% if a.sesion %}btn-outline-secondary{% else %}btn-outline-primary{% endif %}">{% if a.sesion %}Editar{% else %}Tomar{% endif %}</span>
+  </a>
+  {% endif %}{% endfor %}
+</div>
+{% if otros_cursos and not no_lectivo %}
+<details class="mb-4"><summary class="small text-body-secondary">Otros cursos sin clase hoy ({{ otros_cursos|length }})</summary>
+<div class="list-group mt-2">
+  {% for a in otros_cursos %}
+  <a href="{% url 'asistencia:tomar_curso' a.seccion_id a.pk %}?fecha={{ fecha|date:'Y-m-d' }}" class="list-group-item list-group-item-action small d-flex justify-content-between">
+    <span>{{ a.curso }} · {{ a.seccion.grado.nombre }} «{{ a.seccion.nombre }}»{% if es_dir %} <span class="text-body-secondary">· {{ a.docente|nombre:"Sin docente" }}</span>{% endif %}</span>
+    <span class="text-body-secondary">{% if a.sesion %}<i class="bi bi-check-circle-fill text-success"></i>{% else %}Tomar{% endif %}</span>
+  </a>
+  {% endfor %}
+</div></details>
+{% endif %}
+{% endif %}
+{% if no_lectivo and secciones or no_lectivo and asignaciones %}</details>{% endif %}
+{% endblock %}

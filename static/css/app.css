@@ -1,0 +1,47 @@
+/* Estilos propios del sistema (encima de AdminLTE) */
+
+/* Respeta la "muesca" y la barra inferior de los celulares cuando se usa como app instalada */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.app-footer {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+/* Botones y campos un poco más grandes en pantallas táctiles */
+@media (max-width: 575.98px) {
+  .btn { padding: .5rem .9rem; }
+  .form-control, .form-select { min-height: 44px; }
+  .small-box .inner h3 { font-size: 1.6rem; }
+  .small-box .inner p { font-size: .85rem; }
+  .app-content-header h3 { font-size: 1.35rem; }
+}
+
+/* Indicador de carga de HTMX */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator { display: inline-block; }
+
+/* Sello de recibo anulado */
+.sello-anulado {
+  position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg);
+  font-size: 4rem; font-weight: 800; color: rgba(220, 53, 69, .25);
+  border: .4rem solid rgba(220, 53, 69, .25); padding: 0 1.5rem; border-radius: .75rem;
+  pointer-events: none; z-index: 2;
+}
+
+/* Impresión: solo el contenido (recibos, reportes) */
+@media print {
+  .app-header, .app-sidebar, .app-footer, .app-content-header, .no-print, .alert-dismissible { display: none !important; }
+  .app-wrapper, .app-main { margin: 0 !important; padding: 0 !important; display: block !important; }
+  body { background: #fff !important; }
+  .card { box-shadow: none !important; border: 0 !important; }
+  .recibo { max-width: 100% !important; }
+}
+
+/* Barra inferior de "registrar varios pagos": no tapar el menú lateral en escritorio */
+@media (min-width: 992px) {
+  body:not(.sidebar-collapse) #barra-lote,
+  body:not(.sidebar-collapse) #barra-asistencia { left: var(--lte-sidebar-width, 250px) !important; }
+}

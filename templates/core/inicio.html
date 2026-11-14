@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Inicio{% endblock %}
+{% block page_title %}{{ t.saludo }}, {{ user.first_name|default:user.username }}{% endblock %}
+{% block breadcrumb %}{% now "l j \d\e F" as fecha_hoy %}<li class="breadcrumb-item active">{{ fecha_hoy|capfirst }}</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .atajo { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem;
+           min-height: 92px; border-radius: .75rem; text-decoration: none; position: relative; transition: transform .1s; }
+  .atajo:hover { transform: translateY(-2px); }
+  .atajo i { font-size: 1.7rem; line-height: 1; }
+  .atajo span.texto { font-size: .85rem; font-weight: 600; text-align: center; line-height: 1.15; }
+  .atajo .globo { position: absolute; top: .4rem; right: .5rem; }
+  .pendiente { display: flex; gap: .75rem; align-items: center; }
+  .pendiente .ico { width: 2.3rem; height: 2.3rem; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .tarjeta-mini { display: block; text-decoration: none; }
+  .lista-scroll { max-height: 340px; overflow-y: auto; }
+  .tarjeta-mini .small-box-icon { font-size: 2.8rem !important; opacity: .3; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not ANIO_ACTUAL %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-circle fs-4"></i>
+  <div class="flex-grow-1">{% if P.config_colegio %}Primero configura el año lectivo, sus periodos y las secciones.{% else %}Dirección aún no configura el año escolar.{% endif %}</div>
+  {% if P.config_colegio %}<a href="{% url 'core:anio_nuevo' %}" class="btn btn-sm btn-warning">Configurar</a>{% endif %}
+</div>
+{% endif %}
+
+{% if t.sin_clases and ANIO_ACTUAL %}
+<div class="alert alert-light border d-flex align-items-center gap-2 py-2"><i class="bi bi-cup-hot fs-5"></i>
+  <div>Hoy no hay clases: <strong>{{ t.sin_clases }}</strong>.</div></div>
+{% endif %}
+
+{# ---------- Atajos ---------- #}
+{% if t.atajos %}
+<div class="row g-2 g-md-3 mb-4">
+  {% for a in t.atajos %}
+  <div class="col-4 col-md-3 col-xl-2">
+    <a href="{{ a.url }}" class="atajo text-bg-{{ a.color }} bg-opacity-10 border border-{{ a.color }}-subtle text-{{ a.color }}-emphasis">
+      {% if a.globo %}<span class="badge rounded-pill text-bg-danger globo" style="--bs-bg-opacity: 1">{{ a.globo }}</span>{% endif %}
+      <i class="bi {{ a.icono }}"></i>
+      <span class="texto">{{ a.texto }}</span>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row">
+  {# ---------- Pendientes ---------- #}
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-list-check me-1"></i> Pendientes</h3>
+        {% if t.pendientes %}<span class="badge text-bg-secondary ms-2">{{ t.pendientes|length }}</span>{% endif %}
+      </div>
+      {% if t.pendientes %}
+      <div class="list-group list-group-flush">
+        {% for p in t.pendientes %}
+        <a href="{{ p.url }}" class="list-group-item list-group-item-action pendiente py-3">
+          <span class="ico bg-{{ p.color }}-subtle text-{{ p.color }}-emphasis"><i class="bi {{ p.icono }}"></i></span>
+          <span class="flex-grow-1">{{ p.texto }}{% if p.detalle %}<br><small class="text-body-secondary">{{ p.detalle }}</small>{% endif %}</span>
+          <i class="bi bi-chevron-right text-body-tertiary"></i>
+        </a>
+        {% endfor %}
+      </div>
+      {% elif ANIO_ACTUAL %}
+      <div class="card-body text-center py-4">
+        <i class="bi bi-check2-circle text-success" style="font-size: 2.5rem"></i>
+        <p class="mb-0 mt-2 fw-semibold">¡Todo al día!</p>
+        <p class="small text-body-secondary mb-0">No tienes nada pendiente.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---------- Números del día ---------- #}
+  <div class="col-lg-5">
+    <div class="row g-3 mb-4">
+      {% for c in t.tarjetas %}
+      <div class="col-6">
+        <a {% if c.url %}href="{{ c.url }}"{% endif %} class="tarjeta-mini small-box text-bg-{{ c.color }} mb-0 h-100">
+          <div class="inner">
+            <h3 class="text-nowrap" style="font-size: clamp(1.25rem, 4.5vw, 1.9rem)">{{ c.valor }}</h3>
+            <p class="mb-0">{{ c.titulo }}</p>
+          </div>
+          <i class="small-box-icon bi {{ c.icono }}"></i>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if t.caja and t.caja.n %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-cash-stack me-1"></i> Caja de hoy</h3>
+        <a href="{% url 'cobranza:pagos' %}" class="ms-auto small">Ver pagos</a>
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for m in t.caja.metodos %}
+        <li class="list-group-item d-flex"><span>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></span><span class="ms-auto">{{ m.total|soles }}</span></li>
+        {% endfor %}
+        <li class="list-group-item d-flex fw-bold"><span>Total ({{ t.caja.n }})</span><span class="ms-auto">{{ t.caja.total|soles }}</span></li>
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row">
+  {# ---------- Faltaron ---------- #}
+  {% if t.faltaron %}
+  <div class="col-lg-6 col-xl-5">
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-person-dash me-1"></i> Faltaron {{ t.faltaron.cuando }}</h3>
+        <span class="badge text-bg-danger ms-2">{{ t.faltaron.lista|length }}</span>
+        <a href="{% url 'asistencia:resumen' %}?fecha={{ t.faltaron.fecha|date:'Y-m-d' }}" class="ms-auto small">Resumen</a>
+      </div>
+      {% if t.faltaron.lista %}
+      <ul class="list-group list-group-flush lista-scroll">
+        {% for f in t.faltaron.lista %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <a href="{% url 'alumnos:detalle' f.alumno.pk %}" class="flex-grow-1 text-body text-decoration-none">
+            <div class="fw-semibold">{{ f.alumno.apellido_paterno }} {{ f.alumno.apellido_materno }}, {{ f.alumno.nombres }}</div>
+            <div class="small text-body-secondary">{{ f.seccion.grado.nombre }} «{{ f.seccion.nombre }}» · {{ f.seccion.grado.nivel }}</div>
+          </a>
+          {% if f.wa %}<a href="{{ f.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Escribir a {{ f.apoderado.nombres }}"><i class="bi bi-whatsapp"></i></a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small text-body-secondary">Nadie faltó. 🎉</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- Alertas de alumnos ---------- #}
+  {% if t.alertas %}
+  <div class="col-lg-6 col-xl-4">
+    <div class="card card-outline card-danger mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-bell me-1"></i> Para llamar a los padres</h3></div>
+      <ul class="list-group list-group-flush lista-scroll">
+        {% for a in t.alertas %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi {{ a.icono }} text-danger"></i>
+          <a href="{{ a.url }}" class="flex-grow-1 text-body text-decoration-none">{{ a.texto }}{% if a.detalle %}<div class="small text-body-secondary">{{ a.detalle }}</div>{% endif %}</a>
+          {% if a.wa %}<a href="{{ a.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp"></i></a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ---------- Cumpleaños ---------- #}
+  {% if t.cumpleanos %}
+  <div class="col-lg-6 col-xl-3">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0">🎂 Cumpleaños de hoy</h3></div>
+      <ul class="list-group list-group-flush lista-scroll">
+        {% for c in t.cumpleanos %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi {{ c.icono }} text-body-secondary"></i>
+          <div><div class="fw-semibold">{{ c.nombre }}</div><div class="small text-body-secondary">{{ c.detalle }}</div></div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card mb-4 d-none" id="tarjeta-instalar">
+  <div class="card-body small d-flex flex-wrap gap-3 align-items-center">
+    <i class="bi bi-phone fs-3 text-primary"></i>
+    <div class="flex-grow-1"><strong>Instálalo en tu celular:</strong>
+      Android (Chrome): menú ⋮ → <em>Instalar aplicación</em>. iPhone (Safari): Compartir → <em>Agregar a inicio</em>.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // la ayuda para instalar solo se muestra si aún no se abrió como app
+  if (!window.matchMedia("(display-mode: standalone)").matches && !navigator.standalone) {
+    document.getElementById("tarjeta-instalar").classList.remove("d-none");
+  }
+</script>
+{% endblock %}

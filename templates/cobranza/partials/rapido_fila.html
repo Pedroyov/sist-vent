@@ -1,0 +1,18 @@
+{% load sis %}<li class="list-group-item" id="fila-{{ c.pk }}" data-texto="{{ c.alumno.nombre_completo|lower }} {{ c.alumno.numero_documento }}">
+  <div class="d-flex align-items-center gap-2">
+    <input class="form-check-input mt-0 flex-shrink-0" type="checkbox" name="cargos" value="{{ c.pk }}" data-total="{{ c.saldo|stringformat:'.2f' }}" aria-label="Marcar">
+    <div class="flex-grow-1" style="min-width: 0">
+      <div class="fw-semibold text-truncate">{{ c.alumno.apellidos }}, {{ c.alumno.nombres }}</div>
+      <div class="small text-body-secondary text-truncate">
+        {% if c.mat %}{{ c.mat.seccion.grado.nombre }} {{ c.mat.seccion.nombre }} · {% endif %}
+        {% if c.pagado %}abonó {{ c.pagado|soles }} · {% endif %}
+        {% if c.vencido %}<span class="text-danger">vencida</span>{% else %}vence {{ c.vencimiento|date:"d/m" }}{% endif %}
+        {% if c.mora_hoy %}· mora {{ c.mora_hoy|soles }}{% endif %}
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm text-nowrap"
+            hx-get="{% url 'cobranza:rapido_form' c.pk %}" hx-target="#fila-{{ c.pk }}" hx-swap="outerHTML">
+      <span class="d-none d-sm-inline">Cobrar </span>{{ c.saldo|soles }}
+    </button>
+  </div>
+</li>

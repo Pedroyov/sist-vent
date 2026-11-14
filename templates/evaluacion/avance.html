@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Avance de notas{% endblock %}
+{% block page_title %}Avance de notas <small class="text-body-secondary fs-6">{{ periodo.nombre }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'evaluacion:inicio' %}">Notas</a></li>
+  <li class="breadcrumb-item active">Avance</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+  {% if P.notas_siagie %}<a href="{% url 'evaluacion:siagie' %}" class="btn btn-success btn-sm order-last ms-auto"><i class="bi bi-upload me-1"></i>Llenar plantilla SIAGIE</a>{% endif %}
+  <form method="get"><select name="periodo" class="form-select" onchange="this.form.submit()" aria-label="Periodo">
+    {% for p in periodos %}<option value="{{ p.pk }}" {% if p.pk == periodo.pk %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+  </select></form>
+  <div class="flex-grow-1" style="max-width: 360px">
+    <div class="d-flex justify-content-between small"><span>Avance total</span><strong>{{ pct_total }} %</strong></div>
+    <div class="progress" style="height: 8px"><div class="progress-bar bg-success" style="width: {{ pct_total }}%"></div></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    {% for seccion, lista in secciones.items %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0">{{ seccion.grado.nombre }} «{{ seccion.nombre }}» <small class="text-body-secondary">{{ seccion.grado.nivel }}</small></h3>
+        <div class="ms-auto d-flex gap-1">
+          {% if P.notas_siagie %}<a href="{% url 'evaluacion:consolidado_siagie' seccion.pk %}?periodo={{ periodo.pk }}" class="btn btn-sm btn-outline-success" title="Excel ordenado como la nómina, para pasar al SIAGIE"><i class="bi bi-file-earmark-excel me-1"></i>Para SIAGIE</a>{% endif %}
+          {% if P.notas_libretas %}<a href="{% url 'evaluacion:libretas_seccion' seccion.pk %}?periodo={{ periodo.pk }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-printer me-1"></i>Libretas</a>{% endif %}
+        </div>
+      </div>
+      <div class="card-body py-2">
+        {% for a in lista %}
+        <a href="{% url 'evaluacion:registro' a.pk %}?periodo={{ periodo.pk }}" class="d-flex align-items-center gap-2 small text-decoration-none text-body py-1">
+          <span style="width: 9rem" class="text-truncate">{{ a.curso }}</span>
+          <div class="progress flex-grow-1" style="height: 8px"><div class="progress-bar {% if a.pct == 100 %}bg-success{% elif a.pct < 50 %}bg-danger{% else %}bg-warning{% endif %}" style="width: {{ a.pct }}%"></div></div>
+          <span style="width: 2.8rem" class="text-end">{{ a.pct }}%</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="card"><div class="card-body text-body-secondary">No hay cursos asignados.</div></div>
+    {% endfor %}
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-hourglass-split me-1"></i> Docentes con notas pendientes</h3></div>
+      {% if pendientes_docente %}
+      <ul class="list-group list-group-flush small">
+        {% for d, lista in pendientes_docente %}
+        <li class="list-group-item"><div class="fw-semibold">{{ d|nombre }}</div>
+          <div class="text-body-secondary">{% for a in lista %}{{ a.curso.corto }} {{ a.seccion.grado.nombre }} {{ a.seccion.nombre }} ({{ a.pct }}%){% if not forloop.last %}, {% endif %}{% endfor %}</div></li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small text-success"><i class="bi bi-check2-all me-1"></i>Todos completaron sus notas.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

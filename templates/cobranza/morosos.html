@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Morosos{% endblock %}
+{% block page_title %}Pagos vencidos <small class="text-body-secondary fs-6">{{ anio }} · al {{ hoy|date:"d/m/Y" }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item active">Morosos</li>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1">Grado / sección</label>
+        <select name="en" class="form-select" onchange="this.form.submit()">
+          <option value="">Todo el colegio</option>
+          {% for valor, texto, nivel in opciones_en %}
+          <option value="{{ valor }}" {% if f.en == valor %}selected{% endif %}>{% if nivel == 1 %}&nbsp;&nbsp;{% elif nivel == 2 %}&nbsp;&nbsp;&nbsp;&nbsp;{% endif %}{{ texto }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">Cuotas vencidas</label>
+        <select name="min" class="form-select" onchange="this.form.submit()">
+          <option value="1" {% if f.min == 1 %}selected{% endif %}>1 o más</option>
+          <option value="2" {% if f.min == 2 %}selected{% endif %}>2 o más</option>
+          <option value="3" {% if f.min == 3 %}selected{% endif %}>3 o más</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">Ordenar por</label>
+        <select name="orden" class="form-select" onchange="this.form.submit()">
+          <option value="seccion" {% if f.orden == "seccion" %}selected{% endif %}>Grado y sección</option>
+          <option value="monto" {% if f.orden == "monto" %}selected{% endif %}>Mayor deuda</option>
+          <option value="antiguedad" {% if f.orden == "antiguedad" %}selected{% endif %}>Deuda más antigua</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <a href="?{{ query }}&excel=1" class="btn btn-outline-success w-100"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-6 col-lg-3">
+    <div class="info-box"><span class="info-box-icon text-bg-danger"><i class="bi bi-people"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Alumnos con deuda</span><span class="info-box-number">{{ filas|length }}</span></div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="info-box"><span class="info-box-icon text-bg-warning"><i class="bi bi-cash-coin"></i></span>
+      <div class="info-box-content"><span class="info-box-text">Total vencido</span><span class="info-box-number">{{ total|soles }}</span></div></div>
+  </div>
+</div>
+
+{% if sin_whatsapp %}
+<div class="alert alert-light border small py-2"><i class="bi bi-info-circle me-1"></i>{{ sin_whatsapp }} alumno{{ sin_whatsapp|pluralize }} no tiene{{ sin_whatsapp|pluralize:"n" }} celular de apoderado registrado: no se les puede enviar WhatsApp.</div>
+{% endif %}
+
+<div class="card mb-4">
+  {% if filas %}
+  <ul class="list-group list-group-flush">
+    {% for fila in filas %}
+    <li class="list-group-item">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1" style="min-width: 0">
+          <a href="{% url 'cobranza:cobrar' fila.alumno.pk %}" class="fw-semibold text-body text-decoration-none">{{ fila.alumno.apellidos }}, {{ fila.alumno.nombres }}</a>
+          {% if fila.mat %}<span class="badge text-bg-primary ms-1">{{ fila.mat.seccion.grado.nombre }} {{ fila.mat.seccion.nombre }}</span>{% if fila.mat.estado != "MAT" %} <span class="badge text-bg-secondary">{{ fila.mat.get_estado_display }}</span>{% endif %}{% endif %}
+          <div class="small text-body-secondary">
+            {% for c in fila.cargos %}{{ c.concepto }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          </div>
+          <div class="small">
+            {% if fila.apoderado %}<i class="bi bi-person-heart"></i> {{ fila.apoderado.nombres }} {{ fila.apoderado.apellidos }}
+              {% if fila.apoderado.celular %}· <a href="tel:{{ fila.apoderado.celular }}">{{ fila.apoderado.celular }}</a>{% endif %}
+            {% else %}<span class="text-warning"><i class="bi bi-exclamation-circle"></i> Sin apoderado</span>{% endif %}
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold text-danger fs-5">{{ fila.total|soles }}</div>
+          <div class="small text-body-secondary">{{ fila.cargos|length }} cuota{{ fila.cargos|length|pluralize }}{% if fila.mora %} · mora {{ fila.mora|soles }}{% endif %}</div>
+        </div>
+        <div class="d-flex flex-column align-items-end gap-1" style="min-width: 8.5rem">
+          <a href="{% url 'cobranza:cobrar' fila.alumno.pk %}?sel=vencidas" class="btn btn-primary btn-sm w-100"><i class="bi bi-cash-coin me-1"></i>Cobrar</a>
+          {% if fila.wa %}
+          <a href="{{ fila.wa }}" target="_blank" rel="noopener" class="btn btn-outline-success btn-sm w-100 btn-recordar"
+             data-aviso-url="{% url 'cobranza:registrar_aviso' fila.alumno.pk %}" data-aviso-destino="#aviso-{{ fila.alumno.pk }}">
+            <i class="bi bi-whatsapp me-1"></i>Recordar
+          </a>
+          {% endif %}
+          <span id="aviso-{{ fila.alumno.pk }}" class="small">{% include "cobranza/partials/aviso.html" with aviso=fila.aviso %}</span>
+        </div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="card-body text-center py-5">
+    <i class="bi bi-emoji-smile display-5 text-success"></i>
+    <p class="mt-2 mb-0">No hay pagos vencidos{% if f.en or f.min > 1 %} con esos filtros{% endif %}.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

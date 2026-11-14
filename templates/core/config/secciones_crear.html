@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Crear secciones{% endblock %}
+{% block page_title %}Crear secciones <small class="text-body-secondary fs-6">Año {{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'core:anio_detalle' anio.pk %}">Año {{ anio }}</a></li>
+  <li class="breadcrumb-item active">Crear secciones</li>
+{% endblock %}
+
+{% block content %}
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0">1. Marca los grados</h3></div>
+        <div class="card-body">
+          {% if form.grados.errors %}<div class="alert alert-danger py-2">Marca al menos un grado.</div>{% endif %}
+          {% with marcados=form.grados.value|default_if_none:"" %}
+          <div class="row">
+            {% for nivel in niveles %}
+            <div class="col-sm-4 mb-3">
+              <div class="form-check mb-2">
+                <input class="form-check-input js-marcar-nivel" type="checkbox" id="nivel{{ nivel.pk }}" data-nivel="{{ nivel.pk }}">
+                <label class="form-check-label fw-bold" for="nivel{{ nivel.pk }}">{{ nivel.nombre }}</label>
+              </div>
+              {% for g in nivel.grados.all %}
+              <div class="form-check ms-3">
+                <input class="form-check-input js-grado" type="checkbox" name="grados" value="{{ g.pk }}" id="grado{{ g.pk }}" data-nivel="{{ nivel.pk }}"
+                       {% for m in marcados %}{% if m|stringformat:"s" == g.pk|stringformat:"s" %}checked{% endif %}{% endfor %}>
+                <label class="form-check-label" for="grado{{ g.pk }}">{{ g.nombre }}</label>
+              </div>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card card-outline card-primary mb-4">
+        <div class="card-header"><h3 class="card-title mb-0">2. Datos de las secciones</h3></div>
+        <div class="card-body">
+          {{ form.secciones|as_crispy_field }}
+          <div class="row">
+            <div class="col-6">{{ form.turno|as_crispy_field }}</div>
+            <div class="col-6">{{ form.vacantes|as_crispy_field }}</div>
+          </div>
+          {{ form.modo_asistencia|as_crispy_field }}
+          <p class="small text-body-secondary mb-0">Las secciones que ya existan no se modifican. El tutor se asigna después, editando cada sección.</p>
+        </div>
+        <div class="card-footer d-flex gap-2 justify-content-end">
+          <a href="{% url 'core:anio_detalle' anio.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-lightning-charge me-1"></i>Crear secciones</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Marcar/desmarcar todos los grados de un nivel
+  document.querySelectorAll(".js-marcar-nivel").forEach(function (chk) {
+    chk.addEventListener("change", function () {
+      document.querySelectorAll('.js-grado[data-nivel="' + chk.dataset.nivel + '"]').forEach(function (g) { g.checked = chk.checked; });
+    });
+  });
+</script>
+{% endblock %}

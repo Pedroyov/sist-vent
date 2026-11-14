@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load sis %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ c.nombre }}{% endblock %}
+{% block page_title %}{{ c.nombre }} <small class="text-body-secondary fs-6">{{ c.monto|soles }} · vence {{ c.vencimiento|date:"d/m/Y" }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:otros' %}">Otros cobros</a></li>
+  <li class="breadcrumb-item active">{{ c.nombre }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-primary"><i class="bi bi-people"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Alumnos</span><span class="info-box-number">{{ n }}</span></div></div></div>
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-success"><i class="bi bi-check2-circle"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Pagaron</span><span class="info-box-number">{{ pagados }}</span></div></div></div>
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-info"><i class="bi bi-cash"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Cobrado</span><span class="info-box-number">{{ cobrado|soles }}</span></div></div></div>
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-warning"><i class="bi bi-hourglass-split"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Pendiente</span><span class="info-box-number">{{ pendiente|soles }}</span></div></div></div>
+</div>
+
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-check me-1"></i> Alumnos</h3></div>
+      {% if cargos %}
+      <ul class="list-group list-group-flush">
+        {% for x in cargos %}
+        <li class="list-group-item d-flex align-items-center gap-2 {% if x.anulado %}text-body-secondary{% endif %}">
+          <a href="{% url 'cobranza:cobrar' x.alumno_id %}" class="flex-grow-1 text-body text-decoration-none">{{ x.alumno.apellidos }}, {{ x.alumno.nombres }}</a>
+          {% if x.anulado %}<span class="badge text-bg-secondary">No se cobra</span>
+          {% elif x.cancelado %}<span class="badge text-bg-success">Pagado</span>
+          {% elif x.pagado %}<span class="badge text-bg-warning">Debe {{ x.saldo|soles }}</span>
+          {% else %}<span class="badge text-bg-light border">Pendiente</span>{% endif %}
+          {% if not x.pagado and P.cobranza_otros %}
+          <button type="button" class="btn btn-sm btn-outline-danger" title="Quitar" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                  data-url="{% url 'cobranza:otro_quitar' x.pk %}" data-mensaje="¿Quitar este cobro a {{ x.alumno.nombres }}?"><i class="bi bi-x-lg"></i></button>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body text-body-secondary small">Nadie tiene asignado este cobro.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <form method="post" novalidate class="card mb-4">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="agregar">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-person-plus me-1"></i> Agregar alumnos</h3></div>
+      <div class="card-body">
+        {% include "cobranza/partials/destinatarios.html" with solo_alumnos=True %}
+      </div>
+      <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary btn-sm">Agregar marcados</button></div>
+    </form>
+
+    <form method="post" novalidate class="card mb-4">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="editar">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-pencil me-1"></i> Editar cobro</h3></div>
+      <div class="card-body">
+        {{ form.nombre|as_crispy_field }}
+        <div class="row">
+          <div class="col-6">{{ form.monto|as_crispy_field }}</div>
+          <div class="col-6">{{ form.vencimiento|as_crispy_field }}</div>
+        </div>
+        <p class="small text-body-secondary mb-0">El cambio de monto se aplica a quienes aún no han pagado.</p>
+      </div>
+      <div class="card-footer d-flex gap-2">
+        {% if P.cobranza_anular %}
+        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                data-url="{% url 'cobranza:otro_eliminar' c.pk %}" data-mensaje="¿Eliminar el cobro «{{ c.nombre }}» para todos los alumnos? Solo es posible si nadie lo ha pagado.">
+          <i class="bi bi-trash me-1"></i>Eliminar cobro</button>
+        {% endif %}
+        <button class="btn btn-primary btn-sm ms-auto"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

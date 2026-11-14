@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Pagos{% endblock %}
+{% block page_title %}Pagos recibidos{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item active">Pagos</li>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3 no-print">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="desde">Desde</label>
+        <input type="date" name="desde" id="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1" for="hasta">Hasta</label>
+        <input type="date" name="hasta" id="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div class="col-md-auto"><button class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i>Ver</button></div>
+      <div class="col-md d-flex flex-wrap gap-1 justify-content-md-end">
+        <a class="btn btn-sm btn-outline-secondary" href="?desde={{ hoy|date:'Y-m-d' }}">Hoy</a>
+        <a class="btn btn-sm btn-outline-secondary" href="?desde={{ ayer|date:'Y-m-d' }}">Ayer</a>
+        <a class="btn btn-sm btn-outline-secondary" href="?desde={{ inicio_mes|date:'Y-m-d' }}&hasta={{ hoy|date:'Y-m-d' }}">Este mes</a>
+        <a class="btn btn-sm btn-outline-success" href="{% url 'cobranza:pagos_excel' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-4 order-lg-2">
+    <div class="card card-outline card-success mb-4">
+      <div class="card-header"><h3 class="card-title mb-0">
+        Resumen {% if desde == hasta %}del {{ desde|date:"d/m/Y" }}{% else %}del {{ desde|date:"d/m" }} al {{ hasta|date:"d/m/Y" }}{% endif %}
+      </h3></div>
+      <ul class="list-group list-group-flush">
+        {% for metodo, datos in por_metodo.items %}
+        <li class="list-group-item d-flex"><span>{{ metodo }} <span class="text-body-secondary small">({{ datos.1 }})</span></span><span class="ms-auto">{{ datos.0|soles }}</span></li>
+        {% empty %}
+        <li class="list-group-item text-body-secondary small">Sin pagos en estas fechas.</li>
+        {% endfor %}
+        <li class="list-group-item d-flex fw-bold fs-5"><span>Total ({{ n }})</span><span class="ms-auto">{{ total|soles }}</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8 order-lg-1">
+    <div class="card mb-4">
+      {% if pagos %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light"><tr><th>Recibo</th><th>Alumno</th><th class="d-none d-md-table-cell">Método</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for p in pagos %}
+            <tr class="{% if p.anulado %}text-body-secondary{% endif %}" style="cursor:pointer" onclick="location.href='{% url 'cobranza:recibo' p.pk %}'">
+              <td class="text-nowrap"><a href="{% url 'cobranza:recibo' p.pk %}" class="{% if p.anulado %}text-decoration-line-through text-body-secondary{% endif %}">{{ p.numero_texto }}</a>
+                <div class="small text-body-secondary">{{ p.fecha|date:"d/m" }}{% if p.anulado %} · <span class="text-danger">Anulado</span>{% endif %}</div></td>
+              <td>{{ p.alumno.apellidos }}, {{ p.alumno.nombres }}
+                <div class="small text-body-secondary d-md-none">{{ p.get_metodo_display }}</div></td>
+              <td class="d-none d-md-table-cell">{{ p.get_metodo_display }}{% if p.numero_operacion %}<div class="small text-body-secondary">{{ p.numero_operacion }}</div>{% endif %}</td>
+              <td class="text-end text-nowrap {% if p.anulado %}text-decoration-line-through{% endif %}">{{ p.total|soles }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-body-secondary py-5"><i class="bi bi-receipt display-6"></i><p class="mt-2 mb-0">No hay pagos en estas fechas.</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

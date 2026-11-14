@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Reporte de asistencia{% endblock %}
+{% block page_title %}Reporte mensual de asistencia{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'asistencia:hoy' %}">Asistencia</a></li>
+  <li class="breadcrumb-item active">Reporte</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tabla-asist td, .tabla-asist th { padding: .2rem .25rem; text-align: center; font-size: .8rem; }
+  .tabla-asist td:first-child, .tabla-asist th:first-child { text-align: left; position: sticky; left: 0; background: var(--bs-body-bg); white-space: nowrap; z-index: 1; }
+  .c-P { background: rgba(var(--bs-success-rgb), .18); }
+  .c-T { background: rgba(var(--bs-warning-rgb), .35); }
+  .c-F { background: rgba(var(--bs-danger-rgb), .25); font-weight: 700; }
+  .c-J { background: rgba(var(--bs-info-rgb), .25); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1">Sección</label>
+        <select name="seccion" class="form-select" onchange="this.form.curso && (this.form.curso.value=''); this.form.submit()">
+          {% for s in secciones %}<option value="{{ s.pk }}" {% if s.pk == seccion.pk %}selected{% endif %}>{{ s.grado.nombre }} «{{ s.nombre }}» · {{ s.grado.nivel }}</option>{% endfor %}
+        </select>
+      </div>
+      {% if cursos %}
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1">Curso</label>
+        <select name="curso" class="form-select" onchange="this.form.submit()">
+          <option value="">Todos (asistencia del día)</option>
+          {% for a in cursos %}<option value="{{ a.pk }}" {% if a.pk == asignacion.pk %}selected{% endif %}>{{ a.curso }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-8 col-md-3">
+        <label class="form-label small mb-1">Mes</label>
+        <div class="input-group">
+          <a class="btn btn-outline-secondary" href="?seccion={{ seccion.pk }}&curso={{ asignacion.pk|default:'' }}&mes={{ anterior|date:'Y-m' }}"><i class="bi bi-chevron-left"></i></a>
+          <input type="month" name="mes" value="{{ mes|date:'Y-m' }}" class="form-control" onchange="this.form.submit()">
+          {% if siguiente %}<a class="btn btn-outline-secondary" href="?seccion={{ seccion.pk }}&curso={{ asignacion.pk|default:'' }}&mes={{ siguiente|date:'Y-m' }}"><i class="bi bi-chevron-right"></i></a>{% endif %}
+        </div>
+      </div>
+      <div class="col-4 col-md-2">
+        <a href="?{{ query }}&excel=1" class="btn btn-outline-success w-100"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-4">
+  {% if dias %}
+  <div class="table-responsive">
+    <table class="table table-bordered tabla-asist mb-0">
+      <thead>
+        <tr>
+          <th>Alumno</th>
+          {% for d, letra in dias %}<th><div class="text-body-secondary">{{ letra }}</div>{{ d|date:"d" }}</th>{% endfor %}
+          <th class="text-success">P</th><th class="text-warning-emphasis">T</th><th class="text-danger">F</th><th class="text-info-emphasis">J</th><th>%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in filas %}
+        <tr>
+          <td><a href="{% url 'alumnos:detalle' f.alumno.pk %}" class="text-body text-decoration-none">{{ f.alumno.apellidos }}, {{ f.alumno.nombres }}</a></td>
+          {% for c in f.celdas %}<td class="{% if c %}c-{{ c }}{% endif %}">{% if c and c != "P" %}{{ c }}{% elif c %}·{% endif %}</td>{% endfor %}
+          <td>{{ f.tot.P }}</td><td>{{ f.tot.T }}</td><td class="{% if f.tot.F %}text-danger fw-bold{% endif %}">{{ f.tot.F }}</td><td>{{ f.tot.J }}</td>
+          <td class="{% if f.pct is not None and f.pct < 85 %}text-danger fw-bold{% endif %}">{% if f.pct is not None %}{{ f.pct }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer small text-body-secondary">· presente · T tardanza · F falta · J justificada. En rojo: asistencia menor a 85 %.</div>
+  {% else %}
+  <div class="card-body text-center text-body-secondary py-5"><i class="bi bi-calendar3 display-6"></i><p class="mt-2 mb-0">No hay asistencia registrada en {{ mes|date:"F Y" }}.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

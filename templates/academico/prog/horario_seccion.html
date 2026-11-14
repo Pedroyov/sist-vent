@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Horario {{ seccion.grado.nombre }} {{ seccion.nombre }}{% endblock %}
+{% block page_title %}Horario · {{ seccion.grado.nombre }} «{{ seccion.nombre }}» <small class="text-body-secondary fs-6">{{ seccion.grado.nivel }} · {{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  {% if P.programacion_editar %}<li class="breadcrumb-item"><a href="{% url 'academico:panel' %}?anio={{ anio.pk }}">Programación</a></li>{% endif %}
+  <li class="breadcrumb-item"><a href="{% url 'academico:horarios' %}?anio={{ anio.pk }}">Horarios</a></li>
+  <li class="breadcrumb-item active">{{ seccion.grado.nombre }} {{ seccion.nombre }}</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tabla-horario td.celda { min-width: 110px; }
+  .celda-btn { min-height: 52px; line-height: 1.15; }
+  .celda-btn:disabled { opacity: 1; cursor: default; }
+  .border-dashed { border-style: dashed !important; }
+  @media print {
+    .dropdown-menu { display: none !important; }
+    .celda-btn { border: 0 !important; }
+    .celda-btn .bi-plus { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if P.programacion_editar %}{% include "academico/prog/partials/pasos.html" with paso=6 %}{% endif %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3 no-print">
+  {% if anterior %}<a href="{% url 'academico:horario_seccion' anterior.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-chevron-left"></i> {{ anterior.grado.nombre }} {{ anterior.nombre }}</a>{% endif %}
+  <select class="form-select form-select-sm w-auto" onchange="location.href=this.value" aria-label="Ir a otra sección">
+    {% for s in todas %}<option value="{% url 'academico:horario_seccion' s.pk %}" {% if s.pk == seccion.pk %}selected{% endif %}>{{ s.grado.nombre }} «{{ s.nombre }}» · {{ s.grado.nivel }}</option>{% endfor %}
+  </select>
+  {% if siguiente %}<a href="{% url 'academico:horario_seccion' siguiente.pk %}" class="btn btn-outline-secondary btn-sm">{{ siguiente.grado.nombre }} {{ siguiente.nombre }} <i class="bi bi-chevron-right"></i></a>{% endif %}
+  <div class="ms-auto d-flex gap-2">
+    {% if P.programacion_editar %}<a href="{% url 'academico:asignar' seccion.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-badge me-1"></i>Docentes</a>{% endif %}
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if total_usadas and P.programacion_editar %}
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+            data-url="{% url 'academico:horario_vaciar' seccion.pk %}" data-mensaje="¿Vaciar todo el horario de {{ seccion.grado.nombre }} «{{ seccion.nombre }}»?"><i class="bi bi-eraser me-1"></i>Vaciar</button>
+    {% endif %}
+  </div>
+</div>
+{% if P.programacion_editar %}<p class="small text-body-secondary no-print"><i class="bi bi-hand-index me-1"></i>Toca una celda y elige el curso. Los que dicen <em>faltan</em> aún no completan sus horas; en rojo, el docente ya tiene clase a esa hora en otra sección.</p>{% endif %}
+
+{% include "academico/prog/partials/horario_grid.html" %}
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

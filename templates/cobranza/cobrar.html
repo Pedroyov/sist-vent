@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% load sis %}
+{% load crispy_forms_tags %}
+
+{% block title %}Cobrar · {{ alumno.nombre_completo }}{% endblock %}
+{% block page_title %}Estado de cuenta{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item active">{{ alumno.apellidos }}</li>
+{% endblock %}
+
+{% block content %}
+{# ---------- Cabecera del alumno ---------- #}
+<div class="card mb-3">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    {% include "alumnos/partials/avatar.html" with alumno=alumno size=56 %}
+    <div class="flex-grow-1">
+      <h5 class="mb-0"><a href="{% url 'alumnos:detalle' alumno.pk %}" class="text-body text-decoration-none">{{ alumno.apellidos }}, {{ alumno.nombres }}</a></h5>
+      <div class="small text-body-secondary">
+        DNI {{ alumno.numero_documento }}
+        {% if mat %} · {{ mat.seccion.grado.nombre }} «{{ mat.seccion.nombre }}» {{ mat.seccion.grado.nivel }}{% if mat.estado != "MAT" %} <span class="badge text-bg-danger">{{ mat.get_estado_display }}</span>{% endif %}{% endif %}
+      </div>
+      {% if apoderado %}
+      <div class="small"><i class="bi bi-person-heart"></i> {{ apoderado.nombres }} {{ apoderado.apellidos }}
+        {% if apoderado.celular %}· <a href="tel:{{ apoderado.celular }}">{{ apoderado.celular }}</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-3 text-center">
+      <div><div class="small text-body-secondary">Deuda total</div><div class="fs-5 fw-semibold">{{ r.saldo|soles }}</div></div>
+      <div><div class="small text-body-secondary">Vencido</div><div class="fs-5 fw-semibold {% if r.vencido %}text-danger{% else %}text-success{% endif %}">{{ r.vencido|soles }}</div></div>
+    </div>
+  </div>
+</div>
+
+{% if not r.config %}
+<div class="alert alert-warning">Aún no se configuró el cronograma de pagos de {{ anio }}.</div>
+{% endif %}
+
+<div class="row">
+  {# ---------- Deudas pendientes + formulario de pago ---------- #}
+  <div class="col-xl-7">
+    <form method="post" enctype="multipart/form-data" novalidate id="form-pago">
+      {% csrf_token %}
+      <div class="card card-outline card-primary mb-4">
+        <div class="card-header d-flex align-items-center flex-wrap gap-2">
+          <h3 class="card-title mb-0"><i class="bi bi-list-check me-1"></i> Deudas pendientes</h3>
+          {% if pendientes %}
+          <div class="ms-auto btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-secondary" id="sel-vencidas">Marcar vencidas</button>
+            <button type="button" class="btn btn-outline-secondary" id="sel-ninguna">Ninguna</button>
+          </div>
+          {% endif %}
+        </div>
+        {% if pendientes %}
+        <ul class="list-group list-group-flush">
+          {% for c in pendientes %}
+          <li class="list-group-item fila-cargo {% if c.vencido %}border-start border-danger border-3{% endif %}" data-vencido="{{ c.vencido|yesno:'1,0' }}" data-saldo="{{ c.saldo|stringformat:'.2f' }}" data-mora="{{ c.mora_hoy|stringformat:'.2f' }}">
+            <div class="d-flex align-items-start gap-2">
+              <input class="form-check-input mt-1 js-sel" type="checkbox" name="sel_{{ c.pk }}" id="sel_{{ c.pk }}" {% if c.sel %}checked{% endif %}>
+              <label for="sel_{{ c.pk }}" class="flex-grow-1">
+                <span class="fw-semibold">{{ c.concepto }}</span>
+                <span class="small {% if c.vencido %}text-danger{% else %}text-body-secondary{% endif %}">
+                  · vence {{ c.vencimiento|date:"d/m" }}{% if c.vencido %} (vencida){% endif %}
+                </span>
+                <div class="small text-body-secondary">
+                  {{ c.monto|soles }}{% if c.descuento %} − dscto. {{ c.descuento|soles }}{% endif %}{% if c.pagado %} − pagado {{ c.pagado|soles }}{% endif %}
+                  = <strong class="text-body">saldo {{ c.saldo|soles }}</strong>
+                </div>
+              </label>
+            </div>
+            <div class="row g-2 mt-1 ms-4 campos-monto">
+              <div class="col-6 col-sm-4">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">S/</span>
+                  <input type="number" step="0.01" min="0" max="{{ c.saldo }}" inputmode="decimal" name="monto_{{ c.pk }}" value="{{ c.monto_form|stringformat:'.2f' }}" class="form-control js-monto" aria-label="Monto a pagar">
+                </div>
+              </div>
+              {% if r.config.mora_activa %}
+              <div class="col-6 col-sm-4">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text">Mora</span>
+                  <input type="number" step="0.01" min="0" inputmode="decimal" name="mora_{{ c.pk }}" value="{{ c.mora_form|stringformat:'.2f' }}" class="form-control js-mora" aria-label="Mora">
+                </div>
+              </div>
+              {% else %}
+              <input type="hidden" name="mora_{{ c.pk }}" value="0" class="js-mora">
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="card-body text-center py-4">
+          <i class="bi bi-emoji-smile display-6 text-success"></i>
+          <p class="mb-0 mt-2">No tiene deudas pendientes en {{ anio }}.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if pendientes %}
+      <div class="card mb-4" id="datos-pago">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-wallet2 me-1"></i> Datos del pago</h3></div>
+        <div class="card-body">
+          <div class="mb-3 p-2 rounded bg-body-tertiary">
+            <label for="monto-recibido" class="form-label small mb-1"><i class="bi bi-magic me-1"></i>¿Cuánto entregó? <span class="text-body-secondary">(opcional)</span></label>
+            <div class="input-group">
+              <span class="input-group-text">S/</span>
+              <input type="number" step="0.01" min="0" inputmode="decimal" id="monto-recibido" class="form-control" placeholder="Ej.: 720">
+              <button type="button" class="btn btn-outline-primary" id="btn-repartir">Repartir</button>
+            </div>
+            <div class="form-text">Se aplica a las cuotas más antiguas primero; si no alcanza, la última queda como pago parcial.</div>
+          </div>
+          <div class="row">
+            <div class="col-6">{{ form.metodo|as_crispy_field }}</div>
+            <div class="col-6">{{ form.fecha|as_crispy_field }}</div>
+          </div>
+          <div id="campos-operacion">
+            {{ form.numero_operacion|as_crispy_field }}
+            {{ form.voucher|as_crispy_field }}
+          </div>
+          {{ form.observacion|as_crispy_field }}
+        </div>
+        <div class="card-footer d-flex align-items-center gap-2 sticky-bottom bg-body">
+          <div>
+            <div class="small text-body-secondary">Total a cobrar</div>
+            <div class="fs-4 fw-bold" id="total">S/ 0.00</div>
+          </div>
+          {% if P.cobranza_cobrar %}
+          <button type="submit" class="btn btn-success btn-lg ms-auto" id="btn-cobrar" disabled>
+            <i class="bi bi-check2-circle me-1"></i>Registrar pago
+          </button>
+          {% else %}<span class="ms-auto small text-body-secondary"><i class="bi bi-eye me-1"></i>Solo consulta</span>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+
+  {# ---------- Historial, cancelados y descuentos ---------- #}
+  <div class="col-xl-5">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Pagos de {{ anio }}</h3></div>
+      {% if pagos %}
+      <div class="list-group list-group-flush">
+        {% for p in pagos %}
+        <a href="{% url 'cobranza:recibo' p.pk %}" class="list-group-item list-group-item-action {% if p.anulado %}text-body-secondary{% endif %}">
+          <div class="d-flex">
+            <span class="{% if p.anulado %}text-decoration-line-through{% endif %}">N° {{ p.numero_texto }} · {{ p.fecha|date:"d/m/Y" }}</span>
+            <strong class="ms-auto {% if p.anulado %}text-decoration-line-through{% endif %}">{{ p.total|soles }}</strong>
+          </div>
+          <div class="small text-body-secondary">
+            {% if p.anulado %}<span class="badge text-bg-danger">Anulado</span> {% endif %}
+            {% for d in p.detalles.all %}{{ d.cargo.concepto }}{% if not forloop.last %}, {% endif %}{% endfor %} · {{ p.get_metodo_display }}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body small text-body-secondary">Sin pagos en {{ anio }}.</div>
+      {% endif %}
+    </div>
+
+    {% if cancelados %}
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-check2-all me-1"></i> Pagadas / anuladas</h3></div>
+      <ul class="list-group list-group-flush small">
+        {% for c in cancelados %}
+        <li class="list-group-item d-flex">
+          <span>{{ c.concepto }}</span>
+          {% if c.anulado %}<span class="ms-auto badge text-bg-secondary">No se cobra</span>
+          {% else %}<span class="ms-auto text-success"><i class="bi bi-check-circle"></i> {{ c.total|soles }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="card mb-4" id="descuentos">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-percent me-1"></i> Descuentos {{ anio }}</h3>
+        {% if P.cobranza_descuentos %}<button class="btn btn-sm btn-outline-primary ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nuevo-descuento"><i class="bi bi-plus-lg"></i> Agregar</button>{% endif %}
+      </div>
+      {% if descuentos %}
+      <ul class="list-group list-group-flush">
+        {% for d in descuentos %}
+        <li class="list-group-item d-flex align-items-center">
+          <div>
+            <div class="fw-semibold">{{ d.motivo }} · {{ d.texto_valor }}</div>
+            <div class="small text-body-secondary">En {% if d.en_pensiones %}pensiones{% endif %}{% if d.en_pensiones and d.en_matricula %} y {% endif %}{% if d.en_matricula %}matrícula{% endif %}</div>
+          </div>
+          {% if P.cobranza_descuentos %}<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                  data-url="{% url 'cobranza:descuento_eliminar' d.pk %}" data-mensaje="¿Quitar el descuento «{{ d.motivo }}»? Las deudas pendientes volverán a su monto normal.">
+            <i class="bi bi-trash"></i>
+          </button>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small text-body-secondary py-2">Sin descuentos.</div>
+      {% endif %}
+      {% if P.cobranza_descuentos %}<div class="collapse" id="nuevo-descuento">
+        <form method="post" action="{% url 'cobranza:descuento_agregar' alumno.pk %}" class="card-body border-top" novalidate>
+          {% csrf_token %}
+          {{ form_desc.motivo|as_crispy_field }}
+          <div class="row">
+            <div class="col-7">{{ form_desc.tipo|as_crispy_field }}</div>
+            <div class="col-5">{{ form_desc.valor|as_crispy_field }}</div>
+          </div>
+          <div class="d-flex gap-3">{{ form_desc.en_pensiones|as_crispy_field }} {{ form_desc.en_matricula|as_crispy_field }}</div>
+          <p class="small text-body-secondary">Se aplica a las deudas que aún no están pagadas.</p>
+          <button class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Guardar descuento</button>
+        </form>
+      </div>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById("form-pago");
+    if (!form || !document.getElementById("total")) return;
+    var filas = form.querySelectorAll(".fila-cargo");
+
+    function n(v) { v = parseFloat(String(v).replace(",", ".")); return isNaN(v) ? 0 : v; }
+    function recalcular() {
+      var total = 0, alguno = false;
+      filas.forEach(function (f) {
+        var sel = f.querySelector(".js-sel").checked;
+        f.querySelector(".campos-monto").style.display = sel ? "" : "none";
+        f.classList.toggle("bg-primary-subtle", sel);
+        if (sel) { alguno = true; total += n(f.querySelector(".js-monto").value) + n(f.querySelector(".js-mora").value); }
+      });
+      document.getElementById("total").textContent = "S/ " + total.toFixed(2);
+      document.getElementById("btn-cobrar").disabled = !alguno || total <= 0;
+    }
+    form.addEventListener("input", recalcular);
+    form.addEventListener("change", recalcular);
+    document.getElementById("sel-vencidas").addEventListener("click", function () {
+      filas.forEach(function (f) { f.querySelector(".js-sel").checked = f.dataset.vencido === "1"; }); recalcular();
+    });
+    document.getElementById("sel-ninguna").addEventListener("click", function () {
+      filas.forEach(function (f) { f.querySelector(".js-sel").checked = false; }); recalcular();
+    });
+
+    // Repartir el monto recibido entre las cuotas, de la más antigua a la más reciente
+    function repartir() {
+      var resto = n(document.getElementById("monto-recibido").value);
+      if (resto <= 0) return;
+      filas.forEach(function (f) {
+        var saldo = n(f.dataset.saldo), mora = n(f.dataset.mora), sel = f.querySelector(".js-sel");
+        if (resto <= 0.001) { sel.checked = false; return; }
+        var capital = Math.min(resto, saldo); resto -= capital;
+        var m = Math.min(resto, mora); resto -= m;
+        sel.checked = true;
+        f.querySelector(".js-monto").value = capital.toFixed(2);
+        f.querySelector(".js-mora").value = m.toFixed(2);
+      });
+      recalcular();
+      if (resto > 0.001) alert("Sobran S/ " + resto.toFixed(2) + ": el monto es mayor que toda la deuda pendiente.");
+    }
+    document.getElementById("btn-repartir").addEventListener("click", repartir);
+    document.getElementById("monto-recibido").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); repartir(); } });
+
+    // N° de operación y voucher solo si no es efectivo
+    var metodo = document.getElementById("id_metodo"), op = document.getElementById("campos-operacion");
+    function verOperacion() { op.style.display = metodo.value === "EFE" ? "none" : ""; }
+    metodo.addEventListener("change", verOperacion); verOperacion();
+
+    // evitar doble envío
+    form.addEventListener("submit", function () { document.getElementById("btn-cobrar").disabled = true; });
+    recalcular();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Roles y permisos{% endblock %}
+{% block page_title %}Roles y permisos{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Roles y permisos</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tabla-permisos th.rol, .tabla-permisos td.rol { width: 108px; min-width: 96px; text-align: center; vertical-align: middle; }
+  .tabla-permisos td.texto { min-width: 220px; }
+  .tabla-permisos thead th { position: sticky; top: 0; z-index: 2; background: var(--bs-body-bg); }
+  .tabla-permisos .form-check-input { width: 1.35em; height: 1.35em; cursor: pointer; }
+  .tabla-permisos tr.modulo-off td { opacity: .45; }
+  .tabla-permisos tr.modulo th { background: var(--bs-tertiary-bg); }
+  @media (max-width: 575.98px) { .tabla-permisos td.texto { min-width: 170px; font-size: .85rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{# ---------- Permisos por rol ---------- #}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <h5 class="mb-0"><i class="bi bi-shield-lock me-1"></i> Qué puede hacer cada rol</h5>
+  <a href="{% url 'core:rol_nuevo' %}" class="btn btn-sm btn-success ms-auto"><i class="bi bi-plus-lg me-1"></i>Nuevo rol</a>
+</div>
+<p class="small text-body-secondary">Marca las casillas y guarda. <strong>Dirección</strong> siempre tiene todo lo de los módulos activos. A cada usuario le das uno o varios roles en <a href="{% url 'core:usuario_lista' %}">Usuarios</a>.
+  Los docentes siempre ven <em>sus</em> secciones y cursos; los permisos de "todas las secciones" son para quien supervisa.</p>
+
+<form method="post">
+  {% csrf_token %}<input type="hidden" name="accion" value="permisos">
+  <div class="card mb-3">
+    <div class="table-responsive" style="max-height: 75vh">
+      <table class="table table-sm table-hover align-middle mb-0 tabla-permisos">
+        <thead>
+          <tr>
+            <th class="ps-3">Permiso</th>
+            {% for g in grupos %}
+            <th class="rol" id="rol-{{ g.pk }}">
+              <div class="fw-semibold text-truncate" title="{{ g.name }}">{{ g.name }}</div>
+              <div class="small fw-normal text-body-secondary">{{ g.n_usuarios }} usuario{{ g.n_usuarios|pluralize }}</div>
+              {% if not g.total %}
+              <div class="d-flex justify-content-center gap-1 mt-1">
+                <a href="{% url 'core:rol_editar' g.pk %}" class="btn btn-sm btn-link p-0" title="Renombrar"><i class="bi bi-pencil"></i></a>
+                {% if not g.base %}
+                <button type="button" class="btn btn-sm btn-link p-0 text-danger" title="Eliminar rol" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                        data-url="{% url 'core:rol_eliminar' g.pk %}" data-mensaje="¿Eliminar el rol «{{ g.name }}»?{% if g.n_usuarios %} {{ g.n_usuarios }} usuario(s) lo tienen y perderán estos permisos.{% endif %}"><i class="bi bi-trash"></i></button>
+                {% endif %}
+              </div>
+              {% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in secciones %}
+          <tr class="modulo">
+            <th class="ps-3" colspan="{{ grupos|length|add:1 }}">{{ s.nombre }}</th>
+          </tr>
+          {% for p in s.permisos %}
+          <tr class="{% if s.inactivo %}modulo-off{% endif %}">
+            <td class="texto ps-3">{{ p.texto }}</td>
+            {% for g in grupos %}
+            <td class="rol">
+              <input class="form-check-input" type="checkbox" name="p_{{ g.pk }}" value="{{ p.codigo }}" aria-label="{{ g.name }}: {{ p.texto }}"
+                     {% if p.codigo in g.marcados %}checked{% endif %} {% if g.total %}disabled{% endif %}>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer d-flex align-items-center gap-2 sticky-bottom bg-body">
+      <span class="small text-body-secondary d-none d-sm-inline">Los cambios se aplican al instante para cada usuario.</span>
+      <button class="btn btn-primary ms-auto"><i class="bi bi-check-lg me-1"></i>Guardar permisos</button>
+    </div>
+  </div>
+</form>
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

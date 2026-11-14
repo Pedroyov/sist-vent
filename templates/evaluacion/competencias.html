@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Competencias{% endblock %}
+{% block page_title %}Competencias por curso{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'evaluacion:configuracion' %}">Configuración</a></li>
+  <li class="breadcrumb-item active">Competencias</li>
+{% endblock %}
+
+{% block content %}
+<ul class="nav nav-pills mb-3">
+  {% for n in niveles %}<li class="nav-item"><a class="nav-link {% if n.pk == nivel.pk %}active{% endif %}" href="?nivel={{ n.pk }}">{{ n.nombre }}</a></li>{% endfor %}
+</ul>
+<p class="small text-body-secondary">Vienen cargadas las competencias del Currículo Nacional. Puedes renombrarlas, desactivar las que no evalúes o agregar otras (por ejemplo, para talleres).</p>
+<div class="row">
+  {% for curso in cursos %}
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">{{ curso.nombre }}</h3></div>
+      <ul class="list-group list-group-flush">
+        {% for c in curso.competencias.all %}
+        <li class="list-group-item {% if not c.activo %}text-body-secondary{% endif %}">
+          <form method="post" class="d-flex gap-2 align-items-center">{% csrf_token %}
+            <input type="hidden" name="competencia" value="{{ c.pk }}">
+            <span class="badge text-bg-light border">C{{ forloop.counter }}</span>
+            <input type="text" name="nombre" value="{{ c.nombre }}" class="form-control form-control-sm {% if not c.activo %}text-decoration-line-through{% endif %}" aria-label="Nombre">
+            <button name="accion" value="renombrar" class="btn btn-sm btn-outline-primary" title="Guardar nombre"><i class="bi bi-check-lg"></i></button>
+            <button name="accion" value="alternar" class="btn btn-sm {% if c.activo %}btn-outline-secondary{% else %}btn-outline-success{% endif %}" title="{% if c.activo %}Desactivar{% else %}Activar{% endif %}">
+              <i class="bi {% if c.activo %}bi-eye-slash{% else %}bi-eye{% endif %}"></i></button>
+          </form>
+        </li>
+        {% empty %}
+        <li class="list-group-item small text-body-secondary">Sin competencias: se pondrá una sola nota por periodo.</li>
+        {% endfor %}
+      </ul>
+      <form method="post" class="card-footer d-flex gap-2">{% csrf_token %}
+        <input type="hidden" name="curso" value="{{ curso.pk }}">
+        <input type="text" name="nombre" class="form-control form-control-sm" placeholder="Nueva competencia" aria-label="Nueva competencia">
+        <button name="accion" value="agregar" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-plus-lg"></i> Agregar</button>
+      </form>
+    </div>
+  </div>
+  {% empty %}
+  <p class="text-body-secondary">No hay cursos en este nivel.</p>
+  {% endfor %}
+</div>
+{% endblock %}

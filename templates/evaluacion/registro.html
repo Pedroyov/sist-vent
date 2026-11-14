@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Notas · {{ a.curso }}{% endblock %}
+{% block page_title %}{{ a.curso }} · {{ a.seccion.grado.nombre }} «{{ a.seccion.nombre }}»{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'evaluacion:inicio' %}?periodo={{ periodo.pk }}">Notas</a></li>
+  <li class="breadcrumb-item active">{{ a.curso.corto }} {{ a.seccion.grado.nombre }} {{ a.seccion.nombre }}</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tabla-notas th, .tabla-notas td { vertical-align: middle; }
+  .tabla-notas td:first-child, .tabla-notas th:first-child { position: sticky; left: 0; background: var(--bs-body-bg); z-index: 2; min-width: 170px; }
+  .tabla-notas thead th { position: sticky; top: 0; background: var(--bs-tertiary-bg); z-index: 3; }
+  .nota { width: 3.6rem; text-align: center; font-weight: 600; text-transform: uppercase; }
+  .nota.baja { color: var(--bs-danger); border-color: var(--bs-danger); }
+  .nota.invalida { background: rgba(var(--bs-danger-rgb), .15); }
+  .comentario { min-width: 220px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <form method="get">
+    <select name="periodo" class="form-select" onchange="this.form.submit()" aria-label="Periodo">
+      {% for p in periodos %}<option value="{{ p.pk }}" {% if p.pk == periodo.pk %}selected{% endif %}>{{ p.nombre }}{% if p.notas_cerradas %} 🔒{% endif %}</option>{% endfor %}
+    </select>
+  </form>
+  <span class="small text-body-secondary">Escala: <strong>{{ config.get_escala_display }}</strong>{% if config.vigesimal %} · aprueba con {{ config.nota_aprobatoria }}{% endif %}</span>
+  {% if config.comentarios and not cerrado %}
+  <div class="form-check form-switch ms-auto mb-0">
+    <input class="form-check-input" type="checkbox" id="ver-comentarios">
+    <label class="form-check-label small" for="ver-comentarios">Mostrar comentarios</label>
+  </div>
+  {% endif %}
+</div>
+
+{% if cerrado %}<div class="alert alert-secondary py-2"><i class="bi bi-lock me-1"></i>Las notas del {{ periodo.nombre }} están cerradas. Solo Dirección puede modificarlas.</div>{% endif %}
+{% if cerrado_dir %}<div class="alert alert-warning py-2 small"><i class="bi bi-unlock me-1"></i>Periodo cerrado: tienes permiso para corregirlo.</div>{% endif %}
+
+{% if comps|length > 1 %}
+<details class="mb-2 small"><summary class="text-primary">Ver competencias</summary>
+  <ol class="mt-2 mb-0">{% for c in comps %}<li><strong>C{{ forloop.counter }}</strong>: {{ c.nombre }}</li>{% endfor %}</ol>
+</details>
+{% endif %}
+
+{% if not filas %}
+<div class="alert alert-info">No hay alumnos matriculados en esta sección.</div>
+{% else %}
+<form method="post" id="form-notas" autocomplete="off">
+  {% csrf_token %}
+  <input type="hidden" name="periodo" value="{{ periodo.pk }}">
+  <div class="card mb-5 pb-4">
+    <div class="table-responsive" style="max-height: 70vh">
+      <table class="table table-sm table-bordered tabla-notas mb-0">
+        <thead>
+          <tr>
+            <th>Alumno</th>
+            {% for c in comps %}<th class="text-center" title="{{ c.nombre|default:'Nota del curso' }}">{% if c %}C{{ forloop.counter }}{% else %}Nota{% endif %}</th>{% endfor %}
+            {% if config.vigesimal and comps|length > 1 %}<th class="text-center">Prom.</th>{% endif %}
+            {% if config.comentarios %}<th class="comentario-col d-none">Comentario</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in filas %}
+          <tr>
+            <td class="small"><span class="text-body-secondary">{{ forloop.counter }}.</span> {{ f.alumno.apellidos }}, {{ f.alumno.nombres }}</td>
+            {% for c, v, d in f.valores %}
+            <td class="text-center">
+              <div class="d-flex align-items-center justify-content-center gap-1">
+                <input type="text" name="n_{{ f.alumno.pk }}_{% if c %}{{ c.pk }}{% else %}0{% endif %}" value="{{ v|default_if_none:'' }}"
+                       class="form-control form-control-sm nota" maxlength="2" {% if config.vigesimal %}inputmode="numeric"{% endif %}
+                       {% if cerrado %}disabled{% endif %} aria-label="{{ c.nombre|default:'Nota' }} de {{ f.alumno.nombres }}">
+                <input type="hidden" name="d_{{ f.alumno.pk }}_{% if c %}{{ c.pk }}{% else %}0{% endif %}" value="{{ d }}" class="conclusion">
+                <button type="button" class="btn btn-sm px-1 py-0 btn-conclusion {% if d %}text-primary{% else %}text-body-tertiary{% endif %}"
+                        title="Conclusión descriptiva" data-alumno="{{ f.alumno.apellidos }}, {{ f.alumno.nombres }}" data-comp="{{ c.nombre|default:a.curso.nombre }}" {% if cerrado %}disabled{% endif %}>
+                  <i class="bi {% if d %}bi-chat-left-text-fill{% else %}bi-chat-left-text{% endif %}"></i></button>
+              </div>
+            </td>
+            {% endfor %}
+            {% if config.vigesimal and comps|length > 1 %}<td class="text-center fw-bold prom {% if f.promedio is not None and f.promedio < config.nota_aprobatoria %}text-danger{% endif %}">{{ f.promedio|default_if_none:"" }}</td>{% endif %}
+            {% if config.comentarios %}
+            <td class="comentario-col d-none"><textarea name="c_{{ f.alumno.pk }}" rows="1" maxlength="600" class="form-control form-control-sm comentario" placeholder="Logros, dificultades, recomendaciones…" {% if cerrado %}disabled{% endif %}>{{ f.comentario }}</textarea></td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalConclusion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Conclusión descriptiva</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+          <div class="small text-body-secondary mb-1" id="mc-alumno"></div>
+          <div class="small fw-semibold mb-2" id="mc-comp"></div>
+          <textarea id="mc-texto" rows="5" maxlength="1000" class="form-control" placeholder="Qué logró, qué dificultades tiene y qué se recomienda…"></textarea>
+          <div class="form-text">El SIAGIE la exige cuando el nivel de logro es C. Se guarda al pulsar «Guardar» en la página.</div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-primary" id="mc-ok">Listo</button></div>
+      </div>
+    </div>
+  </div>
+
+  {% if not cerrado %}
+  <div class="position-fixed bottom-0 end-0 start-0 p-2 bg-body border-top shadow" id="barra-asistencia" style="z-index: 1030">
+    <div class="container-fluid d-flex align-items-center gap-2">
+      <span class="small text-body-secondary d-none d-sm-inline">{% if config.vigesimal %}Escribe de 0 a 20{% else %}Escribe AD, A, B o C{% endif %}. Enter baja a la siguiente fila.</span>
+      <span class="small" id="estado-notas"></span>
+      <button class="btn btn-primary ms-auto px-4"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+    </div>
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById("form-notas");
+    if (!form) return;
+    var vig = {{ config.vigesimal|yesno:"true,false" }}, aprob = {{ config.nota_aprobatoria }};
+    var letras = ["AD", "A", "B", "C"];
+    function validar(inp) {
+      var v = inp.value.trim().toUpperCase(), ok = true, baja = false;
+      if (v) {
+        if (vig) { ok = /^\d{1,2}$/.test(v) && +v <= 20; baja = ok && +v < aprob; }
+        else { ok = letras.indexOf(v) >= 0; baja = v === "C" || v === "B"; }
+      }
+      inp.classList.toggle("invalida", !ok);
+      inp.classList.toggle("baja", baja);
+      return ok;
+    }
+    function promedio(tr) {
+      var celda = tr.querySelector(".prom"); if (!celda) return;
+      var ns = [].map.call(tr.querySelectorAll(".nota"), function (i) { return i.value.trim(); })
+        .filter(function (v) { return /^\d{1,2}$/.test(v); }).map(Number);
+      if (!ns.length) { celda.textContent = ""; return; }
+      var p = Math.round(ns.reduce(function (a, b) { return a + b; }, 0) / ns.length + 1e-9);
+      celda.textContent = p; celda.classList.toggle("text-danger", p < aprob);
+    }
+    function revisar() {
+      var malas = 0;
+      form.querySelectorAll(".nota").forEach(function (i) { if (!validar(i)) malas++; });
+      document.getElementById("estado-notas") && (document.getElementById("estado-notas").innerHTML = malas ? '<span class="text-danger">' + malas + ' nota(s) no válida(s)</span>' : "");
+    }
+    form.addEventListener("input", function (e) {
+      if (e.target.classList.contains("nota")) { validar(e.target); promedio(e.target.closest("tr")); revisar(); }
+    });
+    // Enter: bajar a la misma columna de la fila siguiente
+    form.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" || !e.target.classList.contains("nota")) return;
+      e.preventDefault();
+      var td = e.target.closest("td"), col = [].indexOf.call(td.parentNode.children, td);
+      var sig = td.parentNode.nextElementSibling;
+      if (sig) { var i = sig.children[col].querySelector("input"); if (i) { i.focus(); i.select(); } }
+    });
+    // Conclusión descriptiva por celda (modal)
+    var modal = new bootstrap.Modal(document.getElementById("modalConclusion")), actual = null;
+    function pintar(btn) {
+      var td = btn.closest("td"), d = td.querySelector(".conclusion").value.trim(), v = td.querySelector(".nota").value.trim().toUpperCase();
+      var falta = !d && (v === "C" || (vig && /^\d+$/.test(v) && +v < aprob));
+      btn.classList.toggle("text-primary", !!d);
+      btn.classList.toggle("text-danger", falta);
+      btn.classList.toggle("text-body-tertiary", !d && !falta);
+      btn.querySelector("i").className = "bi " + (d ? "bi-chat-left-text-fill" : "bi-chat-left-text");
+    }
+    form.addEventListener("click", function (e) {
+      var btn = e.target.closest(".btn-conclusion"); if (!btn) return;
+      actual = btn;
+      document.getElementById("mc-alumno").textContent = btn.dataset.alumno;
+      document.getElementById("mc-comp").textContent = btn.dataset.comp;
+      document.getElementById("mc-texto").value = btn.closest("td").querySelector(".conclusion").value;
+      modal.show();
+      setTimeout(function () { document.getElementById("mc-texto").focus(); }, 300);
+    });
+    document.getElementById("mc-ok").addEventListener("click", function () {
+      if (actual) { actual.closest("td").querySelector(".conclusion").value = document.getElementById("mc-texto").value; pintar(actual); }
+      modal.hide();
+    });
+    form.addEventListener("input", function (e) { if (e.target.classList.contains("nota")) pintar(e.target.closest("td").querySelector(".btn-conclusion")); });
+    form.querySelectorAll(".btn-conclusion").forEach(pintar);
+
+    var ver = document.getElementById("ver-comentarios");
+    if (ver) ver.addEventListener("change", function () {
+      document.querySelectorAll(".comentario-col").forEach(function (c) { c.classList.toggle("d-none", !ver.checked); });
+    });
+    revisar();
+  })();
+</script>
+{% endblock %}

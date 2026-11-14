@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Importar alumnos{% endblock %}
+{% block page_title %}Importar alumnos <small class="text-body-secondary fs-6">Matrícula {{ anio }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'alumnos:lista' %}">Alumnos</a></li>
+  <li class="breadcrumb-item active">Importar</li>
+{% endblock %}
+
+{% block content %}
+{% if listo %}
+  {# ---------- Vista previa sin errores: confirmar ---------- #}
+  <div class="alert alert-success d-flex flex-wrap align-items-center gap-2">
+    <i class="bi bi-check-circle fs-4"></i>
+    <div class="flex-grow-1">
+      Todo correcto: <strong>{{ filas|length }}</strong> alumnos
+      ({{ nuevos }} nuevos{% if actualizar %}, {{ actualizar }} ya existían y se actualizarán{% endif %}).
+      Revisa la lista y confirma.
+    </div>
+    <form method="post">{% csrf_token %}
+      <a href="{% url 'alumnos:importar' %}" class="btn btn-outline-secondary">Cancelar</a>
+      <button name="confirmar" class="btn btn-success"><i class="bi bi-cloud-upload me-1"></i>Confirmar importación</button>
+    </form>
+  </div>
+{% else %}
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card card-outline card-primary mb-4">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <div class="card-body">
+            {{ form|crispy }}
+            <p class="small text-body-secondary mb-0">
+              Primero se revisa el archivo y se muestra una vista previa. No se guarda nada hasta que confirmes.
+            </p>
+          </div>
+          <div class="card-footer d-flex justify-content-end">
+            <button class="btn btn-primary"><i class="bi bi-search me-1"></i>Revisar archivo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-info-circle me-1"></i> Cómo hacerlo</h3></div>
+        <div class="card-body small">
+          <ol class="ps-3 mb-3">
+            <li>Descarga la plantilla y llénala (o copia y pega desde tu Excel actual).</li>
+            <li>Las secciones deben estar creadas en <a href="{% url 'core:configuracion' %}">Configuración</a>.</li>
+            <li>Sube el archivo, revisa y confirma.</li>
+          </ol>
+          <a href="{% url 'alumnos:plantilla' %}" class="btn btn-success w-100"><i class="bi bi-file-earmark-excel me-1"></i>Descargar plantilla</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% for e in errores %}
+  <div class="alert alert-danger"><i class="bi bi-x-circle me-1"></i>{{ e }}</div>
+{% endfor %}
+
+{% if con_error %}
+  <div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle me-1"></i>
+    Hay <strong>{{ con_error|length }}</strong> fila{{ con_error|length|pluralize }} con problemas. Corrígelas en el Excel y vuelve a subirlo. No se guardó nada.
+  </div>
+  <div class="card mb-4">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th>Fila</th><th>Alumno</th><th>Problema</th></tr></thead>
+        <tbody>
+          {% for f in con_error %}
+          <tr>
+            <td class="text-body-secondary">{{ f.n }}</td>
+            <td>{{ f.datos.ap_paterno }} {{ f.datos.nombres }}<div class="small text-body-secondary">{{ f.datos.dni }}</div></td>
+            <td class="text-danger small">{% for e in f.errores %}<div>{{ e }}</div>{% endfor %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% if listo %}
+  <div class="card mb-4">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle mb-0">
+        <thead><tr><th>Fila</th><th>Alumno</th><th class="d-none d-md-table-cell">DNI</th><th>Sección</th><th class="d-none d-md-table-cell">Apoderado</th><th></th></tr></thead>
+        <tbody>
+          {% for f in filas %}
+          <tr>
+            <td class="text-body-secondary">{{ f.n }}</td>
+            <td>{{ f.datos.ap_paterno }}{% if f.datos.ap_materno %} {{ f.datos.ap_materno }}{% endif %}, {{ f.datos.nombres }}</td>
+            <td class="d-none d-md-table-cell">{{ f.datos.dni }}</td>
+            <td class="small">{{ f.datos.seccion_txt }}</td>
+            <td class="d-none d-md-table-cell small">{% if f.datos.dni_apo %}{{ f.datos.nom_apo }} {{ f.datos.ap_apo }}{% else %}<span class="text-body-secondary">—</span>{% endif %}</td>
+            <td><span class="badge {% if f.accion == 'Nuevo' %}text-bg-success{% else %}text-bg-info{% endif %}">{{ f.accion }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

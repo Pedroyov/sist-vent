@@ -1,0 +1,29 @@
+{% load sis %}{% if q %}
+  {% if resultados %}
+  <div class="list-group list-group-flush border-top">
+    {% for a in resultados %}
+    <a href="{% url 'cobranza:cobrar' a.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+      {% include "alumnos/partials/avatar.html" with alumno=a size=38 %}
+      <div class="flex-grow-1" style="min-width:0">
+        <div class="fw-semibold text-truncate">{{ a.apellidos }}, {{ a.nombres }}</div>
+        <div class="small text-body-secondary">
+          {% if a.mat %}{{ a.mat.seccion.grado.nombre }} {{ a.mat.seccion.nombre }} · {{ a.mat.seccion.grado.nivel }}{% endif %}
+        </div>
+      </div>
+      <div class="text-end text-nowrap">
+        {% if a.saldo %}
+          <div class="fw-semibold {% if a.n_vencidos %}text-danger{% endif %}">{{ a.saldo|soles }}</div>
+          {% if a.n_vencidos %}<span class="badge text-bg-danger">{{ a.n_vencidos }} vencida{{ a.n_vencidos|pluralize }}</span>{% endif %}
+        {% else %}
+          <span class="badge text-bg-success">Al día</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card-body border-top text-body-secondary small">No se encontraron alumnos matriculados con «{{ q }}».</div>
+  {% endif %}
+{% else %}
+  <div class="card-body pt-0 small text-body-secondary">Escribe el nombre o DNI del alumno (o del apoderado) para ver su estado de cuenta y cobrar.</div>
+{% endif %}

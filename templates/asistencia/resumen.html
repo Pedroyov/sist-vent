@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Resumen de asistencia{% endblock %}
+{% block page_title %}Asistencia del día{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'asistencia:hoy' %}">Asistencia</a></li>
+  <li class="breadcrumb-item active">Resumen</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="?fecha={{ ayer|date:'Y-m-d' }}" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+  <form method="get" class="flex-grow-1" style="max-width: 260px">
+    <input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" max="{{ hoy|date:'Y-m-d' }}" class="form-control text-center" onchange="this.form.submit()">
+  </form>
+  {% if fecha < hoy %}<a href="?fecha={{ manana|date:'Y-m-d' }}" class="btn btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>{% endif %}
+  <span class="ms-2">{{ dia }}{% if fecha == hoy %} <span class="badge text-bg-primary">Hoy</span>{% endif %}</span>
+</div>
+
+{% if no_lectivo %}
+<div class="alert alert-info"><i class="bi bi-calendar-x me-1"></i>No hay clases: <strong>{{ no_lectivo }}</strong>.</div>
+{% endif %}
+<div class="row">
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-success"><i class="bi bi-person-check"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Asistencia</span><span class="info-box-number">{% if porcentaje is not None %}{{ porcentaje }} %{% else %}—{% endif %}</span></div></div></div>
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-danger"><i class="bi bi-person-x"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Faltaron</span><span class="info-box-number">{{ faltaron|length }}</span></div></div></div>
+  <div class="col-6 col-lg-3"><div class="info-box"><span class="info-box-icon text-bg-warning"><i class="bi bi-hourglass"></i></span>
+    <div class="info-box-content"><span class="info-box-text">Secciones sin tomar</span><span class="info-box-number">{{ sin_tomar }}</span></div></div></div>
+</div>
+
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-person-x me-1"></i> Faltaron</h3></div>
+      {% if faltaron %}
+      <ul class="list-group list-group-flush">
+        {% for f in faltaron %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <div class="flex-grow-1" style="min-width:0">
+            <a href="{% url 'alumnos:detalle' f.alumno.pk %}" class="text-body text-decoration-none fw-semibold">{{ f.alumno.apellidos }}, {{ f.alumno.nombres }}</a>
+            <div class="small text-body-secondary">{{ f.seccion.grado.nombre }} «{{ f.seccion.nombre }}»
+              {% if f.estado == "J" %}<span class="badge text-bg-info">Justificada</span>{% endif %}
+              {% if f.apoderado %}· {{ f.apoderado.nombres }} {% if f.apoderado.celular %}<a href="tel:{{ f.apoderado.celular }}">{{ f.apoderado.celular }}</a>{% endif %}{% endif %}
+            </div>
+          </div>
+          <span id="aviso-{{ f.alumno.pk }}">
+          {% if f.avisado %}<span class="small text-success"><i class="bi bi-check2-all"></i> Avisado</span>
+          {% elif f.wa and f.estado == "F" %}
+            <a href="{{ f.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success btn-recordar"
+               data-aviso-url="{% url 'asistencia:avisar_falta' f.alumno.pk %}" data-aviso-fecha="{{ fecha|date:'Y-m-d' }}"
+               data-aviso-destino="#aviso-{{ f.alumno.pk }}"><i class="bi bi-whatsapp me-1"></i>Avisar</a>
+          {% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body small text-body-secondary">Nadie faltó{% if sin_tomar %} (en las secciones donde ya se tomó asistencia){% endif %}.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-grid-3x3-gap me-1"></i> Por sección</h3></div>
+      <ul class="list-group list-group-flush">
+        {% for s in secciones %}
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi {% if s.tomada %}bi-check-circle-fill text-success{% else %}bi-circle text-warning{% endif %}"></i>
+          <div class="flex-grow-1">
+            <div>{{ s.grado.nombre }} «{{ s.nombre }}» <span class="small text-body-secondary">{{ s.grado.nivel }}</span></div>
+            <div class="small text-body-secondary">
+              {% if s.por_curso %}{{ s.sesiones|length }} de {{ s.n_cursos }} cursos tomados{% else %}{% if s.tomada %}Tomada{% else %}Sin tomar · tutor: {{ s.tutor|nombre }}{% endif %}{% endif %}
+            </div>
+          </div>
+          {% if s.tomada %}
+          <span class="small text-nowrap"><span class="text-success">{{ s.conteo.P }}</span>{% if s.conteo.T %} · <span class="text-warning-emphasis">{{ s.conteo.T }}T</span>{% endif %}{% if s.conteo.F %} · <span class="text-danger">{{ s.conteo.F }}F</span>{% endif %}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

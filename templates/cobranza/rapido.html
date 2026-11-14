@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Cobro rápido{% endblock %}
+{% block page_title %}Cobro rápido{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'cobranza:inicio' %}">Cobranza</a></li>
+  <li class="breadcrumb-item active">Cobro rápido</li>
+{% endblock %}
+
+{% block content %}
+{% if not conceptos %}
+<div class="alert alert-warning">Aún no hay cronograma de pagos en {{ anio }}. Configúralo en <a href="{% url 'cobranza:configuracion' %}">Cronograma</a>.</div>
+{% else %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-5">
+        <label class="form-label small mb-1">¿Qué vas a cobrar?</label>
+        <select name="concepto" class="form-select form-select-lg" onchange="this.form.submit()">
+          {% for c in conceptos %}
+          <option value="{{ c.pk }}" {% if c.pk == concepto.pk %}selected{% endif %}>{{ c.nombre }} · {{ c.monto|soles }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">Grado / sección</label>
+        <select name="en" class="form-select" onchange="this.form.submit()">
+          <option value="">Todos</option>
+          {% for valor, texto, nivel in opciones_en %}
+          <option value="{{ valor }}" {% if en == valor %}selected{% endif %}>{% if nivel == 1 %}&nbsp;&nbsp;{% elif nivel == 2 %}&nbsp;&nbsp;&nbsp;&nbsp;{% endif %}{{ texto }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-4">
+        <label class="form-label small mb-1">Buscar alumno</label>
+        <input type="search" id="buscar" class="form-control" placeholder="Nombre o DNI" autocomplete="off">
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap gap-3 mb-2 small text-body-secondary">
+  <span><strong class="text-body">{{ filas|length }}</strong> pendiente{{ filas|length|pluralize }} de {{ concepto }}</span>
+  <span>Por cobrar: <strong class="text-body">{{ pendiente|soles }}</strong></span>
+  {% if pagados_hoy %}<span class="text-success"><i class="bi bi-check2-all"></i> {{ pagados_hoy }} pagado{{ pagados_hoy|pluralize }} hoy</span>{% endif %}
+</div>
+
+<form method="post" action="{% url 'cobranza:rapido_lote' concepto.pk %}" id="form-lote">
+  {% csrf_token %}
+  <input type="hidden" name="en" value="{{ en }}">
+  <div class="card mb-5">
+    {% if filas %}
+    <div class="card-header py-2">
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" id="marcar-todos">
+        <label class="form-check-label small" for="marcar-todos">Marcar todos los visibles</label>
+      </div>
+    </div>
+    <ul class="list-group list-group-flush" id="lista">
+      {% for c in filas %}
+        {% include "cobranza/partials/rapido_fila.html" %}
+      {% endfor %}
+    </ul>
+    <div class="card-body text-center text-body-secondary small d-none" id="sin-resultados">Nadie coincide con la búsqueda.</div>
+    {% else %}
+    <div class="card-body text-center py-5">
+      <i class="bi bi-check2-all display-5 text-success"></i>
+      <p class="mt-2 mb-0">Todos pagaron {{ concepto }}{% if en %} en esta sección{% endif %}. 🎉</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Barra para registrar varios pagos a la vez #}
+  <div class="position-fixed bottom-0 end-0 start-0 p-2 bg-body border-top shadow d-none" id="barra-lote" style="z-index: 1030">
+    <div class="container-fluid d-flex flex-wrap align-items-center gap-2">
+      <div><strong id="lote-n">0</strong> marcado(s) · <strong id="lote-total">S/ 0.00</strong></div>
+      <select name="metodo_lote" class="form-select form-select-sm ms-auto" style="width: auto">
+        <option value="EFE">Efectivo</option>
+        <option value="YAP">Yape</option>
+        <option value="PLI">Plin</option>
+        <option value="TRA">Transferencia</option>
+        <option value="DEP">Depósito</option>
+      </select>
+      <button class="btn btn-success" onclick="return confirm('¿Registrar el pago completo de los alumnos marcados? Se emitirá un recibo para cada uno.')">
+        <i class="bi bi-check2-all me-1"></i>Registrar pagos
+      </button>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var buscar = document.getElementById("buscar");
+    function filas() { return document.querySelectorAll("#lista > li"); }
+    function filtrar() {
+      var t = (buscar.value || "").toLowerCase().trim(), visibles = 0;
+      filas().forEach(function (li) {
+        var ok = !t || (li.dataset.texto || "").indexOf(t) >= 0;
+        li.classList.toggle("d-none", !ok);
+        if (ok) visibles++;
+      });
+      var sr = document.getElementById("sin-resultados");
+      if (sr) sr.classList.toggle("d-none", visibles > 0);
+    }
+    function lote() {
+      var n = 0, total = 0;
+      document.querySelectorAll('input[name="cargos"]:checked').forEach(function (c) { n++; total += parseFloat(c.dataset.total || 0); });
+      document.getElementById("lote-n").textContent = n;
+      document.getElementById("lote-total").textContent = "S/ " + total.toFixed(2);
+      document.getElementById("barra-lote").classList.toggle("d-none", n === 0);
+    }
+    if (buscar) buscar.addEventListener("input", filtrar);
+    var todos = document.getElementById("marcar-todos");
+    if (todos) todos.addEventListener("change", function () {
+      filas().forEach(function (li) {
+        var c = li.querySelector('input[name="cargos"]');
+        if (c && !li.classList.contains("d-none")) c.checked = todos.checked;
+      });
+      lote();
+    });
+    document.addEventListener("change", function (e) { if (e.target.name === "cargos") lote(); });
+    document.body.addEventListener("htmx:afterSwap", function () { filtrar(); lote(); });
+    // Enter dentro del mini formulario: registra ese pago (no envía el lote)
+    document.addEventListener("keydown", function (e) {
+      var panel = e.target.closest && e.target.closest(".js-pagar");
+      if (panel && e.key === "Enter") { e.preventDefault(); panel.querySelector(".js-btn-pagar").click(); }
+    });
+  })();
+</script>
+{% endblock %}

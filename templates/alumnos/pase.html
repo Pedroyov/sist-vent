@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Pase de año{% endblock %}
+{% block page_title %}Pase de año{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'alumnos:lista' %}">Alumnos</a></li>
+  <li class="breadcrumb-item active">Pase de año</li>
+{% endblock %}
+
+{% block content %}
+{# ---------- Elegir años ---------- #}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-5 col-md-3">
+        <label class="form-label small mb-1">Desde el año</label>
+        <select name="origen" class="form-select" onchange="this.form.submit()">
+          {% for a in anios %}<option value="{{ a.pk }}" {% if a.pk == origen.pk %}selected{% endif %}>{{ a.anio }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-2 col-md-1 text-center pb-2"><i class="bi bi-arrow-right fs-4"></i></div>
+      <div class="col-5 col-md-3">
+        <label class="form-label small mb-1">Hacia el año</label>
+        <select name="destino" class="form-select" onchange="this.form.submit()">
+          {% for a in anios %}<option value="{{ a.pk }}" {% if a.pk == destino.pk %}selected{% endif %}>{{ a.anio }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5 small text-body-secondary">
+        Cada alumno pasa al grado siguiente, en la misma sección. Revisa la lista, desmarca a quienes no continúan y confirma.
+        <span class="d-block mt-1">Primero copia la <a href="{% url 'academico:copiar' %}?anio={{ destino.pk }}">programación</a> (secciones, cursos, docentes, horario); este paso solo mueve a los alumnos.</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if sin_anios %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-1"></i>
+    Para el pase de año necesitas dos años lectivos distintos (el que termina y el nuevo).
+    <a href="{% url 'core:anio_nuevo' %}" class="alert-link">Crear el nuevo año</a>.
+  </div>
+{% else %}
+
+  {# ---------- Faltan secciones en el destino ---------- #}
+  {% if not secciones_destino %}
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+      <i class="bi bi-exclamation-triangle fs-4"></i>
+      <div class="flex-grow-1">{{ destino }} todavía no tiene secciones.</div>
+      {% if origen_tiene_secciones %}
+      <a href="{% url 'academico:copiar' %}?anio={{ destino.pk }}&origen={{ origen.pk }}" class="btn btn-warning"><i class="bi bi-copy me-1"></i>Copiar la programación de {{ origen }}</a>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="origen" value="{{ origen.pk }}"><input type="hidden" name="destino" value="{{ destino.pk }}">
+        <button name="accion" value="copiar_secciones" class="btn btn-link btn-sm">o solo las secciones</button>
+      </form>
+      {% endif %}
+    </div>
+  {% elif sin_seccion %}
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+      <i class="bi bi-exclamation-triangle fs-4"></i>
+      <div class="flex-grow-1">
+        En {{ destino }} faltan secciones para: {% for g in sin_seccion %}<strong>{{ g }}</strong>{% if not forloop.last %}, {% endif %}{% endfor %}.
+      </div>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="origen" value="{{ origen.pk }}"><input type="hidden" name="destino" value="{{ destino.pk }}">
+        <button name="accion" value="copiar_secciones" class="btn btn-sm btn-warning"><i class="bi bi-copy me-1"></i>Copiar las que faltan de {{ origen }}</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if filas %}
+  <form method="post" id="form-pase">
+    {% csrf_token %}
+    <input type="hidden" name="origen" value="{{ origen.pk }}"><input type="hidden" name="destino" value="{{ destino.pk }}">
+
+    <div class="card mb-3">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h3 class="card-title mb-0"><i class="bi bi-arrow-up-right-circle me-1"></i> Pasan a {{ destino }}</h3>
+        <span class="badge text-bg-primary" id="contador">{{ filas|length }}</span>
+        <div class="form-check ms-auto mb-0">
+          <input class="form-check-input" type="checkbox" id="marcar-todos" checked>
+          <label class="form-check-label small" for="marcar-todos">Marcar todos</label>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr><th style="width: 2.5rem"></th><th>Alumno</th><th class="d-none d-md-table-cell">En {{ origen }}</th><th>En {{ destino }}</th></tr>
+          </thead>
+          <tbody>
+            {% regroup filas by m.seccion as grupos %}
+            {% for g in grupos %}
+            <tr class="table-secondary"><td colspan="4" class="small fw-semibold">{{ g.grouper.grado.nivel }} · {{ g.grouper.grado.nombre }} «{{ g.grouper.nombre }}» <span class="text-body-secondary fw-normal">({{ g.list|length }})</span></td></tr>
+              {% for f in g.list %}
+              <tr class="fila{% if f.excluido %} opacity-50{% endif %}">
+                <td><input class="form-check-input js-inc" type="checkbox" name="inc_{{ f.m.alumno_id }}" {% if not f.excluido %}checked{% endif %} aria-label="Incluir"></td>
+                <td>
+                  <a href="{% url 'alumnos:detalle' f.m.alumno_id %}" target="_blank" class="text-body text-decoration-none">{{ f.m.alumno.nombre_completo }}</a>
+                  <div class="small text-body-secondary d-md-none">{{ f.m.seccion.grado.nombre }} «{{ f.m.seccion.nombre }}»</div>
+                </td>
+                <td class="d-none d-md-table-cell small">{{ f.m.seccion.grado.nombre }} «{{ f.m.seccion.nombre }}»</td>
+                <td>
+                  <select name="sec_{{ f.m.alumno_id }}" class="form-select form-select-sm{% if not f.propuesta %} is-invalid{% endif %}" style="min-width: 10rem">
+                    <option value="">— elegir —</option>
+                    {% for s in secciones_destino %}
+                    <option value="{{ s.pk }}" {% if f.propuesta.pk == s.pk %}selected{% endif %}>{{ s.grado.nombre }} «{{ s.nombre }}»{% if s.grado.nivel_id != f.propuesta.grado.nivel_id %} · {{ s.grado.nivel }}{% endif %}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+        <span class="small text-body-secondary">Para un alumno que <strong>repite</strong>, elige una sección de su mismo grado.</span>
+        <button name="accion" value="confirmar" class="btn btn-success ms-auto"><i class="bi bi-check2-all me-1"></i>Matricular a los marcados en {{ destino }}</button>
+      </div>
+    </div>
+  </form>
+  {% elif secciones_destino %}
+    <div class="alert alert-light border"><i class="bi bi-check-circle text-success me-1"></i> No hay alumnos pendientes de pasar de {{ origen }} a {{ destino }}.</div>
+  {% endif %}
+
+  <div class="row">
+    {% if egresan %}
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-mortarboard me-1"></i> Egresan ({{ egresan|length }})</h3></div>
+        <ul class="list-group list-group-flush small">
+          {% for m in egresan %}<li class="list-group-item">{{ m.alumno.nombre_completo }} <span class="text-body-secondary">· {{ m.seccion.grado.nombre }} «{{ m.seccion.nombre }}»</span></li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+    {% if ya %}
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-check2-circle me-1"></i> Ya matriculados en {{ destino }} ({{ ya|length }})</h3></div>
+        <ul class="list-group list-group-flush small">
+          {% for m in ya %}<li class="list-group-item">{{ m.alumno.nombre_completo }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var todos = document.getElementById("marcar-todos");
+    if (!todos) return;
+    function actualizar() {
+      var marcados = 0;
+      document.querySelectorAll(".js-inc").forEach(function (c) {
+        c.closest("tr").classList.toggle("opacity-50", !c.checked);
+        if (c.checked) marcados++;
+      });
+      document.getElementById("contador").textContent = marcados;
+    }
+    todos.addEventListener("change", function () {
+      document.querySelectorAll(".js-inc").forEach(function (c) { c.checked = todos.checked; });
+      actualizar();
+    });
+    document.querySelectorAll(".js-inc").forEach(function (c) { c.addEventListener("change", actualizar); });
+    actualizar();
+  })();
+</script>
+{% endblock %}
