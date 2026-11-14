@@ -19,7 +19,7 @@ CATALOGOS = {
     Rubro.TIENDA: [
         ("Bebidas", "Inca Kola 500 ml", "2.50", "1.80", 48, "UND", "7750182001236", None),
         ("Bebidas", "Agua San Luis sin gas 625 ml", "1.50", "0.90", 60, "UND", "7751271011237", None),
-        ("Bebidas", "Gaseosa Coca-Cola", "3.50", "2.40", 0, "UND", "", ("500 ml, 1.5 L, 3 L", "")),
+        ("Bebidas", "Gaseosa Coca-Cola", "3.50", "2.40", 0, "UND", "", ("500 ml, 1.5 L, 3 L", "", "3.50, 6.50, 12.00")),
         ("Abarrotes", "Arroz extra a granel", "4.20", "3.50", "50.5", "KG", "", None),
         ("Abarrotes", "Azúcar rubia a granel", "3.80", "3.10", "8", "KG", "", None),
         ("Abarrotes", "Aceite Primor 1 L", "11.50", "9.40", 12, "UND", "7751271101237", None),
@@ -28,13 +28,53 @@ CATALOGOS = {
         ("Limpieza", "Detergente Bolívar 500 g", "6.90", "5.50", 10, "UND", "", None),
     ],
     Rubro.RESTAURANTE: [
-        ("Platos de fondo", "Pollo a la brasa", "18.00", "9.00", None, "UND", "", ("1/4, 1/2, Entero", "")),
-        ("Platos de fondo", "Lomo saltado", "22.00", "11.00", None, "UND", "", None),
-        ("Entradas", "Papa a la huancaína", "12.00", "4.00", None, "UND", "", None),
+        ("Entradas", "Papa a la huancaína", "12.00", "3.50", None, "UND", "", None),
+        ("Entradas", "Causa limeña de pollo", "14.00", "4.50", None, "UND", "", None),
+        ("Entradas", "Tequeños con guacamole", "15.00", "5.00", None, "UND", "", None),
+        ("Entradas", "Anticuchos de corazón", "18.00", "7.00", None, "UND", "", None),
+        ("Entradas", "Choclo con queso", "10.00", "3.50", None, "UND", "", None),
+        ("Marinos", "Ceviche", "28.00", "11.00", None, "UND", "", ("Pescado, Mixto", "", "28, 35")),
+        ("Marinos", "Leche de tigre", "15.00", "5.00", None, "UND", "", None),
+        ("Marinos", "Jalea mixta", "38.00", "16.00", None, "UND", "", None),
+        ("Marinos", "Arroz con mariscos", "32.00", "13.00", None, "UND", "", None),
+        ("Platos de fondo", "Lomo saltado", "28.00", "12.00", None, "UND", "", None),
+        ("Platos de fondo", "Ají de gallina", "22.00", "8.00", None, "UND", "", None),
+        ("Platos de fondo", "Arroz chaufa", "20.00", "7.00", None, "UND", "", ("Pollo, Carne, Mixto", "", "20, 24, 26")),
+        ("Platos de fondo", "Tallarines verdes con bistec", "26.00", "10.00", None, "UND", "", None),
+        ("Platos de fondo", "Seco de res con frejoles", "26.00", "10.00", None, "UND", "", None),
+        ("Platos de fondo", "Bistec a lo pobre", "30.00", "13.00", None, "UND", "", None),
+        ("Platos de fondo", "Chicharrón de cerdo", "28.00", "11.00", None, "UND", "", None),
+        ("Pollos y parrillas", "Pollo a la brasa", "18.00", "9.00", None, "UND", "", ("1/4, 1/2, Entero", "", "18, 32, 60")),
+        ("Pollos y parrillas", "Combo familiar", "75.00", "38.00", None, "UND", "", None),
+        ("Pollos y parrillas", "Parrilla personal", "45.00", "20.00", None, "UND", "", None),
+        ("Pollos y parrillas", "Alitas BBQ", "18.00", "7.00", None, "UND", "", ("6 unidades, 12 unidades", "", "18, 32")),
+        ("Pollos y parrillas", "Salchipapa", "12.00", "4.00", None, "UND", "", None),
+        ("Sopas", "Caldo de gallina", "18.00", "6.00", None, "UND", "", None),
+        ("Sopas", "Parihuela", "35.00", "15.00", None, "UND", "", None),
+        ("Sopas", "Chupe de camarones", "42.00", "20.00", None, "UND", "", None),
         ("Menú del día", "Menú ejecutivo", "15.00", "7.00", None, "UND", "", None),
-        ("Bebidas", "Chicha morada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "")),
-        ("Bebidas", "Inca Kola 500 ml", "4.00", "1.80", 24, "UND", "", "stock"),
+        ("Menú del día", "Menú económico", "10.00", "5.00", None, "UND", "", None),
+        ("Bebidas", "Chicha morada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 15")),
+        ("Bebidas", "Limonada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 16")),
+        ("Bebidas", "Maracuyá", "7.00", "2.00", None, "UND", "", ("Vaso, Jarra 1 L", "", "7, 17")),
+        ("Bebidas", "Inca Kola 500 ml", "4.00", "1.80", 36, "UND", "7750182001236", None),
+        ("Bebidas", "Coca-Cola 500 ml", "4.00", "1.80", 30, "UND", "7750182002233", None),
+        ("Bebidas", "Inca Kola 1.5 L", "9.00", "5.00", 12, "UND", "7750182003230", None),
+        ("Bebidas", "Agua San Luis 625 ml", "3.00", "0.90", 24, "UND", "", None),
+        ("Bebidas", "Cerveza Cusqueña 620 ml", "12.00", "6.50", 48, "UND", "", None),
+        ("Bebidas", "Cerveza Pilsen 630 ml", "10.00", "5.50", 48, "UND", "", None),
+        ("Bebidas", "Pisco sour", "18.00", "6.00", None, "UND", "", None),
+        ("Bebidas", "Chilcano de pisco", "16.00", "5.00", None, "UND", "", None),
+        ("Bebidas", "Café pasado", "5.00", "1.00", None, "UND", "", None),
+        ("Bebidas", "Infusión", "3.00", "0.40", None, "UND", "", None),
         ("Postres", "Mazamorra morada", "5.00", "1.50", None, "UND", "", None),
+        ("Postres", "Arroz con leche", "5.00", "1.50", None, "UND", "", None),
+        ("Postres", "Suspiro a la limeña", "9.00", "3.00", None, "UND", "", None),
+        ("Postres", "Picarones", "12.00", "3.50", None, "UND", "", None),
+        ("Postres", "Helado de lúcuma", "8.00", "3.00", None, "UND", "", None),
+        ("Extras", "Porción de papas fritas", "8.00", "2.50", None, "UND", "", None),
+        ("Extras", "Porción de arroz", "5.00", "1.00", None, "UND", "", None),
+        ("Extras", "Taper para llevar", "1.00", "0.40", 200, "UND", "", None),
     ],
     Rubro.ROPA: [
         ("Polos", "Polo básico algodón", "29.90", "15.00", 3, "UND", "", ("S, M, L, XL", "Negro, Blanco")),
@@ -70,7 +110,7 @@ def opciones_demo(producto, azar=None):
     """Para pedidos de ejemplo: la primera opción de cada grupo obligatorio y, a veces, algún adicional."""
     ids = []
     for g in producto.grupos.filter(activo=True).prefetch_related("opciones"):
-        ops = [o for o in g.opciones.all() if o.activa]
+        ops = [o for o in g.opciones.all() if o.activa and not o.agotada]
         if not ops:
             continue
         if g.minimo:
@@ -91,8 +131,14 @@ def _opciones_restaurante():
             n, _, pr = linea.partition("|")
             Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(pr or "0"), orden=j)
         grupos[nombre] = g
-    usos = {"Lomo saltado": ["Término de la carne", "Adicionales"], "Pollo a la brasa": ["Acompañamiento", "Cremas", "Adicionales"],
-            "Inca Kola 500 ml": ["Temperatura"], "Menú ejecutivo": ["Adicionales"]}
+    frias = ["Inca Kola 500 ml", "Coca-Cola 500 ml", "Inca Kola 1.5 L", "Agua San Luis 625 ml", "Cerveza Cusqueña 620 ml", "Cerveza Pilsen 630 ml"]
+    usos = {"Lomo saltado": ["Término de la carne", "Adicionales"], "Bistec a lo pobre": ["Término de la carne", "Adicionales"],
+            "Parrilla personal": ["Término de la carne", "Acompañamiento", "Cremas"],
+            "Pollo a la brasa": ["Acompañamiento", "Cremas", "Adicionales"], "Combo familiar": ["Cremas"],
+            "Alitas BBQ": ["Acompañamiento", "Cremas"], "Salchipapa": ["Cremas", "Adicionales"],
+            "Ceviche": ["Picante"], "Leche de tigre": ["Picante"], "Jalea mixta": ["Picante", "Cremas"],
+            "Arroz chaufa": ["Adicionales"], "Tallarines verdes con bistec": ["Adicionales"],
+            "Menú ejecutivo": ["Adicionales"], "Menú económico": ["Adicionales"], **{n: ["Temperatura"] for n in frias}}
     for nombre, gs in usos.items():
         p = Producto.objects.filter(nombre=nombre).first()
         if p:
@@ -114,20 +160,13 @@ def cargar_catalogo(rubro, usuario=None):
             stock_minimo=(Decimal("1") if isinstance(extra, tuple) else Decimal("5")) if maneja else 0, duracion_min=extra if isinstance(extra, int) else None,
         )
         if isinstance(extra, tuple):
-            o1, o2 = extra
+            o1, o2, *precios = extra
             generar_variantes(p, o1 or o2, o2 if o1 else "")
             variantes = list(p.variantes.all())
-            if p.nombre.startswith("Pollo"):  # precios por tamaño
-                for v, pr in zip(variantes, ("18.00", "32.00", "60.00")):
-                    v.precio = Decimal(pr)
+            if precios:  # precio de cada tamaño, en el mismo orden
+                for v, pr in zip(variantes, precios[0].split(",")):
+                    v.precio = Decimal(pr.strip())
                     v.save(update_fields=["precio"])
-            if p.nombre.startswith("Gaseosa Coca"):
-                for v, pr in zip(variantes, ("3.50", "6.50", "12.00")):
-                    v.precio = Decimal(pr)
-                    v.save(update_fields=["precio"])
-            if p.nombre == "Chicha morada":
-                variantes[1].precio = Decimal("15.00")
-                variantes[1].save(update_fields=["precio"])
         else:
             variantes = [asegurar_variante_unica(p)]
             if codigo:
@@ -142,3 +181,14 @@ def cargar_catalogo(rubro, usuario=None):
     if rubro == Rubro.RESTAURANTE:
         _opciones_restaurante()
     return Producto.objects.count()
+
+
+def marcar_agotados_demo():
+    """Lo que se acabó hoy (se llama al final, después de las ventas de ejemplo)."""
+    from .models import Opcion
+    from .servicios import marcar_agotado
+
+    for p in Producto.objects.filter(nombre="Chupe de camarones"):
+        marcar_agotado(p)
+    for o in Opcion.objects.filter(nombre="Yuca frita"):
+        marcar_agotado(o)

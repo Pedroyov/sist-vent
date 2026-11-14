@@ -131,7 +131,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Respaldos:** `python manage.py respaldo` (o `respaldo.bat`). Guarda la base de datos y `media/` en un zip y conserva los últimos 30.
 - **Pruebas:** `python manage.py test core productos ventas caja mesas clientes reportes`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
-- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, mesas con algunas ocupadas (`mesas/demo.py`). `demo.bat` los carga en una base aparte.
+- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, una carta de 47 productos con opciones, un segundo mozo (`mozo`), dos semanas de mesas cobradas (con propinas, cortesías, descuentos y platos quitados) y mesas ocupadas en distintos momentos (`mesas/demo.py`). Los agotados del día se marcan al final (`marcar_agotados_demo`). `demo.bat` los carga en una base aparte.
 
 ## Convenciones
 

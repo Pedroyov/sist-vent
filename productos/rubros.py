@@ -3,7 +3,7 @@ from core.models import Rubro
 
 CATEGORIAS = {
     Rubro.TIENDA: ["Abarrotes", "Bebidas", "Lácteos y embutidos", "Snacks y golosinas", "Limpieza", "Cuidado personal"],
-    Rubro.RESTAURANTE: ["Entradas", "Platos de fondo", "Menú del día", "Bebidas", "Postres", "Extras"],
+    Rubro.RESTAURANTE: ["Entradas", "Marinos", "Platos de fondo", "Pollos y parrillas", "Sopas", "Menú del día", "Bebidas", "Postres", "Extras"],
     Rubro.ROPA: ["Polos", "Camisas y blusas", "Pantalones", "Vestidos y faldas", "Casacas", "Ropa interior", "Calzado", "Accesorios"],
     Rubro.LIBRERIA: ["Cuadernos", "Lápices y lapiceros", "Papelería", "Arte y manualidades", "Mochilas y cartucheras", "Oficina", "Copias e impresiones"],
     Rubro.PELUQUERIA: ["Cortes", "Peinados", "Coloración", "Tratamientos", "Uñas", "Productos de venta"],
@@ -49,6 +49,7 @@ GRUPOS = {
         ("Adicionales", 0, 0, ["Huevo frito|2", "Queso|3", "Porción de papas|5", "Porción de arroz|3"]),
         ("Cremas", 0, 0, ["Mayonesa", "Ketchup", "Mostaza", "Ají", "Huancaína", "Tártara"]),
         ("Temperatura", 0, 1, ["Helada", "Al tiempo"]),
+        ("Picante", 1, 1, ["Normal", "Sin ají", "Bien picante"]),
     ],
     Rubro.PELUQUERIA: [
         ("Adicionales", 0, 0, ["Lavado|5", "Peinado|10", "Tratamiento hidratante|20"]),

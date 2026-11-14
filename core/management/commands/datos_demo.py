@@ -66,8 +66,10 @@ class Command(BaseCommand):
                 u.groups.add(Group.objects.get(name=rol))
         n = cargar_catalogo(rubro, User.objects.get(username="admin"))
         from ventas.demo import cargar_ventas
+        from ventas.models import Venta
 
-        nv = cargar_ventas()
+        # en restaurante casi todo pasa por las mesas: en el mostrador, pocas ventas por día
+        nv = cargar_ventas(dias=14, por_dia=(3, 7)) if rubro == Rubro.RESTAURANTE else cargar_ventas()
         from clientes.demo import cargar_clientes
 
         cargar_clientes()
@@ -75,5 +77,10 @@ class Command(BaseCommand):
             from mesas.demo import cargar_mesas
 
             cargar_mesas()
+            from productos.demo import marcar_agotados_demo
+
+            marcar_agotados_demo()
+            nv = Venta.objects.count()
         self.stdout.write(self.style.SUCCESS(
-            f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))
+            f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)}"
+            f"{', mozo' if rubro == Rubro.RESTAURANTE else ''} (clave {CLAVE})."))

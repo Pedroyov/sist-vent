@@ -19,6 +19,7 @@ Thumbs.db
 
 # Datos de ejemplo
 db_demo.sqlite3
+db_antes_*.sqlite3
 
 # Archivos temporales
 _to_delete/

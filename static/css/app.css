@@ -64,3 +64,6 @@ body {
 @media (min-width: 992px) {
   body.sidebar-expand-lg:not(.sidebar-collapse) .barra-mesa { left: var(--lte-sidebar-width, 250px); }
 }
+
+/* Deja que un texto largo se corte dentro de una fila flex (Bootstrap no trae esta clase) */
+.min-w-0 { min-width: 0; }
