@@ -37,6 +37,7 @@
       <table class="table table-sm mb-0 cuadro">
         <tr><td>Abrió el {{ s.abierta_en|date:"d/m/Y H:i" }} con</td><td class="text-end">{{ r.inicial|soles }}</td></tr>
         <tr><td>+ Ventas en efectivo</td><td class="text-end text-success">{{ r.efectivo_ventas|soles }}</td></tr>
+        {% if r.abonos_efectivo %}<tr><td>+ Pagos de deudas (fiado) en efectivo</td><td class="text-end text-success">{{ r.abonos_efectivo|soles }}</td></tr>{% endif %}
         {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="text-end text-success">{{ r.ingresos|soles }}</td></tr>{% endif %}
         {% if r.egresos %}<tr><td>− Egresos</td><td class="text-end text-danger">{{ r.egresos|soles }}</td></tr>{% endif %}
         <tr class="total"><td>Debe haber</td><td class="text-end">{{ r.esperado|soles }}</td></tr>
@@ -59,6 +60,7 @@
       <table class="table table-sm mb-0 cuadro">
         {% for m in r.metodos %}<tr><td>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></td><td class="text-end">{{ m.total|soles }}</td></tr>{% endfor %}
         <tr class="total"><td>Total vendido ({{ r.n_ventas }})</td><td class="text-end">{{ r.total_ventas|soles }}</td></tr>
+        {% if r.abonos %}<tr><td>Cobrado de deudas (fiado)</td><td class="text-end">{{ r.abonos|soles }}</td></tr>{% endif %}
         {% if r.propinas %}<tr><td>Propinas (incluidas en los pagos)</td><td class="text-end">{{ r.propinas|soles }}</td></tr>{% endif %}
         {% if r.anuladas %}<tr><td class="text-danger">Ventas anuladas</td><td class="text-end text-danger">{{ r.anuladas }}</td></tr>{% endif %}
       </table>

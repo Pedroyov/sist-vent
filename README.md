@@ -73,7 +73,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Caja** – Turno por cajero, ingresos y egresos, cierre con conteo de billetes y diferencia, historial
 - [x] **Mesas** – Mapa de mesas en vivo, pedidos desde el celular con notas, envío a cocina, precuenta, cambiar y juntar mesas, cobro total o dividido, para llevar, propina opcional, pantalla de cocina con sonido
 - [x] **Impresión** – Ticket, precuenta, comanda y cierre de caja del tamaño del rollo (80 o 58 mm)
-- [ ] Clientes
+- [x] **Clientes y fiado** – Clientes con DNI/RUC validado, venta al fiado con límite, pagos de deudas que entran a la caja, estado de cuenta, recordatorio por WhatsApp
 - [ ] Reportes
 - [ ] Despliegue con HTTPS
 

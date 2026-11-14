@@ -22,8 +22,20 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
         <div id="c-metodos"></div>
         <div class="d-flex flex-wrap gap-1 mb-3" id="c-billetes"></div>
         <div class="alert py-2 text-center fs-5 mb-3" id="c-estado"></div>
-        <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button"><i class="bi bi-person-plus me-1"></i>Cliente y nota (opcional)</a>
+        <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button" id="c-cliente-enlace"><i class="bi bi-person-plus me-1"></i>Cliente{% if P.clientes_fiar %} (obligatorio para fiar){% endif %} y nota</a>
         <div class="collapse" id="c-cliente">
+          {% if P.mod_clientes %}
+          <div class="alert alert-light border py-2 mt-2 mb-1 d-none align-items-center gap-2" id="c-cli-elegido">
+            <i class="bi bi-person-check fs-4 text-success"></i>
+            <div class="flex-grow-1 min-w-0"><strong id="c-cli-nombre"></strong><div class="small text-body-secondary" id="c-cli-info"></div></div>
+            <button type="button" class="btn-close" id="c-cli-quitar" aria-label="Quitar cliente"></button>
+          </div>
+          <div class="position-relative mt-2" id="c-cli-buscar">
+            <input type="search" class="form-control" id="c-cli-q" placeholder="Buscar cliente: nombre, DNI o RUC" autocomplete="off" data-url="{% url 'clientes:buscar' %}">
+            <div class="list-group position-absolute w-100 shadow" style="z-index: 1060" id="c-cli-res"></div>
+          </div>
+          <div class="small text-body-secondary mt-1" id="c-cli-ayuda">¿Cliente nuevo? Escribe su nombre y DNI/RUC abajo y se registra solo.</div>
+          {% endif %}
           <div class="row g-2 mt-1">
             <div class="col-8"><input type="text" class="form-control" id="c-nombre" placeholder="Nombre del cliente" maxlength="150"></div>
             <div class="col-4"><input type="text" class="form-control" id="c-doc" placeholder="DNI/RUC" maxlength="11" inputmode="numeric"></div>

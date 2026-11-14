@@ -1,0 +1,22 @@
+{% extends "impresion/base.html" %}
+{% load sis %}
+{% block titulo %}Estado de cuenta {{ c.nombre }}{% endblock %}
+{% block contenido %}
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br>{% if NEGOCIO.ruc %}RUC {{ NEGOCIO.ruc }}<br>{% endif %}
+  <span class="b">{% if abono %}CONSTANCIA DE PAGO {{ abono.numero }}{% else %}ESTADO DE CUENTA{% endif %}</span><br>{% now "d/m/Y H:i" %}</div>
+<div class="linea"></div>
+<div>Cliente: {{ c.nombre }}</div>
+{% if c.numero_documento %}<div>{{ c.documento }}</div>{% endif %}
+<div class="linea"></div>
+{% if abono %}
+<table><tr class="grande"><td>PAGÓ S/</td><td class="r">{{ abono.monto }}</td></tr><tr><td>{{ abono.get_metodo_display }}</td><td class="r">{{ abono.fecha|date:"d/m/Y H:i" }}</td></tr></table>
+<div class="linea"></div>
+{% endif %}
+<table>
+  {% for m in movimientos %}<tr><td>{{ m.fecha|date:"d/m" }} {% if m.tipo == "pago" %}Pago{% else %}{{ m.detalle }}{% endif %}</td><td class="r">{{ m.monto }}</td></tr>{% endfor %}
+</table>
+<div class="linea"></div>
+<table><tr class="grande"><td>{% if saldo > 0 %}DEBE S/{% else %}SALDO S/{% endif %}</td><td class="r">{{ saldo }}</td></tr></table>
+<div class="linea"></div>
+<div class="c">{{ NEGOCIO.nota_ticket|default:"¡Gracias!" }}</div>
+{% endblock %}

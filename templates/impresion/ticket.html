@@ -31,6 +31,7 @@
   {% for p in v.pagos.all %}<tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="r">{{ p.monto }}</td></tr>{% endfor %}
   {% if v.vuelto %}<tr><td>Vuelto</td><td class="r">{{ v.vuelto }}</td></tr>{% endif %}
 </table>
+{% if deuda is not None %}<div class="linea"></div><table><tr class="b"><td>DEUDA TOTAL S/</td><td class="r">{{ deuda }}</td></tr></table>{% endif %}
 <div class="linea"></div>
 <div class="c">{{ NEGOCIO.nota_ticket|default:"¡Gracias por su compra!" }}</div>
 {% endblock %}

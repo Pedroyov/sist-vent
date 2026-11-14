@@ -39,6 +39,8 @@
     <div class="card mb-3">
       <ul class="list-group list-group-flush small">
         <li class="list-group-item d-flex"><span class="text-body-secondary">Vendedor</span><span class="ms-auto">{{ v.usuario|nombre }}</span></li>
+        {% if v.cliente %}<li class="list-group-item d-flex"><span class="text-body-secondary">Cliente</span><span class="ms-auto">{% if P.clientes_ver %}<a href="{% url 'clientes:detalle' v.cliente_id %}">{{ v.cliente.nombre }}</a>{% else %}{{ v.cliente.nombre }}{% endif %}</span></li>
+        {% if v.fiado %}<li class="list-group-item d-flex text-warning-emphasis"><span>Se fió {{ v.fiado|soles }}</span><span class="ms-auto">Debe en total {{ v.cliente.saldo|soles }}</span></li>{% endif %}{% endif %}
         {% if ver_costos and not v.anulada %}
         <li class="list-group-item d-flex"><span class="text-body-secondary">Ganancia aprox.</span><span class="ms-auto">{{ v.ganancia|soles }}</span></li>
         {% endif %}

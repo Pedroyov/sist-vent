@@ -33,7 +33,7 @@
           {{ form.contado|as_crispy_field }}
           <div class="alert text-center py-2 mb-3" id="dif"></div>
           {{ form.nota|as_crispy_field }}
-          <p class="small text-body-secondary mb-0">Ventas del turno: {{ r.n_ventas }} por {{ r.total_ventas|soles }}. {% if r.otros_medios %}Yape, Plin y tarjeta ({{ r.otros_medios|soles }}) no cuentan aquí.{% endif %}</p>
+          <p class="small text-body-secondary mb-0">Ventas del turno: {{ r.n_ventas }} por {{ r.total_ventas|soles }}.{% if r.fiado %} De eso, {{ r.fiado|soles }} se fió (no hay efectivo).{% endif %} {% if r.otros_medios %}Yape, Plin y tarjeta ({{ r.otros_medios|soles }}) no cuentan aquí.{% endif %}</p>
         </div>
         <div class="card-footer d-flex gap-2">
           <a href="{% url 'caja:sesion' s.pk %}" class="btn btn-outline-secondary">Volver</a>

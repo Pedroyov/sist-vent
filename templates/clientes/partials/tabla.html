@@ -1,0 +1,32 @@
+{% load sis %}
+{% if pagina.object_list %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead><tr><th class="ps-3">Cliente</th><th class="d-none d-md-table-cell">Documento</th><th class="d-none d-sm-table-cell">Celular</th><th class="text-end pe-3">Debe</th></tr></thead>
+    <tbody>
+      {% for c in pagina.object_list %}
+      <tr onclick="location.href='{% url 'clientes:detalle' c.pk %}'" style="cursor: pointer">
+        <td class="ps-3"><a href="{% url 'clientes:detalle' c.pk %}" class="fw-semibold text-body text-decoration-none">{{ c.nombre }}</a>
+          <div class="small text-body-secondary d-md-none">{{ c.documento }}</div></td>
+        <td class="d-none d-md-table-cell small">{{ c.documento|default:"—" }}</td>
+        <td class="d-none d-sm-table-cell small">{{ c.telefono|default:"—" }}</td>
+        <td class="text-end pe-3 text-nowrap">{% if c.saldo_calc > 0 %}<strong class="text-danger">{{ c.saldo_calc|soles }}</strong>
+          {% if c.limite_credito and c.saldo_calc >= c.limite_credito %}<div class="small text-danger">límite alcanzado</div>{% endif %}{% else %}<span class="text-body-tertiary">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if pagina.paginator.num_pages > 1 %}
+<div class="card-footer d-flex justify-content-between align-items-center">
+  <span class="small text-body-secondary">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+  <div class="btn-group">
+    {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}" hx-get="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}" hx-target="#tabla" hx-push-url="true"><i class="bi bi-chevron-left"></i> Anterior</a>{% endif %}
+    {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}" hx-get="?{{ query.urlencode }}&page={{ pagina.next_page_number }}" hx-target="#tabla" hx-push-url="true">Siguiente <i class="bi bi-chevron-right"></i></a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% else %}
+<div class="text-center text-body-secondary py-5"><i class="bi bi-people display-6"></i>
+  <p class="mt-2 mb-0">{% if f.q or f.ver %}No hay clientes con esos filtros.{% else %}Aún no hay clientes. Se registran solos al vender con DNI/RUC, o con «Nuevo cliente».{% endif %}</p></div>
+{% endif %}

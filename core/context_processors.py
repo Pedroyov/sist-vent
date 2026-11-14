@@ -20,5 +20,7 @@ def negocio(request):
         contexto.update({"MIS_ROLES": roles_de(user), "P": PermisosPlantilla(user)})
         from ventas.models import MetodoPago
 
-        contexto["METODOS_PAGO"] = MetodoPago.choices
+        from .permisos import puede
+
+        contexto["METODOS_PAGO"] = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.CREDITO or puede(user, "clientes.fiar")]
     return contexto

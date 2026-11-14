@@ -52,6 +52,14 @@
           </a>
         </li>
         {% endif %}
+        {% if P.clientes_ver %}
+        <li class="nav-item">
+          <a href="{% url 'clientes:lista' %}" class="nav-link {% if ns == 'clientes' %}active{% endif %}">
+            <i class="nav-icon bi bi-people"></i>
+            <p>Clientes</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.caja_usar or P.caja_ver %}
         <li class="nav-item">
           <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' %}active{% endif %}">

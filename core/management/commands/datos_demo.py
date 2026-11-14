@@ -68,6 +68,9 @@ class Command(BaseCommand):
         from ventas.demo import cargar_ventas
 
         nv = cargar_ventas()
+        from clientes.demo import cargar_clientes
+
+        cargar_clientes()
         if rubro == Rubro.RESTAURANTE:
             from mesas.demo import cargar_mesas
 

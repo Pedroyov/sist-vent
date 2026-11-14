@@ -32,7 +32,7 @@ def dinero(d):
 
 def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
                     token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
-                    desde_pedido=False):
+                    desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False):
     """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
     El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
     `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
@@ -110,6 +110,9 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         raise VentaInvalida("Con Yape, Plin, tarjeta o transferencia se cobra el monto exacto: el vuelto solo sale del efectivo.")
 
     from caja.servicios import CajaError, sesion_para_vender
+    from clientes.servicios import ClienteError, modulo_activo, resolver_cliente, validar_fiado
+
+    credito = por_metodo.get(MetodoPago.CREDITO, {}).get("monto", CERO)
 
     try:
         sesion = sesion_para_vender(usuario)
@@ -118,7 +121,17 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
 
     try:
         with transaction.atomic():
+            cliente = None
+            try:
+                if modulo_activo() and (cliente_id or str(cliente_documento or "").strip() or (credito and cliente_nombre)):
+                    cliente = resolver_cliente(cliente_id, cliente_nombre, cliente_documento)
+                validar_fiado(cliente, credito, puede_fiar, puede_exceder_limite)
+            except ClienteError as e:
+                raise VentaInvalida(str(e))
+            if cliente:
+                cliente_nombre, cliente_documento = cliente.nombre, cliente.numero_documento
             venta = Venta.objects.create(
+                cliente=cliente,
                 numero=Correlativo.siguiente("venta"), usuario=usuario, subtotal=subtotal, descuento=descuento,
                 total=total, propina=propina, sesion_caja=sesion, atendio=atendio, recibido=efectivo if efectivo else None, vuelto=vuelto, token=token or None,
                 cliente_nombre=" ".join(str(cliente_nombre or "").split())[:150],

@@ -61,6 +61,7 @@ LOCAL_APPS = [
     "ventas",
     "caja",
     "mesas",
+    "clientes",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -192,7 +193,7 @@ SESSION_COOKIE_AGE = env.int("SESSION_DIAS", default=7) * 24 * 3600  # luego hay
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-X_FRAME_OPTIONS = "DENY"
+X_FRAME_OPTIONS = "SAMEORIGIN"  # las impresiones se arman en un marco oculto de la misma página
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 

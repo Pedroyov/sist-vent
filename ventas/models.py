@@ -31,6 +31,7 @@ class MetodoPago(models.TextChoices):
     PLIN = "PLI", "Plin"
     TARJETA = "TAR", "Tarjeta"
     TRANSFERENCIA = "TRA", "Transferencia"
+    CREDITO = "CRE", "Fiado"
 
 
 class Venta(models.Model):
@@ -47,6 +48,7 @@ class Venta(models.Model):
                                 verbose_name="mozo", help_text="Quien atendió la mesa (si no es quien cobró).")
     sesion_caja = models.ForeignKey("caja.SesionCaja", on_delete=models.PROTECT, null=True, blank=True,
                                     related_name="ventas", verbose_name="caja")
+    cliente = models.ForeignKey("clientes.Cliente", on_delete=models.PROTECT, null=True, blank=True, related_name="ventas")
     cliente_nombre = models.CharField("cliente", max_length=150, blank=True)
     cliente_documento = models.CharField("DNI / RUC", max_length=11, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
@@ -79,6 +81,10 @@ class Venta(models.Model):
     @property
     def anulada(self):
         return self.estado == self.Estado.ANULADA
+
+    @property
+    def fiado(self):
+        return sum((p.monto for p in self.pagos.all() if p.metodo == MetodoPago.CREDITO), CERO)
 
     @property
     def ganancia(self):

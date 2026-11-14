@@ -45,6 +45,8 @@ class Tablero:
             self._mesas()
         if puede(self.user, "ventas.vender", "ventas.ver"):
             self._ventas()
+        if puede(self.user, "clientes.ver"):
+            self._clientes()
         if puede(self.user, "productos.ver"):
             self._productos()
         return self
@@ -60,6 +62,8 @@ class Tablero:
         if puede(u, "ventas.vender", "ventas.ver"):
             a.append({"texto": "Ventas de hoy" if puede(u, "ventas.ver") else "Mis ventas", "url": reverse("ventas:lista"),
                       "icono": "bi-receipt", "color": "primary"})
+        if puede(u, "clientes.ver"):
+            a.append({"texto": "Clientes", "url": reverse("clientes:lista"), "icono": "bi-people", "color": "secondary"})
         if puede(u, "productos.ver"):
             a.append({"texto": "Productos", "url": reverse("productos:lista"), "icono": "bi-box-seam", "color": "success"})
         if puede(u, "productos.stock"):
@@ -128,6 +132,16 @@ class Tablero:
         self.tarjetas.append({"titulo": f"Venta{'s' if r['n'] != 1 else ''} hoy", "valor": r["n"], "icono": "bi-receipt",
                               "color": "info", "url": reverse("ventas:lista")})
         self.caja = r if todas and r["n"] else None
+
+    def _clientes(self):
+        from clientes.servicios import total_por_cobrar
+
+        from .templatetags.sis import soles
+
+        total = total_por_cobrar()
+        if total > 0:
+            self.tarjetas.append({"titulo": "Por cobrar (fiado)", "valor": soles(total), "icono": "bi-journal-text",
+                                  "color": "warning", "url": reverse("clientes:lista") + "?ver=deben"})
 
     def _productos(self):
         from productos.models import Categoria, Producto

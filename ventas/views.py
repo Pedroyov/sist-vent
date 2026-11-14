@@ -76,6 +76,8 @@ def registrar(request):
             datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""), datos.get("nota", ""),
             token=str(datos.get("token") or "")[:40] or None,
             puede_cambiar_precio=puede(request.user, "ventas.precio"), propina=datos.get("propina") or 0,
+            cliente_id=entero(datos.get("cliente_id")), puede_fiar=puede(request.user, "clientes.fiar"),
+            puede_exceder_limite=puede(request.user, "clientes.limite"),
         )
     except VentaInvalida as e:
         return JsonResponse({"error": str(e)}, status=400)
@@ -89,7 +91,7 @@ def _puede_ver(user, venta):
 
 @permiso_requerido("ventas.vender", "ventas.ver")
 def ticket(request, pk):
-    venta = get_object_or_404(Venta.objects.select_related("usuario", "anulada_por", "atendio").prefetch_related("items", "pagos"), pk=pk)
+    venta = get_object_or_404(Venta.objects.select_related("usuario", "anulada_por", "atendio", "cliente").prefetch_related("items", "pagos"), pk=pk)
     if not _puede_ver(request.user, venta):
         raise PermissionDenied
     from core.models import Ajustes
@@ -120,7 +122,7 @@ def imprimir(request, pk):
     venta = get_object_or_404(Venta.objects.select_related("usuario", "atendio").prefetch_related("items", "pagos"), pk=pk)
     if not _puede_ver(request.user, venta):
         raise PermissionDenied
-    return render(request, "impresion/ticket.html", {"v": venta})
+    return render(request, "impresion/ticket.html", {"v": venta, "deuda": venta.cliente.saldo if venta.cliente_id and venta.fiado else None})
 
 
 def _rango(request):
@@ -147,6 +149,9 @@ def _filtrar(request):
         ventas = ventas.filter(usuario=request.user)
     elif usuario:
         ventas = ventas.filter(usuario_id=usuario)
+    cliente = entero(request.GET.get("cliente"))
+    if cliente:
+        ventas = ventas.filter(cliente_id=cliente)
     caja = entero(request.GET.get("caja"))
     if caja:
         ventas = ventas.filter(sesion_caja_id=caja)

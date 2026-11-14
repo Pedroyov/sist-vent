@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Clientes{% endblock %}
+{% block page_title %}Clientes{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Clientes</li>{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.clientes_editar %}<a href="{% url 'clientes:nuevo' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Nuevo cliente</a>{% endif %}
+  <a href="{% url 'clientes:lista' %}?{{ query.urlencode }}&excel=1" class="btn btn-outline-success ms-sm-auto" id="btn-excel"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><a href="?ver=deben" class="small-box text-bg-warning mb-0 d-block text-decoration-none h-100"><div class="inner"><h3>{{ por_cobrar|soles }}</h3><p class="mb-0">Por cobrar (fiado)</p></div><i class="small-box-icon bi bi-journal-text"></i></a></div>
+  <div class="col-6 col-lg-3"><a href="?ver=deben" class="small-box text-bg-light border mb-0 d-block text-decoration-none h-100"><div class="inner"><h3>{{ n_deben }}</h3><p class="mb-0">Cliente{{ n_deben|pluralize }} con deuda</p></div><i class="small-box-icon bi bi-people"></i></a></div>
+</div>
+<div class="card mb-4">
+  <div class="card-header">
+    <form id="filtros" class="row g-2" onsubmit="return false" hx-get="{% url 'clientes:lista' %}" hx-target="#tabla" hx-push-url="true"
+          hx-trigger="input changed delay:300ms from:#q, change from:select">
+      <div class="col-md-8"><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" name="q" id="q" value="{{ f.q }}" class="form-control" placeholder="Nombre, DNI, RUC o celular" autocomplete="off"></div></div>
+      <div class="col-md-4"><select name="ver" class="form-select" aria-label="Ver">
+        <option value="">Todos los activos</option><option value="deben" {% if f.ver == "deben" %}selected{% endif %}>Solo los que deben</option>
+        <option value="inactivos" {% if f.ver == "inactivos" %}selected{% endif %}>Inactivos</option></select></div>
+    </form>
+  </div>
+  <div id="tabla">{% include "clientes/partials/tabla.html" %}</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  document.body.addEventListener("htmx:afterSwap", function () {
+    var p = new URLSearchParams(new FormData(document.getElementById("filtros")));
+    document.getElementById("btn-excel").href = "{% url 'clientes:lista' %}?" + p.toString() + "&excel=1";
+  });
+</script>
+{% endblock %}

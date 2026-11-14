@@ -237,7 +237,8 @@ def cobrar_vista(request, pk):
     try:
         venta = cobrar(c, request.user, datos.get("pagos") or [], [entero(i) for i in datos.get("items") or [] if entero(i)],
                        datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
-                       datos.get("nota", ""), str(datos.get("token") or "")[:40] or None)
+                       datos.get("nota", ""), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
+                       puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"))
     except MesaError as e:
         return JsonResponse({"error": str(e)}, status=400)
     c.refresh_from_db()

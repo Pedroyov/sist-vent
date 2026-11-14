@@ -22,6 +22,7 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | `ventas/` | Punto de venta, registro y anulación de ventas, ticket, lista y resumen del día, Excel |
 | `caja/` | Turnos de caja: apertura, ingresos y egresos, cierre con arqueo por billetes, historial |
 | `mesas/` | Restaurantes: zonas y mesas, cuentas abiertas, pedidos con notas, envío a cocina, precuenta, comanda, cambiar y juntar mesas, cobro total o dividido |
+| `clientes/` | Clientes (DNI/RUC validados), ventas al fiado con límite, pagos de deudas, estado de cuenta, recordatorio por WhatsApp |
 | `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
@@ -60,9 +61,18 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - El cuadro de cobro es compartido: `templates/ventas/partials/modal_cobro.html` + `static/js/cobro.js` (lo usan el punto de venta y las mesas). La **propina** se activa en Datos del negocio: va en `Venta.propina`, no suma al total vendido y se cobra dentro de los pagos.
 - El módulo Mesas empieza apagado y se activa solo al elegir el rubro Restaurante.
 
+## Clientes y fiado (cómo está pensado)
+
+- **Cliente**: tipo y número de documento (único), nombre o razón social, celular, dirección y límite de fiado (0 = sin límite). `clientes/documentos.py` valida el DNI (8 dígitos) y el RUC (dígito verificador módulo 11); no consulta a RENIEC ni a SUNAT.
+- **Fiado** es un método de pago más (`MetodoPago.CREDITO`). La venta guarda `cliente`. `registrar_venta()` resuelve el cliente (el elegido, o lo busca o crea por su DNI/RUC, o por su nombre si se fía sin documento), exige `clientes.fiar` y respeta el límite salvo con `clientes.limite`.
+- **Saldo** = fiado de ventas pagadas − pagos (`Abono`) no anulados. Se calcula siempre, no se guarda: anular una venta o un pago lo corrige solo. Para listas usa `clientes.servicios.con_saldo()`, que lo calcula en la base de datos.
+- **Pagos de deudas** (`registrar_abono`): necesitan caja abierta. Si son en efectivo, suman al efectivo esperado de esa caja. El fiado no suma (no hay dinero). Anular un pago de una caja ya cerrada saca el efectivo de la caja abierta de quien anula.
+- En el cuadro de cobro, el método "Fiado" solo aparece a quien puede fiar. Ahí mismo se busca el cliente (`clientes:buscar`) o se escribe uno nuevo.
+
 ## Impresión (ticketera)
 
 - Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del rollo (Datos del negocio → 80 o 58 mm). Un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4.
+- `X_FRAME_OPTIONS = "SAMEORIGIN"`: las impresiones se arman en un marco oculto de la misma página. Con `DENY` no se podría imprimir en la PC.
 - Para imprimir sin salir de la pantalla: `<a data-imprimir="/ruta/">` (o `window.imprimir(url)`, en `static/js/app.js`). En la PC imprime desde un marco oculto; en el celular abre otra pestaña con `?auto=1`.
 - Impresiones: ticket (`ventas:imprimir`), precuenta y comanda (`mesas:precuenta`, `mesas:comanda`), cierre o corte de caja (`caja:imprimir`).
 - Para imprimir **sin el cuadro de diálogo** (ticket automático o comandas en cocina), abre Chrome con `--kiosk-printing` y deja la ticketera como impresora predeterminada.
@@ -99,7 +109,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **Redirecciones:** toda dirección de "volver" que llegue por GET pasa por `core.utils.url_segura` (no se puede mandar al usuario a otro sitio).
 - **Respaldos:** `python manage.py respaldo` (o `respaldo.bat`). Guarda la base de datos y `media/` en un zip y conserva los últimos 30.
-- **Pruebas:** `python manage.py test core productos ventas caja mesas`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
+- **Pruebas:** `python manage.py test core productos ventas caja mesas clientes`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
 - **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, mesas con algunas ocupadas (`mesas/demo.py`). `demo.bat` los carga en una base aparte.
 

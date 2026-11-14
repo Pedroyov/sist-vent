@@ -70,3 +70,14 @@ class RespaldoTests(TestCase):
             zips = list(Path(tmp).glob("respaldo_*.zip"))
             self.assertEqual(len(zips), 1)
             self.assertIn("db.sqlite3", zipfile.ZipFile(zips[0]).namelist())
+
+
+class SeguridadTests(TestCase):
+    def test_impresion_en_marco_del_mismo_sitio(self):
+        """Las impresiones se hacen en un marco oculto: deben poder mostrarse dentro del propio sistema (y no de otros)."""
+        from io import StringIO
+
+        call_command("datos_demo", stdout=StringIO())
+        self.client.force_login(User.objects.get(username="gerente"))
+        r = self.client.get("/ventas/1/imprimir/")
+        self.assertEqual(r.headers.get("X-Frame-Options"), "SAMEORIGIN")

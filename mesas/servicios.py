@@ -174,7 +174,8 @@ def reabrir_por_anulacion(venta):
     return cuenta
 
 
-def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", cliente_documento="", nota="", token=None):
+def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", cliente_documento="", nota="", token=None,
+           cliente_id=None, puede_fiar=False, puede_exceder_limite=False):
     """Cobra todo lo pendiente (o solo los ítems elegidos, para dividir la cuenta) creando una venta normal.
     Si ya no queda nada por cobrar, la cuenta se cierra y la mesa queda libre."""
     from ventas.servicios import VentaInvalida, registrar_venta
@@ -200,6 +201,6 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
             cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio)} for i in pendientes],
             pagos, cliente_nombre=cliente_nombre, cliente_documento=cliente_documento, nota=(nota or cuenta.titulo)[:200],
             token=token, puede_cambiar_precio=True, puede_descontar=False, propina=propina, atendio=cuenta.mozo, despues=marcar,
-            desde_pedido=True)
+            desde_pedido=True, cliente_id=cliente_id, puede_fiar=puede_fiar, puede_exceder_limite=puede_exceder_limite)
     except VentaInvalida as e:
         raise MesaError(str(e))

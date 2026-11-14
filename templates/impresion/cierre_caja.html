@@ -19,6 +19,7 @@
 <table>
   <tr><td>Monto inicial</td><td class="r">{{ r.inicial }}</td></tr>
   <tr><td>+ Ventas efectivo</td><td class="r">{{ r.efectivo_ventas }}</td></tr>
+  {% if r.abonos_efectivo %}<tr><td>+ Pagos de fiado</td><td class="r">{{ r.abonos_efectivo }}</td></tr>{% endif %}
   {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="r">{{ r.ingresos }}</td></tr>{% endif %}
   {% if r.egresos %}<tr><td>- Egresos</td><td class="r">{{ r.egresos }}</td></tr>{% endif %}
   <tr class="b"><td>Debe haber</td><td class="r">{{ r.esperado }}</td></tr>

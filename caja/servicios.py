@@ -59,15 +59,22 @@ def calcular(sesion):
         metodos.append({"codigo": m["metodo"], "metodo": nombres.get(m["metodo"], m["metodo"]), "total": m["total"], "n": m["n"]})
         if m["metodo"] == MetodoPago.EFECTIVO:
             efectivo_ventas = m["total"]
+    from clientes.models import Abono
+
+    abonos = {a["metodo"]: a["t"] for a in Abono.objects.filter(sesion_caja=sesion, anulado=False).values("metodo").annotate(t=Sum("monto"))}
+    abonos_efectivo = abonos.get(MetodoPago.EFECTIVO, CERO)
     movs = sesion.movimientos.values("tipo").annotate(t=Sum("monto"))
     ingresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.INGRESO), CERO)
     egresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.EGRESO), CERO)
     resultado = {
         "inicial": sesion.monto_inicial, "n_ventas": v["n"] or 0, "total_ventas": v["total"] or CERO,
         "propinas": v["propinas"] or CERO, "metodos": metodos, "efectivo_ventas": efectivo_ventas,
-        "otros_medios": sum((m["total"] for m in metodos if m["codigo"] != MetodoPago.EFECTIVO), CERO),
+        "otros_medios": sum((m["total"] for m in metodos if m["codigo"] not in (MetodoPago.EFECTIVO, MetodoPago.CREDITO)), CERO)
+                        + sum((t for k, t in abonos.items() if k != MetodoPago.EFECTIVO), CERO),
+        "fiado": sum((m["total"] for m in metodos if m["codigo"] == MetodoPago.CREDITO), CERO),
+        "abonos": sum(abonos.values(), CERO), "abonos_efectivo": abonos_efectivo,
         "ingresos": ingresos, "egresos": egresos,
-        "esperado": sesion.monto_inicial + efectivo_ventas + ingresos - egresos,
+        "esperado": sesion.monto_inicial + efectivo_ventas + abonos_efectivo + ingresos - egresos,
         "anuladas": Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.ANULADA).count(),
     }
     # Las sumas de la base de datos pueden traer decimales de más (357.2000000): todo a céntimos
