@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django import forms
 
-from .models import CERO, Categoria, MovimientoStock, Producto, Variante
+import re
+
+from .models import CERO, Categoria, GrupoOpciones, MovimientoStock, Producto, Variante
 from .rubros import etiquetas_variantes
 
 DINERO = {"step": "0.01", "min": "0", "inputmode": "decimal"}
@@ -28,7 +30,7 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = ["tipo", "nombre", "categoria", "unidad", "precio", "costo", "maneja_stock", "stock_minimo",
-                  "duracion_min", "descripcion", "imagen", "activo"]
+                  "duracion_min", "descripcion", "imagen", "activo", "grupos"]
         widgets = {
             "tipo": forms.RadioSelect,
             "precio": forms.NumberInput(attrs=DINERO),
@@ -37,6 +39,7 @@ class ProductoForm(forms.ModelForm):
             "descripcion": forms.Textarea(attrs={"rows": 2}),
             "imagen": forms.ClearableFileInput(attrs={"accept": "image/png,image/jpeg,image/webp"}),
             "nombre": forms.TextInput(attrs={"autofocus": True}),
+            "grupos": forms.CheckboxSelectMultiple,
         }
 
     def __init__(self, *args, **kwargs):
@@ -46,6 +49,8 @@ class ProductoForm(forms.ModelForm):
         self.fields["categoria"].empty_label = "Sin categoría"
         self.fields["unidad"].choices = [c for c in self.fields["unidad"].choices if c[0] != "SRV"]
         self.fields["stock_minimo"].required = False  # oculto en servicios
+        self.fields["grupos"].queryset = GrupoOpciones.objects.filter(activo=True)
+        self.fields["grupos"].label_from_instance = lambda g: f"{g.nombre} ({g.regla.lower()})"
         self.fields["unidad"].required = False
         self.es_nuevo = self.instance.pk is None
         self.unica = None if self.es_nuevo else self.instance.variante_unica()
@@ -178,3 +183,82 @@ def decimal_o_none(valor):
     if valor in (None, ""):
         return None
     return Decimal(str(valor))
+
+
+class GrupoOpcionesForm(forms.ModelForm):
+    opciones_texto = forms.CharField(
+        label="Opciones", widget=forms.Textarea(attrs={"rows": 7, "placeholder": "Término medio\nBien cocido\nHuevo frito | 2.00"}),
+        help_text="Una por línea. Si se cobra aparte, ponle el precio después de una barra: «Huevo frito | 2.00».")
+    productos = forms.ModelMultipleChoiceField(queryset=Producto.objects.none(), required=False, widget=forms.CheckboxSelectMultiple,
+                                               label="Usar en estos productos")
+
+    class Meta:
+        model = GrupoOpciones
+        fields = ["nombre", "minimo", "maximo", "orden", "activo"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["productos"].queryset = Producto.objects.filter(activo=True).order_by("categoria__orden", "nombre")
+        if self.instance.pk:
+            self.initial["productos"] = list(self.instance.productos.values_list("pk", flat=True))
+            self.initial["opciones_texto"] = "\n".join(
+                o.nombre + (f" | {o.precio:.2f}" if o.precio else "") for o in self.instance.opciones.filter(activa=True))
+
+    def clean_nombre(self):
+        nombre = " ".join(self.cleaned_data["nombre"].split())
+        if GrupoOpciones.objects.filter(nombre__iexact=nombre).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ya existe un grupo con ese nombre.")
+        return nombre
+
+    def clean_opciones_texto(self):
+        filas, vistos = [], set()
+        for n, linea in enumerate(self.cleaned_data["opciones_texto"].splitlines(), start=1):
+            linea = linea.strip()
+            if not linea:
+                continue
+            nombre, _, precio = linea.partition("|")
+            nombre = " ".join(nombre.split())[:60]
+            precio = re.sub(r"[^\d.,]", "", precio).replace(",", ".")
+            try:
+                precio = Decimal(precio) if precio else CERO
+            except Exception:  # noqa: BLE001
+                raise forms.ValidationError(f"Línea {n}: el precio no es un número.")
+            if not nombre:
+                raise forms.ValidationError(f"Línea {n}: falta el nombre.")
+            if nombre.lower() in vistos:
+                raise forms.ValidationError(f"«{nombre}» está repetido.")
+            vistos.add(nombre.lower())
+            filas.append((nombre, precio))
+        if not filas:
+            raise forms.ValidationError("Escribe al menos una opción.")
+        return filas
+
+    def clean(self):
+        d = super().clean()
+        mn, mx, ops = d.get("minimo"), d.get("maximo"), d.get("opciones_texto") or []
+        if mn is not None and mx and mn > mx:
+            self.add_error("minimo", "El mínimo no puede ser mayor que el máximo.")
+        if mn and ops and mn > len(ops):
+            self.add_error("minimo", "Hay menos opciones que el mínimo a elegir.")
+        return d
+
+    def save(self, commit=True):
+        from django.db import transaction
+
+        from .models import Opcion
+
+        with transaction.atomic():
+            g = super().save()
+            actuales = {o.nombre.lower(): o for o in g.opciones.all()}
+            usados = set()
+            for i, (nombre, precio) in enumerate(self.cleaned_data["opciones_texto"]):
+                o = actuales.get(nombre.lower())
+                if o:
+                    o.nombre, o.precio, o.orden, o.activa = nombre, precio, i, True
+                    o.save()
+                else:
+                    o = Opcion.objects.create(grupo=g, nombre=nombre, precio=precio, orden=i)
+                usados.add(o.pk)
+            g.opciones.exclude(pk__in=usados).update(activa=False)  # no se borran: ya pueden estar en pedidos
+            g.productos.set(self.cleaned_data["productos"])
+        return g

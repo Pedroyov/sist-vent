@@ -4,7 +4,7 @@
 {% block contenido %}
 <div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }} · {{ c.personas }} pers.<br>{% now "d/m/Y H:i" %}</div>
 <div class="linea"></div>
-<table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>
+<table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}{% if i.opciones %} ({{ i.texto_opciones }}){% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>
 <div class="linea"></div>
 <table><tr class="grande"><td>TOTAL S/</td><td class="r">{{ total }}</td></tr>
 {% if NEGOCIO.propina_activa %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}</table>

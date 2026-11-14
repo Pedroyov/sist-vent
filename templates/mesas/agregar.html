@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load sis %}
+{% load sis static %}
 
 {% block title %}Pedido · {{ c.titulo }}{% endblock %}
 {% block page_title %}{{ c.titulo }} <small class="text-body-secondary fs-6">tomar pedido</small>{% endblock %}
@@ -40,17 +40,13 @@
   </div>
 </div>
 
-<div class="modal fade" id="m-variante" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="mv-titulo"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-    <div class="modal-body"><div class="row g-2" id="mv-lista"></div></div>
-  </div></div>
-</div>
+{% include "productos/partials/modal_opciones.html" %}
 {{ catalogo|json_script:"datos-catalogo" }}
 {{ categorias|json_script:"datos-categorias" }}
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/opciones.js' %}"></script>
 <script>
 (function () {
   "use strict";
@@ -65,7 +61,7 @@
   var porVar = {};
   CAT.forEach(function (p) { p.busca = norm(p.n + " " + p.v.map(function (v) { return v.n; }).join(" ")); p.v.forEach(function (v) { porVar[v.id] = {p: p, v: v}; }); });
   var lineas = [], categoria = "";
-  try { lineas = (JSON.parse(sessionStorage.getItem(GUARDADO) || "[]") || []).filter(function (l) { return porVar[l.vid]; }); } catch (e) {}
+  try { lineas = (JSON.parse(sessionStorage.getItem(GUARDADO) || "[]") || []).filter(function (l) { return porVar[l.vid]; }).map(function (l) { l.ops = l.ops || []; l.extra = l.extra || 0; return l; }); } catch (e) {}
 
   function chips() {
     $("cats").innerHTML = '<button type="button" class="btn btn-sm ' + (categoria === "" ? "btn-primary" : "btn-outline-secondary") + '" data-cat="">Todo</button>' +
@@ -78,22 +74,25 @@
       return (categoria === "" || String(p.c) === String(categoria)) && palabras.every(function (w) { return p.busca.indexOf(w) >= 0; });
     }).slice(0, 150).map(function (p) {
       var n = cuantos(p), min = Math.min.apply(null, p.v.map(function (v) { return cent(v.p); }));
-      return '<div class="col-6 col-sm-4 col-lg-3"><div class="card pos-card position-relative" data-p="' + p.id + '"><div class="card-body p-2">' +
+      return '<div class="col-6 col-sm-4 col-lg-3"><div class="card pos-card position-relative' + (p.ag ? " opacity-50" : "") + '" data-p="' + p.id + '"><div class="card-body p-2">' +
+        (p.ag ? '<span class="badge text-bg-danger">Agotado</span> ' : "") +
         (n ? '<span class="badge rounded-pill text-bg-primary cuantos">' + n + "</span>" : "") +
         '<div class="nombre">' + esc(p.n) + '</div><div class="small mt-1">' + (p.v.length > 1 ? "desde " : "") + soles(min) +
-        (p.v.length > 1 ? ' · <span class="text-primary">' + p.v.length + " opciones</span>" : "") + "</div></div></div></div>";
+        (p.v.length > 1 || (p.g && p.g.length) ? ' · <span class="text-primary">opciones</span>' : "") + "</div></div></div></div>";
     }).join("");
   }
   function pintar() {
     var total = 0;
     $("lineas").innerHTML = lineas.map(function (l, i) {
-      var x = porVar[l.vid], sub = Math.round(cent(x.v.p) * l.cant);
+      var x = porVar[l.vid], sub = Math.round((cent(x.v.p) + (l.extra || 0)) * l.cant);
       total += sub;
-      return '<li class="d-flex align-items-center gap-1 mb-1">' +
+      return '<li class="mb-2 pb-1 border-bottom"><div class="d-flex align-items-center gap-1">' +
         '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-menos="' + i + '">−</button><strong class="px-1">' + l.cant + "</strong>" +
         '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-mas="' + i + '">+</button>' +
-        '<span class="text-truncate ms-1" style="max-width: 40%">' + esc(x.p.n) + (x.v.n ? " · " + esc(x.v.n) : "") + "</span>" +
-        '<input type="text" class="form-control form-control-sm ms-auto" style="max-width: 45%" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="Nota (sin cebolla…)"></li>';
+        '<span class="ms-1 min-w-0 flex-grow-1"><span class="d-block text-truncate">' + esc(x.p.n) + (x.v.n ? " · " + esc(x.v.n) : "") + "</span>" +
+        (l.txt ? '<span class="d-block small text-primary-emphasis text-truncate">' + esc(l.txt) + "</span>" : "") + "</span>" +
+        '<span class="text-nowrap ps-1">' + soles(sub) + "</span></div>" +
+        '<input type="text" class="form-control form-control-sm mt-1" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="Nota para cocina (sin cebolla, bien caliente…)"></li>';
     }).join("");
     var n = lineas.reduce(function (a, l) { return a + l.cant; }, 0);
     $("n").textContent = n;
@@ -102,9 +101,10 @@
     try { sessionStorage.setItem(GUARDADO, JSON.stringify(lineas)); } catch (e) {}
     grid();
   }
-  function sumar(vid) {
-    var l = lineas.find(function (l) { return l.vid === vid && !l.nota; });
-    if (l) l.cant += 1; else lineas.push({vid: vid, cant: 1, nota: ""});
+  function sumar(sel) {
+    var k = sel.ops.join(",");
+    var l = lineas.find(function (l) { return l.vid === sel.vid && !l.nota && l.ops.join(",") === k; });
+    if (l) l.cant += 1; else lineas.push({vid: sel.vid, cant: 1, nota: "", ops: sel.ops, txt: sel.txt, extra: sel.extra});
     pintar();
   }
   function guardar(enviar) {
@@ -112,7 +112,7 @@
     $("error").classList.add("d-none");
     fetch("{% url 'mesas:agregar' c.pk %}", {method: "POST", credentials: "same-origin",
       headers: {"Content-Type": "application/json", "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
-      body: JSON.stringify({enviar: enviar, items: lineas.map(function (l) { return {variante: l.vid, cantidad: l.cant, nota: l.nota}; })})})
+      body: JSON.stringify({enviar: enviar, items: lineas.map(function (l) { return {variante: l.vid, cantidad: l.cant, nota: l.nota, opciones: l.ops}; })})})
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "No se pudo guardar.");
@@ -132,18 +132,7 @@
     var card = e.target.closest("[data-p]");
     if (!card) return;
     var p = CAT.find(function (p) { return String(p.id) === card.dataset.p; });
-    if (p.v.length === 1) return sumar(p.v[0].id);
-    $("mv-titulo").textContent = p.n;
-    $("mv-lista").innerHTML = p.v.map(function (v) {
-      return '<div class="col-6"><button type="button" class="btn btn-outline-primary w-100 py-3" data-v="' + v.id + '"><div class="fw-semibold">' + esc(v.n) + "</div>" + soles(cent(v.p)) + "</button></div>";
-    }).join("");
-    bootstrap.Modal.getOrCreateInstance($("m-variante")).show();
-  });
-  $("mv-lista").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-v]");
-    if (!b) return;
-    sumar(parseInt(b.dataset.v, 10));
-    bootstrap.Modal.getInstance($("m-variante")).hide();
+    Opciones.elegir(p, sumar);
   });
   $("lineas").addEventListener("click", function (e) {
     var b;

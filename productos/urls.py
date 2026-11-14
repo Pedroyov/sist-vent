@@ -21,5 +21,11 @@ urlpatterns = [
     path("categorias/<int:pk>/editar/", views.categoria_editar, name="categoria_editar"),
     path("categorias/<int:pk>/eliminar/", views.categoria_eliminar, name="categoria_eliminar"),
     path("importar/", views.importar, name="importar"),
+    path("opciones/", views.opciones, name="opciones"),
+    path("opciones/nuevo/", views.grupo_form, name="grupo_nuevo"),
+    path("opciones/sugeridos/", views.grupos_sugeridos, name="grupos_sugeridos"),
+    path("opciones/<int:pk>/", views.grupo_form, name="grupo_editar"),
+    path("opciones/<int:pk>/eliminar/", views.grupo_eliminar, name="grupo_eliminar"),
+    path("agotados/", views.agotados, name="agotados"),
     path("importar/plantilla/", views.plantilla, name="plantilla"),
 ]

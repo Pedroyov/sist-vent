@@ -103,7 +103,8 @@ class ItemCuenta(models.Model):
     descripcion = models.CharField(max_length=240)
     cantidad = models.DecimalField(max_digits=10, decimal_places=3)
     precio = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio al momento de pedirlo.")
-    nota = models.CharField(max_length=120, blank=True, help_text='Ej.: "sin cebolla", "término medio".')
+    nota = models.CharField(max_length=120, blank=True, help_text='Ej.: "sin cebolla", "bien caliente".')
+    opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, acompañamiento, adicionales).")
     agregado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     creado = models.DateTimeField(default=timezone.now)
     enviado_en = models.DateTimeField("enviado a cocina", null=True, blank=True)
@@ -125,6 +126,10 @@ class ItemCuenta(models.Model):
     @property
     def subtotal(self):
         return (self.precio * self.cantidad).quantize(Decimal("0.01"))
+
+    @property
+    def texto_opciones(self):
+        return ", ".join(o["n"] for o in self.opciones or [])
 
     @property
     def enviado(self):

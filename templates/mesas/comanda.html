@@ -7,6 +7,7 @@
 <div class="linea"></div>
 {% for i in items %}
 <div class="grande">{{ i.cantidad|cantidad }} x {{ i.descripcion }}</div>
+{% for o in i.opciones %}<div class="b">&nbsp;&nbsp;› {{ o.n|upper }}</div>{% endfor %}
 {% if i.nota %}<div class="b">&nbsp;&nbsp;» {{ i.nota|upper }}</div>{% endif %}
 {% empty %}<p>Nada enviado.</p>{% endfor %}
 <div class="linea"></div>

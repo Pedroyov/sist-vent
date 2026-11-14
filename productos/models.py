@@ -25,6 +25,64 @@ class Categoria(models.Model):
         return self.nombre
 
 
+def agotado_hoy(fecha):
+    """Lo agotado vale solo por el día: al día siguiente vuelve a estar disponible sin hacer nada."""
+    return bool(fecha) and timezone.localtime(fecha).date() == timezone.localdate()
+
+
+class GrupoOpciones(models.Model):
+    """Opciones que se eligen al pedir un producto: término de la carne, acompañamiento, adicionales con precio…
+    Un grupo se puede usar en varios productos."""
+
+    nombre = models.CharField(max_length=60, unique=True, help_text='Ej.: "Término de la carne", "Adicionales".')
+    minimo = models.PositiveSmallIntegerField("mínimo a elegir", default=0,
+                                              help_text="0 = opcional. 1 = hay que elegir sí o sí (ej.: el término).")
+    maximo = models.PositiveSmallIntegerField("máximo a elegir", default=1, help_text="0 = sin límite (ej.: adicionales).")
+    orden = models.PositiveSmallIntegerField(default=0)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "grupo de opciones"
+        verbose_name_plural = "grupos de opciones"
+        ordering = ["orden", "nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def regla(self):
+        if self.minimo and self.minimo == self.maximo:
+            return f"Elegir {self.minimo}"
+        if self.minimo:
+            return f"Elegir de {self.minimo} a {self.maximo}" if self.maximo else f"Elegir al menos {self.minimo}"
+        if self.maximo == 1:
+            return "Opcional, uno"
+        return f"Opcional, hasta {self.maximo}" if self.maximo else "Opcional, varios"
+
+
+class Opcion(models.Model):
+    grupo = models.ForeignKey(GrupoOpciones, on_delete=models.CASCADE, related_name="opciones")
+    nombre = models.CharField(max_length=60)
+    precio = models.DecimalField("precio adicional", max_digits=8, decimal_places=2, default=Decimal("0"),
+                                 validators=[MinValueValidator(Decimal("0"))])
+    orden = models.PositiveSmallIntegerField(default=0)
+    activa = models.BooleanField(default=True)
+    agotada_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "opción"
+        verbose_name_plural = "opciones"
+        ordering = ["grupo", "orden", "id"]
+        constraints = [models.UniqueConstraint(fields=["grupo", "nombre"], name="opcion_unica_por_grupo")]
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def agotada(self):
+        return agotado_hoy(self.agotada_en)
+
+
 class Unidad(models.TextChoices):
     UNIDAD = "UND", "Unidad"
     KILO = "KG", "Kilo"
@@ -65,6 +123,9 @@ class Producto(models.Model):
     duracion_min = models.PositiveSmallIntegerField("duración (minutos)", null=True, blank=True,
                                                     help_text="Para servicios. Sirve más adelante para las citas.")
     imagen = models.ImageField(upload_to="productos/", blank=True, validators=[TamanoMaximo(5)])
+    grupos = models.ManyToManyField(GrupoOpciones, blank=True, related_name="productos", verbose_name="opciones al pedir",
+                                    help_text="Término, acompañamiento, adicionales… Se crean en Productos → Opciones.")
+    agotado_en = models.DateTimeField(null=True, blank=True, help_text="Agotado por hoy (vuelve solo mañana).")
     activo = models.BooleanField(default=True, help_text="Desmárcalo para dejar de venderlo sin borrarlo.")
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
@@ -84,6 +145,10 @@ class Producto(models.Model):
         elif self.unidad == Unidad.SERVICIO:
             self.unidad = Unidad.UNIDAD
         super().save(*args, **kwargs)
+
+    @property
+    def agotado(self):
+        return agotado_hoy(self.agotado_en)
 
     @property
     def es_servicio(self):

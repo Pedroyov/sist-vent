@@ -1,0 +1,31 @@
+{% if n_agotados %}<div class="alert alert-danger py-2"><i class="bi bi-slash-circle me-1"></i><strong>{{ n_agotados }}</strong> agotado{{ n_agotados|pluralize }} hoy.</div>{% endif %}
+<div class="row g-2 mb-4">
+  {% regroup productos by categoria as por_cat %}
+  {% for grupo in por_cat %}
+  <div class="col-12"><h6 class="mt-2 mb-1 text-body-secondary">{{ grupo.grouper|default:"Sin categoría" }}</h6></div>
+  {% for p in grupo.list %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <button class="btn w-100 text-start d-flex align-items-center gap-2 py-2 {% if p.agotado %}btn-danger{% else %}btn-outline-secondary{% endif %}"
+            hx-post="{% url 'productos:agotados' %}?q={{ q|urlencode }}" hx-vals='{"producto": "{{ p.pk }}", "agotado": "{% if p.agotado %}0{% else %}1{% endif %}"}' hx-target="#agotados">
+      <i class="bi {% if p.agotado %}bi-x-circle-fill{% else %}bi-check-circle{% endif %}"></i>
+      <span class="flex-grow-1 text-truncate">{{ p.nombre }}</span>{% if p.agotado %}<span class="small">AGOTADO</span>{% endif %}
+    </button>
+  </div>
+  {% endfor %}
+  {% empty %}<div class="col-12 text-body-secondary">No hay productos con ese nombre.</div>
+  {% endfor %}
+</div>
+{% if opciones %}
+<h5 class="mb-2">Opciones y adicionales</h5>
+<div class="row g-2">
+  {% for o in opciones %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <button class="btn w-100 text-start d-flex align-items-center gap-2 py-2 {% if o.agotada %}btn-danger{% else %}btn-outline-secondary{% endif %}"
+            hx-post="{% url 'productos:agotados' %}?q={{ q|urlencode }}" hx-vals='{"opcion": "{{ o.pk }}", "agotado": "{% if o.agotada %}0{% else %}1{% endif %}"}' hx-target="#agotados">
+      <i class="bi {% if o.agotada %}bi-x-circle-fill{% else %}bi-check-circle{% endif %}"></i>
+      <span class="flex-grow-1 text-truncate">{{ o.nombre }} <span class="small opacity-75">· {{ o.grupo.nombre }}</span></span>
+    </button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

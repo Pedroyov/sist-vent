@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Agotados hoy{% endblock %}
+{% block page_title %}Agotados hoy{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Agotados hoy</li>{% endblock %}
+{% block content %}
+<p class="text-body-secondary small">Toca lo que se acabó: desaparece al instante del punto de venta y de las mesas. <strong>Mañana vuelve a estar disponible solo.</strong></p>
+<input type="search" name="q" value="{{ q }}" class="form-control form-control-lg mb-3" placeholder="Buscar plato, bebida u opción…" autocomplete="off"
+       hx-get="{% url 'productos:agotados' %}" hx-trigger="input changed delay:250ms" hx-target="#agotados">
+<div id="agotados">{% include "productos/partials/agotados.html" %}</div>
+{% endblock %}

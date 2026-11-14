@@ -44,8 +44,12 @@ def cargar_clientes():
     for c in clientes[:4] + clientes[5:]:
         for dias in sorted(azar.sample(range(1, 7), 2), reverse=True):
             vs = azar.sample(variantes, 2)
-            items = [{"variante": v.pk, "cantidad": "1"} for v in vs]
-            total = sum(v.precio_venta for v in vs)
+            from productos.demo import opciones_demo
+            from productos.models import Opcion
+
+            items = [{"variante": v.pk, "cantidad": "1", "opciones": opciones_demo(v.producto)} for v in vs]
+            total = sum(v.precio_venta + sum((o.precio for o in Opcion.objects.filter(pk__in=i["opciones"])), Decimal(0))
+                        for v, i in zip(vs, items))
             try:
                 venta = registrar_venta(cajero, items, [{"metodo": "CRE", "monto": str(total)}], cliente_id=c.pk,
                                         puede_fiar=True, puede_exceder_limite=True)

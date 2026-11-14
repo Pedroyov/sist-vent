@@ -29,6 +29,7 @@
     <input class="form-check-input" type="checkbox" id="auto-imprimir"><label class="form-check-label small" for="auto-imprimir"><i class="bi bi-printer"></i> Imprimir nuevas</label>
   </div>
   <button type="button" class="btn btn-sm btn-outline-light" id="btn-pantalla" title="Pantalla completa"><i class="bi bi-arrows-fullscreen"></i></button>
+  {% if P.productos_agotar %}<a href="{% url 'productos:agotados' %}" class="btn btn-sm btn-outline-warning" title="Marcar lo que se acabó"><i class="bi bi-slash-circle"></i> Agotados</a>{% endif %}
   <a href="{% url 'core:inicio' %}" class="btn btn-sm btn-outline-light" title="Salir"><i class="bi bi-house"></i></a>
 </div>
 {% csrf_token %}

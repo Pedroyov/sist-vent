@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Opciones al pedir{% endblock %}
+{% block page_title %}Opciones al pedir{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li><li class="breadcrumb-item active">Opciones</li>{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{% url 'productos:grupo_nuevo' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nuevo grupo</a>
+  {% if P.productos_agotar %}<a href="{% url 'productos:agotados' %}" class="btn btn-outline-danger ms-sm-auto"><i class="bi bi-slash-circle me-1"></i>Agotados hoy</a>{% endif %}
+</div>
+<p class="text-body-secondary small">Lo que se elige al pedir: el término de la carne, el acompañamiento, adicionales que se cobran aparte, cremas… Cada grupo se puede usar en varios productos.</p>
+<div class="row g-3">
+  <div class="col-lg-8">
+    {% for g in grupos %}
+    <div class="card mb-3 {% if not g.activo %}opacity-50{% endif %}">
+      <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <h3 class="card-title mb-0">{{ g.nombre }}</h3><span class="badge {% if g.minimo %}text-bg-danger{% else %}text-bg-light border{% endif %}">{{ g.regla }}</span>
+        {% if not g.activo %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}
+        <a href="{% url 'productos:grupo_editar' g.pk %}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-pencil me-1"></i>Editar</a>
+        <button type="button" class="btn btn-sm btn-link text-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar" data-url="{% url 'productos:grupo_eliminar' g.pk %}"
+                data-mensaje="¿Eliminar el grupo «{{ g.nombre }}»? Se quitará de {{ g.productos.all|length }} producto(s). Las ventas pasadas no cambian."><i class="bi bi-trash"></i></button>
+      </div>
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-1 mb-2">{% for o in g.opciones.all %}<span class="badge text-bg-light border fw-normal fs-6">{{ o.nombre }}{% if o.precio %} <strong>+{{ o.precio|soles }}</strong>{% endif %}{% if o.agotada %} <span class="text-danger">· agotado</span>{% endif %}</span>{% endfor %}</div>
+        <div class="small text-body-secondary">{% with ps=g.productos.all %}{% if ps %}En: {% for p in ps|slice:":8" %}{{ p.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if ps|length > 8 %} y {{ ps|length|add:"-8" }} más{% endif %}{% else %}<span class="text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> Aún no se usa en ningún producto: pulsa Editar y márcalos.</span>{% endif %}{% endwith %}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">Todavía no hay grupos de opciones.</div>
+    {% endfor %}
+  </div>
+  <div class="col-lg-4">
+    {% if sugeridos %}
+    <div class="card card-outline card-primary mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-lightbulb me-1"></i> Sugeridos para {{ NEGOCIO.get_rubro_display|lower }}</h3></div>
+      <form method="post" action="{% url 'productos:grupos_sugeridos' %}">{% csrf_token %}
+        <div class="card-body">
+          {% for nombre, mn, mx, ops in sugeridos %}
+          <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="nombre" value="{{ nombre }}" id="s{{ forloop.counter }}" checked>
+            <label class="form-check-label" for="s{{ forloop.counter }}"><strong>{{ nombre }}</strong><br><span class="small text-body-secondary">{% for o in ops %}{{ o|cut:"|"|truncatechars:24 }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></label></div>
+          {% endfor %}
+        </div>
+        <div class="card-footer text-end"><button class="btn btn-outline-primary"><i class="bi bi-magic me-1"></i>Crear los marcados</button></div>
+      </form>
+    </div>
+    {% endif %}
+    <div class="card mb-3"><div class="card-body small">
+      <p class="mb-2"><strong>¿Cómo se usan?</strong></p>
+      <ul class="ps-3 mb-0">
+        <li><strong>Mínimo 1, máximo 1:</strong> se elige uno sí o sí (término, acompañamiento).</li>
+        <li><strong>Mínimo 0, máximo 0:</strong> opcional y varios (adicionales, cremas).</li>
+        <li>Lo que tiene precio se suma solo al plato.</li>
+        <li>Si un día no hay algo, márcalo en <a href="{% url 'productos:agotados' %}">Agotados hoy</a>.</li>
+      </ul>
+    </div></div>
+  </div>
+</div>
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

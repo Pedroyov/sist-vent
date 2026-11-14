@@ -3,7 +3,10 @@ from io import BytesIO
 
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from datetime import timedelta
+
 from django.test import TestCase
+from django.utils import timezone
 from django.urls import reverse
 from openpyxl import Workbook, load_workbook
 
@@ -171,3 +174,106 @@ class VistasTests(TestCase):
         r = self.client.post(url, {"archivo": self._excel([["", "", "", "", "", "", "x", "", "", ""]])})
         self.assertContains(r, "con problemas")
         self.assertEqual(self.client.get(reverse("productos:plantilla")).status_code, 200)
+
+
+class OpcionesYAgotadosTests(TestCase):
+    def setUp(self):
+        from caja.servicios import abrir
+        from core.models import Ajustes
+
+        from .models import GrupoOpciones, Opcion
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
+        self.jefe = crear_usuario("jefe", "Administración")
+        self.mozo = crear_usuario("mozo", "Vendedor")
+        self.chef = crear_usuario("chef", "Cocina")
+        abrir(self.jefe, D("0"))
+        self.termino = GrupoOpciones.objects.create(nombre="Término", minimo=1, maximo=1)
+        self.medio = Opcion.objects.create(grupo=self.termino, nombre="Medio")
+        self.cocido = Opcion.objects.create(grupo=self.termino, nombre="Bien cocido")
+        self.extras = GrupoOpciones.objects.create(nombre="Adicionales", minimo=0, maximo=2)
+        self.huevo = Opcion.objects.create(grupo=self.extras, nombre="Huevo", precio=D("2"))
+        self.queso = Opcion.objects.create(grupo=self.extras, nombre="Queso", precio=D("3"))
+        self.papas = Opcion.objects.create(grupo=self.extras, nombre="Papas", precio=D("5"))
+        self.lomo = Producto.objects.create(nombre="Lomo", precio=D("20"), maneja_stock=False)
+        self.lomo.grupos.set([self.termino, self.extras])
+        self.v = asegurar_variante_unica(self.lomo)
+        self.otro = Producto.objects.create(nombre="Otro", precio=D("1"), maneja_stock=False)
+
+    def test_reglas(self):
+        from .servicios import OpcionInvalida, marcar_agotado, resolver_opciones
+
+        with self.assertRaisesMessage(OpcionInvalida, "elige término"):
+            resolver_opciones(self.lomo, [])
+        with self.assertRaisesMessage(OpcionInvalida, "hasta 1"):
+            resolver_opciones(self.lomo, [self.medio.pk, self.cocido.pk])
+        with self.assertRaisesMessage(OpcionInvalida, "hasta 2"):
+            resolver_opciones(self.lomo, [self.medio.pk, self.huevo.pk, self.queso.pk, self.papas.pk])
+        with self.assertRaisesMessage(OpcionInvalida, "ya no está disponible"):
+            resolver_opciones(self.otro, [self.medio.pk])
+        foto, extra, texto = resolver_opciones(self.lomo, [self.queso.pk, self.medio.pk, self.huevo.pk])
+        self.assertEqual(([o["n"] for o in foto], extra), (["Medio", "Huevo", "Queso"], D("5")))
+        self.assertEqual(texto, "Medio, Huevo +2.00, Queso +3.00")
+        marcar_agotado(self.huevo)
+        with self.assertRaisesMessage(OpcionInvalida, "agotado"):
+            resolver_opciones(self.lomo, [self.medio.pk, self.huevo.pk])
+        type(self.huevo).objects.filter(pk=self.huevo.pk).update(agotada_en=timezone.now() - timedelta(days=1))
+        self.huevo.refresh_from_db()
+        self.assertFalse(self.huevo.agotada)  # al día siguiente vuelve solo
+
+    def test_venta_y_mesa_con_opciones(self):
+        from mesas.models import Mesa, Zona
+        from mesas.servicios import MesaError, abrir_cuenta, agregar, cobrar
+        from ventas.servicios import VentaInvalida, registrar_venta
+
+        from .servicios import marcar_agotado
+
+        venta = registrar_venta(self.jefe, [{"variante": self.v.pk, "cantidad": "2", "opciones": [self.medio.pk, self.huevo.pk]}],
+                                [{"metodo": "EFE", "monto": "44"}])
+        item = venta.items.get()
+        self.assertEqual((venta.total, item.descripcion, item.precio_lista), (D("44"), "Lomo (Medio, Huevo)", D("22")))
+        with self.assertRaisesMessage(VentaInvalida, "elige término"):
+            registrar_venta(self.jefe, [{"variante": self.v.pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "20"}])
+        c = abrir_cuenta(self.mozo, Mesa.objects.create(zona=Zona.objects.create(nombre="S"), nombre="1"))
+        agregar(c, [{"variante": self.v.pk, "cantidad": 1, "opciones": [self.medio.pk, self.queso.pk]}], self.mozo)
+        agregar(c, [{"variante": self.v.pk, "cantidad": 1, "opciones": [self.queso.pk, self.medio.pk]}], self.mozo)
+        agregar(c, [{"variante": self.v.pk, "cantidad": 1, "opciones": [self.cocido.pk]}], self.mozo)
+        self.assertEqual(sorted((i.cantidad, i.precio, i.texto_opciones) for i in c.items.all()),
+                         [(D("1"), D("20"), "Bien cocido"), (D("2"), D("23"), "Medio, Queso")])
+        marcar_agotado(self.lomo)
+        with self.assertRaisesMessage(MesaError, "agotado"):
+            agregar(c, [{"variante": self.v.pk, "cantidad": 1, "opciones": [self.medio.pk]}], self.mozo)
+        with self.assertRaisesMessage(VentaInvalida, "agotado"):
+            registrar_venta(self.jefe, [{"variante": self.v.pk, "cantidad": "1", "opciones": [self.medio.pk]}], [])
+        v2 = cobrar(c, self.jefe, [{"metodo": "EFE", "monto": "66"}])  # lo ya pedido se cobra igual
+        self.assertEqual(v2.total, D("66"))
+        self.assertIn("Lomo (Medio, Queso)", [i.descripcion for i in v2.items.all()])
+
+    def test_pantallas(self):
+        from .models import GrupoOpciones
+
+        self.client.force_login(self.jefe)
+        r = self.client.post(reverse("productos:grupo_nuevo"), {
+            "nombre": "Cremas", "minimo": "0", "maximo": "0", "orden": "10", "activo": "on",
+            "opciones_texto": "Mayonesa\nAjí\nHuancaína | 1.50\n", "productos": [self.lomo.pk]})
+        self.assertRedirects(r, reverse("productos:opciones"))
+        g = GrupoOpciones.objects.get(nombre="Cremas")
+        self.assertEqual([(o.nombre, o.precio) for o in g.opciones.all()], [("Mayonesa", D("0")), ("Ají", D("0")), ("Huancaína", D("1.50"))])
+        self.assertIn(g, self.lomo.grupos.all())
+        aji = g.opciones.get(nombre="Ají")
+        self.client.post(reverse("productos:grupo_editar", args=[g.pk]), {
+            "nombre": "Cremas", "minimo": "0", "maximo": "0", "orden": "10", "activo": "on", "opciones_texto": "Ají\nTártara", "productos": []})
+        aji.refresh_from_db()
+        self.assertEqual((aji.orden, aji.activa), (0, True))
+        self.assertFalse(g.opciones.get(nombre="Mayonesa").activa)
+        self.assertNotIn(g, self.lomo.grupos.all())
+        r = self.client.post(reverse("productos:grupo_nuevo"), {"nombre": "X", "minimo": "3", "maximo": "1", "orden": "1", "opciones_texto": "a\nb"})
+        self.assertContains(r, "no puede ser mayor")
+        self.client.force_login(self.chef)
+        self.client.post(reverse("productos:agotados"), {"producto": self.lomo.pk, "agotado": "1"})
+        self.lomo.refresh_from_db()
+        self.assertTrue(self.lomo.agotado)
+        self.assertContains(self.client.get(reverse("productos:agotados")), "AGOTADO")
+        self.client.force_login(self.mozo)
+        r = self.client.get(reverse("ventas:pos"))
+        self.assertContains(r, '"ag": true')

@@ -42,6 +42,9 @@
           <span class="ms-auto">{% if p.maneja_stock %}<strong class="fs-5 {% if p.stock_total <= p.stock_minimo %}text-danger{% endif %}">{{ p.stock_total|cantidad }}</strong>
             <small class="text-body-secondary">(mínimo {{ p.stock_minimo|cantidad }})</small>{% else %}<span class="text-body-secondary">No se controla</span>{% endif %}</span></li>
         {% endif %}
+        {% if p.grupos.exists %}<li class="list-group-item"><span class="text-body-secondary">Opciones al pedir</span>
+          <div>{% for g in p.grupos.all %}<span class="badge text-bg-light border fw-normal me-1">{{ g.nombre }}</span>{% endfor %}</div></li>{% endif %}
+        {% if p.agotado %}<li class="list-group-item text-danger"><i class="bi bi-slash-circle me-1"></i>Agotado hoy</li>{% endif %}
         {% if not con_variantes and variantes.0.codigo %}
         <li class="list-group-item d-flex"><span class="text-body-secondary">Código</span><span class="ms-auto font-monospace">{{ variantes.0.codigo }}</span></li>
         {% endif %}

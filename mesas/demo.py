@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from productos.demo import opciones_demo
 from productos.models import Variante
 
 from .models import Cuenta, Mesa, Zona
@@ -22,7 +23,7 @@ def _historial(mozo, variantes):
 
     User = get_user_model()
     cajero = User.objects.filter(username="cajero").first()
-    platos = [v for v in variantes.values() if v.producto.activo]
+    platos = [v for v in variantes.values() if v.producto.activo and not v.producto.maneja_stock]
     if not cajero or not platos:
         return
     azar = random.Random(11)
@@ -34,7 +35,7 @@ def _historial(mozo, variantes):
                 + timedelta(hours=azar.randint(12, 21), minutes=azar.randint(0, 59))
             c = abrir_cuenta(mozo, azar.choice(mesas), azar.randint(1, 5))
             elegidos = azar.sample(platos, k=min(len(platos), azar.randint(2, 4)))
-            agregar(c, [{"variante": v.pk, "cantidad": azar.choice([1, 1, 2])} for v in elegidos], mozo)
+            agregar(c, [{"variante": v.pk, "cantidad": azar.choice([1, 1, 2]), "opciones": opciones_demo(v.producto, azar)} for v in elegidos], mozo)
             enviar_cocina(c)
             if azar.random() < .12:
                 quitar(c.items.first(), cajero, azar.choice(["El cliente cambió de pedido", "Demoró mucho", "Se equivocó el mozo"]),
@@ -64,7 +65,8 @@ def cargar_mesas():
     variantes = {v.nombre_completo: v for v in Variante.objects.filter(activa=True).select_related("producto")}
 
     def pedir(cuenta, pedidos, enviar=True, minutos=0):
-        items = [{"variante": variantes[n].pk, "cantidad": c, "nota": nota} for n, c, nota in pedidos if n in variantes]
+        items = [{"variante": variantes[n].pk, "cantidad": c, "nota": nota, "opciones": opciones_demo(variantes[n].producto)}
+                 for n, c, nota in pedidos if n in variantes]
         if items:
             agregar(cuenta, items, mozo)
             if enviar:

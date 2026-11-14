@@ -104,6 +104,7 @@ class VentaItem(models.Model):
     precio_lista = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio del catálogo en ese momento.")
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+    opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, adicionales…) como estaban al vender.")
 
     class Meta:
         verbose_name = "ítem de venta"

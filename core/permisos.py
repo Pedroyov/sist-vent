@@ -62,6 +62,7 @@ PERMISOS = [
     ("productos.editar", "productos", "Crear y editar productos, variantes, precios y categorías; importar Excel", []),
     ("productos.stock", "productos", "Registrar ingresos, salidas y conteos de stock; ver movimientos", []),
     ("productos.costos", "productos", "Ver costos y ganancia", []),
+    ("productos.agotar", "productos", "Marcar productos y opciones como agotados por hoy", [CAJERO, VENDEDOR, COCINA]),
 
     ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
     ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),

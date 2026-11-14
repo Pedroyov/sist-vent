@@ -152,6 +152,22 @@ def productos(desde, hasta, limite=None):
     return filas[:limite] if limite else filas
 
 
+def opciones(desde, hasta):
+    """Opciones y adicionales elegidos: cuántas veces y cuánto se cobró por ellos."""
+    from ventas.models import VentaItem
+
+    agrupado = defaultdict(lambda: {"veces": Decimal(0), "ingreso": CERO})
+    for item in VentaItem.objects.filter(venta__in=ventas(desde, hasta)).exclude(opciones=[]).values("opciones", "cantidad"):
+        for o in item["opciones"] or []:
+            g = agrupado[(o.get("g", ""), o.get("n", ""))]
+            g["veces"] += item["cantidad"]
+            g["ingreso"] += Decimal(o.get("p") or 0) * item["cantidad"]
+    filas = [{"grupo": k[0], "etiqueta": k[1], "veces": v["veces"].normalize(), "ingreso": c(v["ingreso"]), "total": v["veces"]}
+             for k, v in agrupado.items()]
+    filas.sort(key=lambda f: (-f["ingreso"], -f["veces"]))
+    return _con_barras(filas)
+
+
 def categorias(desde, hasta):
     agrupado = defaultdict(lambda: {"total": CERO, "cantidad": Decimal(0), "ganancia": CERO, "productos": 0})
     for p in productos(desde, hasta):

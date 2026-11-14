@@ -5,6 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from productos.models import Variante
+from productos.servicios import OpcionInvalida, resolver_opciones
 
 from .models import CERO, Cuenta, ItemCuenta, Mesa
 
@@ -53,14 +54,21 @@ def agregar(cuenta, items, usuario):
             if not v.producto.fraccionable and cantidad != cantidad.to_integral_value():
                 raise MesaError(f"{v.nombre_completo} se pide por unidades enteras.")
             nota = " ".join(str(it.get("nota") or "").split())[:120]
-            previo = cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True).first()
+            if v.producto.agotado:
+                raise MesaError(f"{v.producto.nombre} está agotado hoy.")
+            try:
+                foto, extra, _ = resolver_opciones(v.producto, it.get("opciones") or [])
+            except OpcionInvalida as e:
+                raise MesaError(str(e))
+            previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True)
+                           if [o["id"] for o in p.opciones or []] == [o["id"] for o in foto]), None)
             if previo:  # mismo plato, misma nota, aún no enviado: se suma
                 previo.cantidad += cantidad
                 previo.save(update_fields=["cantidad"])
                 creados.append(previo)
             else:
-                creados.append(ItemCuenta.objects.create(cuenta=cuenta, variante=v, descripcion=v.nombre_completo[:240],
-                                                         cantidad=cantidad, precio=v.precio_venta, nota=nota, agregado_por=usuario))
+                creados.append(ItemCuenta.objects.create(cuenta=cuenta, variante=v, descripcion=v.nombre_completo[:240], opciones=foto,
+                                                         cantidad=cantidad, precio=v.precio_venta + extra, nota=nota, agregado_por=usuario))
     return creados
 
 
@@ -198,7 +206,8 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
 
     try:
         return registrar_venta(
-            cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio)} for i in pendientes],
+            cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones}
+                     for i in pendientes],
             pagos, cliente_nombre=cliente_nombre, cliente_documento=cliente_documento, nota=(nota or cuenta.titulo)[:200],
             token=token, puede_cambiar_precio=True, puede_descontar=False, propina=propina, atendio=cuenta.mozo, despues=marcar,
             desde_pedido=True, cliente_id=cliente_id, puede_fiar=puede_fiar, puede_exceder_limite=puede_exceder_limite)

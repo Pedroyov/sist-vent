@@ -37,6 +37,14 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - Permisos: `productos.ver`, `productos.editar`, `productos.stock` y `productos.costos`. Quien no tiene `productos.costos` no ve los costos en pantallas ni en el Excel.
 - Pruebas: `python manage.py test productos ventas caja mesas`.
 
+## Opciones al pedir y agotados
+
+- **GrupoOpciones** (por ejemplo "Término de la carne": mínimo 1, máximo 1; "Adicionales": mínimo 0, máximo 0 = sin límite) con sus **Opcion** (nombre y precio adicional). Un grupo se asigna a varios productos (`Producto.grupos`). Se administran en Productos → Opciones al pedir, con grupos sugeridos por rubro (`rubros.GRUPOS`).
+- `productos.servicios.resolver_opciones()` valida lo elegido (que la opción sea de ese producto, mínimos y máximos, que no esté agotada) y devuelve una **foto** `[{"id", "g", "n", "p"}]` y el precio extra. La venta (`VentaItem.opciones`) y el pedido de mesa (`ItemCuenta.opciones`) guardan esa foto: si mañana cambian las opciones, lo pasado no cambia. El precio del ítem ya incluye los adicionales.
+- En pantalla, `static/js/opciones.js` + `productos/partials/modal_opciones.html` muestran el cuadro de variante y opciones (punto de venta y mesas). Los grupos obligatorios van primero (`ordenar_grupos`).
+- **Agotados**: `Producto.agotado_en` y `Opcion.agotada_en` valen solo por el día (`agotado_hoy`): al día siguiente vuelven solos. Pantalla `productos:agotados` (permiso `productos.agotar`: Cajero, Vendedor y Cocina). Lo agotado no se puede vender ni pedir, pero lo que ya estaba pedido en una mesa se cobra igual.
+- Reportes: "Opciones y adicionales más pedidos", con lo cobrado aparte.
+
 ## Ventas (cómo está pensado)
 
 - **Venta** (numerada con `Correlativo`, sin saltos), **VentaItem** (guarda nombre, precio de lista, precio cobrado y costo de ese momento) y **Pago** (uno por método; el de efectivo guarda lo que se queda el negocio, y la venta guarda `recibido` y `vuelto`).

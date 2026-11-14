@@ -39,3 +39,21 @@ def valores_iniciales(rubro=None):
     if rubro == Rubro.RESTAURANTE:
         return {"maneja_stock": False}
     return {}
+
+
+# Grupos de opciones sugeridos: (nombre, mínimo, máximo, ["Opción" o "Opción|precio"])
+GRUPOS = {
+    Rubro.RESTAURANTE: [
+        ("Término de la carne", 1, 1, ["Inglés", "Término medio", "Tres cuartos", "Bien cocido"]),
+        ("Acompañamiento", 1, 1, ["Papas fritas", "Arroz", "Ensalada", "Yuca frita"]),
+        ("Adicionales", 0, 0, ["Huevo frito|2", "Queso|3", "Porción de papas|5", "Porción de arroz|3"]),
+        ("Cremas", 0, 0, ["Mayonesa", "Ketchup", "Mostaza", "Ají", "Huancaína", "Tártara"]),
+        ("Temperatura", 0, 1, ["Helada", "Al tiempo"]),
+    ],
+    Rubro.PELUQUERIA: [
+        ("Adicionales", 0, 0, ["Lavado|5", "Peinado|10", "Tratamiento hidratante|20"]),
+    ],
+    Rubro.TIENDA: [
+        ("Temperatura", 0, 1, ["Helada", "Al tiempo"]),
+    ],
+}

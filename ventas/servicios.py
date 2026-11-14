@@ -5,7 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from productos.models import MovimientoStock, Variante
-from productos.servicios import mover_stock
+from productos.servicios import OpcionInvalida, descripcion_con_opciones, mover_stock, resolver_opciones
 
 from .models import CERO, Correlativo, MetodoPago, Pago, Venta, VentaItem
 
@@ -61,19 +61,29 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         if v is None or (not desde_pedido and (not v.activa or not v.producto.activo)):
             raise VentaInvalida("Uno de los productos ya no está disponible. Recarga la página.")
         nombre = v.nombre_completo
+        if desde_pedido:
+            foto = it.get("opciones_foto") or []
+            extra = CERO
+        else:
+            if v.producto.agotado:
+                raise VentaInvalida(f"{v.producto.nombre} está agotado hoy.")
+            try:
+                foto, extra, _ = resolver_opciones(v.producto, it.get("opciones") or [])
+            except OpcionInvalida as e:
+                raise VentaInvalida(str(e))
         cantidad = _dec(it.get("cantidad"), f"Cantidad de {nombre}")
         if cantidad <= 0:
             raise VentaInvalida(f"La cantidad de {nombre} debe ser mayor que cero.")
         if not v.producto.fraccionable and cantidad != cantidad.to_integral_value():
             raise VentaInvalida(f"{nombre} se vende por unidades enteras.")
-        lista = v.precio_venta
+        lista = v.precio_venta + extra
         if desde_pedido and it.get("precio") not in (None, ""):
             lista = dinero(_dec(it["precio"], f"Precio de {nombre}"))  # el precio que tenía al pedirlo
         precio = lista
         if puede_cambiar_precio and it.get("precio") not in (None, ""):
             precio = dinero(_dec(it["precio"], f"Precio de {nombre}"))
         importe = dinero(precio * cantidad)
-        lineas.append((v, cantidad, precio, lista, importe))
+        lineas.append((v, cantidad, precio, lista, importe, foto))
         subtotal += importe
 
     descuento = dinero(_dec(descuento or 0, "Descuento"))
@@ -138,8 +148,9 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 cliente_documento="".join(c for c in str(cliente_documento or "") if c.isalnum())[:11],
                 nota=str(nota or "").strip()[:200],
             )
-            for v, cantidad, precio, lista, importe in lineas:
-                VentaItem.objects.create(venta=venta, variante=v, descripcion=v.nombre_completo[:240], cantidad=cantidad,
+            for v, cantidad, precio, lista, importe, foto in lineas:
+                VentaItem.objects.create(venta=venta, variante=v, descripcion=descripcion_con_opciones(v.nombre_completo, foto)[:240],
+                                         opciones=foto, cantidad=cantidad,
                                          precio_unitario=precio, precio_lista=lista, costo_unitario=v.costo_efectivo,
                                          subtotal=importe)
                 if v.producto.maneja_stock:

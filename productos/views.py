@@ -15,9 +15,9 @@ from core.permisos import permiso_requerido, puede
 from core.utils import entero
 
 from . import excel
-from .forms import CategoriaForm, GenerarVariantesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
-from .models import CERO, Categoria, MovimientoStock, Producto, Variante
-from .rubros import CATEGORIAS, etiquetas_variantes, rubro_actual, valores_iniciales
+from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
+from .models import CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
+from .rubros import CATEGORIAS, GRUPOS, etiquetas_variantes, rubro_actual, valores_iniciales
 from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, mover_stock
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -415,3 +415,85 @@ def importar(request):
                              "actualizar": sum(f["accion"] == "actualizar" for f in filas),
                              "sin_permiso_stock": not puede(request.user, "productos.stock")})
     return render(request, "productos/importar.html", contexto)
+
+
+# --- Opciones al pedir ------------------------------------------------------------------
+
+@permiso_requerido("productos.editar")
+def opciones(request):
+    grupos = GrupoOpciones.objects.prefetch_related(
+        Prefetch("opciones", queryset=Opcion.objects.filter(activa=True)), Prefetch("productos", queryset=Producto.objects.order_by("nombre")))
+    existentes = {g.nombre.lower() for g in grupos}
+    sugeridos = [g for g in GRUPOS.get(rubro_actual(), []) if g[0].lower() not in existentes]
+    return render(request, "productos/opciones.html", {"grupos": grupos, "sugeridos": sugeridos})
+
+
+@permiso_requerido("productos.editar")
+def grupo_form(request, pk=None):
+    grupo = get_object_or_404(GrupoOpciones, pk=pk) if pk else None
+    form = GrupoOpcionesForm(request.POST or None, instance=grupo,
+                             initial={} if grupo else {"orden": (GrupoOpciones.objects.count() + 1) * 10})
+    if request.method == "POST" and form.is_valid():
+        g = form.save()
+        messages.success(request, f"«{g.nombre}» guardado: {g.opciones.filter(activa=True).count()} opciones, usado en {g.productos.count()} productos.")
+        return redirect("productos:opciones")
+    return render(request, "productos/grupo_form.html", {"form": form, "grupo": grupo})
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def grupo_eliminar(request, pk):
+    g = get_object_or_404(GrupoOpciones, pk=pk)
+    g.delete()  # los pedidos y ventas guardan su propia copia de las opciones elegidas
+    messages.success(request, f"Grupo «{g.nombre}» eliminado.")
+    return redirect("productos:opciones")
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def grupos_sugeridos(request):
+    from django.db import transaction
+
+    elegidos = set(request.POST.getlist("nombre"))
+    creados = 0
+    with transaction.atomic():
+        for nombre, mn, mx, ops in GRUPOS.get(rubro_actual(), []):
+            if nombre not in elegidos or GrupoOpciones.objects.filter(nombre__iexact=nombre).exists():
+                continue
+            g = GrupoOpciones.objects.create(nombre=nombre, minimo=mn, maximo=mx, orden=(GrupoOpciones.objects.count() + 1) * 10)
+            for i, linea in enumerate(ops):
+                n, _, p = linea.partition("|")
+                Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(p or "0"), orden=i)
+            creados += 1
+    messages.success(request, f"Se crearon {creados} grupos. Ahora elige en qué productos se usa cada uno (botón Editar).")
+    return redirect("productos:opciones")
+
+
+# --- Agotados de hoy ------------------------------------------------------------------
+
+@permiso_requerido("productos.agotar")
+def agotados(request):
+    from .servicios import marcar_agotado
+
+    if request.method == "POST":
+        objeto = None
+        if request.POST.get("producto"):
+            objeto = get_object_or_404(Producto, pk=entero(request.POST.get("producto")))
+        elif request.POST.get("opcion"):
+            objeto = get_object_or_404(Opcion, pk=entero(request.POST.get("opcion")))
+        if objeto is not None:
+            marcar_agotado(objeto, request.POST.get("agotado") == "1")
+        if not request.htmx:
+            return redirect(request.get_full_path())
+    q = request.GET.get("q", "").strip()
+    productos = Producto.objects.filter(activo=True).select_related("categoria").order_by("categoria__orden", "categoria__nombre", "nombre")
+    if q:
+        productos = productos.filter(nombre__icontains=q)
+    opciones_ = Opcion.objects.filter(activa=True, grupo__activo=True).select_related("grupo").order_by("grupo__orden", "orden")
+    if q:
+        opciones_ = opciones_.filter(nombre__icontains=q)
+    contexto = {"productos": productos, "opciones": opciones_, "q": q,
+                "n_agotados": sum(1 for p in productos if p.agotado) + sum(1 for o in opciones_ if o.agotada)}
+    if request.htmx:
+        return render(request, "productos/partials/agotados.html", contexto)
+    return render(request, "productos/agotados.html", contexto)

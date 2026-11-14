@@ -17,6 +17,7 @@
               {% if not i.anulado %}hx-post="{% url 'mesas:cocina_marcar' %}" hx-vals='{"item": "{{ i.pk }}"}' hx-target="#kds" title="Toca para marcar este plato"{% endif %}>
             <strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}
             {% if i.anulado %}<span class="badge text-bg-danger">QUITADO</span>{% endif %}
+            {% for o in i.opciones %}<span class="d-block fw-bold ps-3">› {{ o.n }}</span>{% endfor %}
             {% if i.nota %}<span class="nota">» {{ i.nota }}</span>{% endif %}
           </li>
           {% endfor %}

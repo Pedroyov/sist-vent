@@ -8,6 +8,7 @@
 {% if not hay_mesas %}
 <div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-grid-3x3 fs-4"></i>
   <div class="flex-grow-1">Todavía no hay mesas.{% if not P.mesas_configurar %} Pide al administrador que las cree.{% endif %}</div>
+  {% if P.productos_agotar %}<a href="{% url 'productos:agotados' %}" class="btn btn-sm btn-outline-danger" title="Agotados hoy"><i class="bi bi-slash-circle"></i></a>{% endif %}
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-primary">Crear mesas</a>{% endif %}
 </div>
 {% endif %}

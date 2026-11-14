@@ -16,7 +16,8 @@ from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
 from core.utils import entero, url_segura
-from productos.models import Categoria, Producto, Variante
+from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variante
+from productos.servicios import ordenar_grupos
 
 from .models import MetodoPago, Venta
 from .servicios import VentaInvalida, anular_venta, registrar_venta, resumen
@@ -28,7 +29,9 @@ MAX_CATALOGO = 5000
 def _catalogo():
     """Productos activos con sus variantes, para buscar y vender sin ir al servidor en cada tecla."""
     productos = (Producto.objects.filter(activo=True).select_related("categoria")
-                 .prefetch_related(Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"))
+                 .prefetch_related(Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"),
+                                   Prefetch("grupos", queryset=GrupoOpciones.objects.filter(activo=True).prefetch_related(
+                                       Prefetch("opciones", queryset=Opcion.objects.filter(activa=True))), to_attr="grs"))
                  .order_by("nombre")[:MAX_CATALOGO])
     datos = []
     for p in productos:
@@ -39,6 +42,10 @@ def _catalogo():
             "u": "" if p.es_servicio else p.get_unidad_display().lower(), "img": p.imagen.url if p.imagen else "",
             "v": [{"id": v.pk, "n": v.nombre, "cod": v.codigo, "p": str(v.precio_venta),
                    "st": f"{v.stock.normalize():f}" if p.maneja_stock else None} for v in p.vars],
+            "ag": p.agotado,
+            "g": [{"id": g.pk, "n": g.nombre, "min": g.minimo, "max": g.maximo, "r": g.regla,
+                   "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada} for o in g.opciones.all()]}
+                  for g in ordenar_grupos(p.grs)],
         })
     return datos
 

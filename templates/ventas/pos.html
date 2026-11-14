@@ -80,16 +80,7 @@
   </div>
 </div>
 
-{# ---------- Elegir variante ---------- #}
-<div class="modal fade" id="m-variante" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title" id="m-variante-titulo"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-      <div class="modal-body"><div class="row g-2" id="m-variante-lista"></div></div>
-    </div>
-  </div>
-</div>
-
+{% include "productos/partials/modal_opciones.html" %}
 {% include "ventas/partials/modal_cobro.html" %}
 
 {{ catalogo|json_script:"datos-catalogo" }}
@@ -98,6 +89,7 @@
 
 {% block extra_js %}
 <script src="{% static 'js/cobro.js' %}"></script>
+<script src="{% static 'js/opciones.js' %}"></script>
 <script>
 (function () {
   "use strict";
@@ -125,7 +117,7 @@
   try {
     var g = JSON.parse(sessionStorage.getItem(GUARDADO) || "null");
     if (g && g.items) {
-      carrito = g.items.filter(function (l) { return porVariante[l.vid]; });
+      carrito = g.items.filter(function (l) { return porVariante[l.vid]; }).map(function (l) { l.ops = l.ops || []; l.txt = l.txt || ""; return l; });
       token = g.token || token;
       if (g.descuento && $("descuento")) $("descuento").value = g.descuento;
     }
@@ -163,38 +155,33 @@
   function grid() {
     var lista = filtrados(), html = "";
     lista.slice(0, 120).forEach(function (p) {
-      html += '<div class="col-6 col-sm-4 col-xl-3"><div class="card pos-card" data-p="' + p.id + '" role="button" tabindex="0">' +
+      html += '<div class="col-6 col-sm-4 col-xl-3"><div class="card pos-card' + (p.ag ? " opacity-50" : "") + '" data-p="' + p.id + '" role="button" tabindex="0">' +
+        (p.ag ? '<span class="badge text-bg-danger position-absolute m-1" style="z-index: 1">Agotado</span>' : "") +
         '<div class="img">' + (p.img ? '<img src="' + esc(p.img) + '" alt="" loading="lazy">' : '<i class="bi ' + (p.s ? "bi-scissors" : "bi-box") + '"></i>') + "</div>" +
         '<div class="card-body p-2"><div class="nombre">' + esc(p.n) + "</div>" +
         '<div class="d-flex align-items-center mt-1"><span class="fw-bold">' + precioDe(p) + '</span><span class="ms-auto">' + stockDe(p) + "</span></div>" +
-        (p.v.length > 1 ? '<div class="small text-primary">' + p.v.length + " opciones</div>" : "") + "</div></div></div>";
+        (p.v.length > 1 || (p.g && p.g.length) ? '<div class="small text-primary">' + (p.v.length > 1 ? p.v.length + " opciones" : "con opciones") + "</div>" : "") + "</div></div></div>";
     });
     if (lista.length > 120) html += '<div class="col-12 small text-body-secondary text-center">… y ' + (lista.length - 120) + " más. Escribe para filtrar.</div>";
     $("grid").innerHTML = html;
     $("sin-resultados").classList.toggle("d-none", lista.length > 0 || !CAT.length);
     return lista;
   }
-  function elegir(p) {
-    if (p.v.length === 1) return agregar(p.v[0].id);
-    $("m-variante-titulo").textContent = p.n;
-    $("m-variante-lista").innerHTML = p.v.map(function (v) {
-      var sinStock = v.st !== null && parseFloat(v.st) <= 0;
-      return '<div class="col-6"><button type="button" class="btn btn-outline-primary w-100 h-100 py-2" data-v="' + v.id + '">' +
-        '<div class="fw-semibold">' + esc(v.n) + '</div><div>' + soles(cent(v.p)) + "</div>" +
-        (v.st !== null ? '<div class="small ' + (sinStock ? "text-danger" : "text-body-secondary") + '">stock: ' + num(parseFloat(v.st)) + "</div>" : "") + "</button></div>";
-    }).join("");
-    bootstrap.Modal.getOrCreateInstance($("m-variante")).show();
+  function elegir(p, vid) {
+    if (vid && !(p.g && p.g.length)) return agregar({vid: vid, ops: [], extra: 0, txt: ""});
+    Opciones.elegir(p, agregar);
   }
 
   // ---------------- carrito ----------------
-  function agregar(vid, cantidad) {
-    var x = porVariante[vid];
+  function clave(l) { return l.vid + "|" + (l.ops || []).join(","); }
+  function agregar(sel) {
+    var x = porVariante[sel.vid];
     if (!x) return;
-    var l = carrito.find(function (l) { return l.vid === vid; });
-    if (l) l.cant = l.cant + (cantidad || 1);
-    else carrito.push({vid: vid, cant: cantidad || 1, precio: x.v.p});
+    var nueva = {vid: sel.vid, ops: sel.ops || [], txt: sel.txt || "", cant: 1, precio: ((cent(x.v.p) + (sel.extra || 0)) / 100).toFixed(2)};
+    var l = carrito.find(function (l) { return clave(l) === clave(nueva); });
+    if (l) l.cant += 1; else carrito.push(nueva);
     pintar();
-    var fila = document.querySelector('#carrito [data-vid="' + vid + '"]');
+    var fila = document.querySelector('#carrito [data-k="' + clave(nueva) + '"]');
     if (fila) { fila.classList.add("list-group-item-success"); setTimeout(function () { fila.classList.remove("list-group-item-success"); }, 350); }
   }
   function lineaCent(l) { return Math.round(cent(l.precio) * l.cant); }
@@ -209,9 +196,10 @@
       var x = porVariante[l.vid], p = x.p, v = x.v;
       var falta = v.st !== null && l.cant > parseFloat(v.st);
       var paso = p.f ? "0.1" : "1";
-      html += '<li class="list-group-item linea px-2 py-2" data-vid="' + l.vid + '"><div class="d-flex gap-2">' +
+      html += '<li class="list-group-item linea px-2 py-2" data-k="' + clave(l) + '"><div class="d-flex gap-2">' +
         '<div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate">' + esc(p.n) + "</div>" +
         (v.n ? '<div class="small text-body-secondary">' + esc(v.n) + "</div>" : "") +
+        (l.txt ? '<div class="small text-primary-emphasis">' + esc(l.txt) + "</div>" : "") +
         (falta ? '<div class="small text-danger"><i class="bi bi-exclamation-triangle"></i> Stock: ' + num(parseFloat(v.st)) + "</div>" : "") + "</div>" +
         '<div class="text-end fw-semibold text-nowrap">' + soles(lineaCent(l)) + "</div></div>" +
         '<div class="d-flex align-items-center gap-1 mt-1">' +
@@ -244,7 +232,7 @@
     var t = totales();
     Cobro.abrir({total: t.total, titulo: "Cobrar", onConfirmar: function (datos, terminar) {
       datos.token = token;
-      datos.items = carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null}; });
+      datos.items = carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null, opciones: l.ops}; });
       datos.descuento = (t.desc / 100).toFixed(2);
       Cobro.enviar(URL_REGISTRAR, datos).then(function (d) {
         if (d.ok) {
@@ -269,7 +257,7 @@
     var q = this.value.trim();
     if (!q) return;
     var vid = porCodigo[q.toLowerCase()];
-    if (vid) { agregar(vid); this.value = ""; grid(); return; }
+    if (vid) { elegir(porVariante[vid].p, vid); this.value = ""; grid(); return; }
     var lista = filtrados();
     if (lista.length === 1) { elegir(lista[0]); this.value = ""; grid(); }
   });
@@ -280,13 +268,7 @@
     if (p) elegir(p);
   });
   $("grid").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.dataset.p) e.target.click(); });
-  $("m-variante-lista").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-v]");
-    if (!b) return;
-    agregar(parseInt(b.dataset.v, 10));
-    bootstrap.Modal.getInstance($("m-variante")).hide();
-  });
-  $("m-variante").addEventListener("hidden.bs.modal", function () { $("buscar").focus(); });
+  document.getElementById("m-opciones").addEventListener("hidden.bs.modal", function () { $("buscar").focus(); });
   $("carrito").addEventListener("click", function (e) {
     var b;
     if ((b = e.target.closest("[data-mas]"))) { carrito[b.dataset.mas].cant += 1; pintar(); }

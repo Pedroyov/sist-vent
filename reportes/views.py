@@ -16,7 +16,7 @@ def _datos(request):
         "r": s.resumen(desde, hasta), "fechas": fechas, "mensual": mensual,
         "horas": s.por_hora(desde, hasta), "semana": s.por_dia_semana(desde, hasta),
         "productos": s.productos(desde, hasta), "categorias": s.categorias(desde, hasta),
-        "sin_ventas": s.sin_ventas(desde, hasta), "vendedores": s.por_usuario(desde, hasta, "usuario"),
+        "sin_ventas": s.sin_ventas(desde, hasta), "opciones": s.opciones(desde, hasta), "vendedores": s.por_usuario(desde, hasta, "usuario"),
         "anuladas": s.anuladas(desde, hasta), "cajas": s.cajas(desde, hasta),
         "ver_costos": puede(request.user, "productos.costos"),
         "con_mesas": modulo_activo(request.user, "mesas"), "con_clientes": modulo_activo(request.user, "clientes"),
@@ -28,6 +28,7 @@ def _datos(request):
     if d["con_clientes"]:
         d["deudores"] = s.deudores()
     d["inventario"] = s.inventario(desde, hasta)
+    d["opciones_ingreso"] = sum((f["ingreso"] for f in d["opciones"]), s.CERO)
     d["top"] = d["productos"][:20]
     d["menos"] = [p for p in reversed(d["productos"][20:])][:10] if len(d["productos"]) > 20 else []
     return d
@@ -85,6 +86,8 @@ def _excel(d):
                             + ([p["costo"], p["ganancia"]] if d["ver_costos"] else []) for p in d["productos"]])
     hoja("Categorías", ["Categoría", "Total", "% del total"] + (["Ganancia"] if d["ver_costos"] else []),
          [[f["etiqueta"], f["total"], f["participacion"]] + ([f["ganancia"]] if d["ver_costos"] else []) for f in d["categorias"]])
+    hoja("Opciones y adicionales", ["Opción", "Grupo", "Veces", "Cobrado aparte"],
+         [[f["etiqueta"], f["grupo"], f["veces"], f["ingreso"]] for f in d["opciones"]])
     hoja("Sin ventas", ["Producto", "Categoría"], [[p.nombre, p.categoria.nombre if p.categoria else ""] for p in d["sin_ventas"]])
     hoja("Vendedores", ["Cobró", "Total", "Ventas", "Ticket promedio"], [[f["etiqueta"], f["total"], f["n"], f["promedio"]] for f in d["vendedores"]])
     if d["con_mesas"]:

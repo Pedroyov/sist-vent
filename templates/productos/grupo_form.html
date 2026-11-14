@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}{% if grupo %}{{ grupo.nombre }}{% else %}Nuevo grupo de opciones{% endif %}{% endblock %}
+{% block page_title %}{% if grupo %}{{ grupo.nombre }}{% else %}Nuevo grupo de opciones{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li><li class="breadcrumb-item"><a href="{% url 'productos:opciones' %}">Opciones</a></li><li class="breadcrumb-item active">{% if grupo %}Editar{% else %}Nuevo{% endif %}</li>{% endblock %}
+{% block content %}
+<form method="post" novalidate>{% csrf_token %}
+  {{ form.non_field_errors }}
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card card-outline card-primary mb-3"><div class="card-body">
+        {{ form.nombre|as_crispy_field }}
+        <div class="row"><div class="col-6">{{ form.minimo|as_crispy_field }}</div><div class="col-6">{{ form.maximo|as_crispy_field }}</div></div>
+        <div class="d-flex flex-wrap gap-1 mb-3 small"><span class="text-body-secondary me-1">Rápido:</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-mm="1,1">Elegir 1 obligatorio</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-mm="0,1">Opcional, uno</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-mm="0,0">Opcional, varios</button></div>
+        {{ form.opciones_texto|as_crispy_field }}
+        <div class="row"><div class="col-6">{{ form.orden|as_crispy_field }}</div><div class="col-6 pt-4">{{ form.activo|as_crispy_field }}</div></div>
+      </div></div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0">{{ form.productos.label }}</h3>
+          <input type="search" class="form-control form-control-sm ms-auto" style="max-width: 180px" placeholder="Filtrar…" id="filtro"></div>
+        <div class="card-body" style="max-height: 420px; overflow-y: auto" id="lista-productos">{{ form.productos }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="card sticky-bottom mb-4"><div class="card-body d-flex gap-2 py-2">
+    <a href="{% url 'productos:opciones' %}" class="btn btn-outline-secondary">Cancelar</a>
+    <button class="btn btn-primary ms-auto"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+  </div></div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  document.querySelectorAll("[data-mm]").forEach(function (b) {
+    b.addEventListener("click", function () { var v = b.dataset.mm.split(","); document.getElementById("id_minimo").value = v[0]; document.getElementById("id_maximo").value = v[1]; });
+  });
+  document.getElementById("filtro").addEventListener("input", function () {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll("#lista-productos .form-check").forEach(function (d) { d.classList.toggle("d-none", d.textContent.toLowerCase().indexOf(q) < 0); });
+  });
+</script>
+{% endblock %}

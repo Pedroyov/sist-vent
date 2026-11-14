@@ -62,6 +62,12 @@
 
     <div class="col-lg-4">
       <div class="card mb-4">
+        <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-ui-checks me-1"></i> Opciones al pedir</h3>
+          {% if P.productos_editar %}<a href="{% url 'productos:opciones' %}" class="ms-auto small">administrar</a>{% endif %}</div>
+        <div class="card-body">{% if form.grupos.field.queryset.exists %}{{ form.grupos }}<div class="form-text">Término, acompañamiento, adicionales… que se eligen al venderlo.</div>
+          {% else %}<p class="small text-body-secondary mb-0">No hay opciones creadas. <a href="{% url 'productos:opciones' %}">Créalas aquí</a> (por ejemplo, el término de la carne).</p>{% endif %}</div>
+      </div>
+      <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-image me-1"></i> Foto y detalles</h3></div>
         <div class="card-body">
           {% if producto.imagen %}<img src="{{ producto.imagen.url }}" alt="" class="img-fluid rounded border mb-2" style="max-height: 160px">{% endif %}

@@ -95,3 +95,63 @@ def asegurar_variante_unica(producto):
             return v
         return Variante.objects.create(producto=producto, nombre="")
     return producto.variante_unica()
+
+
+# --- Opciones al pedir y agotados ---------------------------------------------------
+
+class OpcionInvalida(Exception):
+    pass
+
+
+def resolver_opciones(producto, ids, revisar_disponible=True):
+    """Valida las opciones elegidas para un producto. Devuelve (foto, precio_extra, texto):
+    foto = [{"id", "g", "n", "p"}] tal como se guarda en la venta o el pedido."""
+    from .models import GrupoOpciones, Opcion
+
+    try:
+        ids = sorted({int(i) for i in (ids or [])})
+    except (TypeError, ValueError):
+        raise OpcionInvalida("Opción no válida.")
+    grupos = ordenar_grupos(producto.grupos.filter(activo=True).prefetch_related("opciones"))
+    validas = {o.pk: o for g in grupos for o in g.opciones.all() if o.activa}
+    elegidas = []
+    for i in ids:
+        o = validas.get(i)
+        if o is None:
+            raise OpcionInvalida(f"Una de las opciones ya no está disponible para {producto.nombre}. Recarga la página.")
+        if revisar_disponible and o.agotada:
+            raise OpcionInvalida(f"«{o.nombre}» está agotado hoy.")
+        elegidas.append(o)
+    for g in grupos:
+        n = sum(1 for o in elegidas if o.grupo_id == g.pk)
+        if n < g.minimo:
+            raise OpcionInvalida(f"{producto.nombre}: elige {g.nombre.lower()}.")
+        if g.maximo and n > g.maximo:
+            raise OpcionInvalida(f"{producto.nombre}: en {g.nombre.lower()} se puede elegir hasta {g.maximo}.")
+    orden = {g.pk: i for i, g in enumerate(grupos)}
+    elegidas.sort(key=lambda o: (orden[o.grupo_id], o.orden, o.pk))
+    foto = [{"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)} for o in elegidas]
+    return foto, sum((o.precio for o in elegidas), Decimal("0")), texto_opciones(foto)
+
+
+def ordenar_grupos(grupos):
+    """Primero lo obligatorio (término, acompañamiento) y luego lo opcional (adicionales, cremas)."""
+    return sorted(grupos, key=lambda g: (0 if g.minimo else 1, g.orden, g.nombre))
+
+
+def texto_opciones(foto):
+    return ", ".join(o["n"] + (f" +{Decimal(o['p']):.2f}" if Decimal(o.get("p") or 0) else "") for o in foto or [])
+
+
+def descripcion_con_opciones(nombre, foto):
+    t = ", ".join(o["n"] for o in foto or [])
+    return f"{nombre} ({t})" if t else nombre
+
+
+def marcar_agotado(objeto, agotado=True):
+    """Producto u opción: agotado por hoy (o disponible de nuevo)."""
+    from django.utils import timezone
+
+    campo = "agotado_en" if hasattr(objeto, "agotado_en") else "agotada_en"
+    setattr(objeto, campo, timezone.now() if agotado else None)
+    objeto.save(update_fields=[campo])

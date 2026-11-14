@@ -6,7 +6,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from productos.models import MovimientoStock, Variante
+from productos.demo import opciones_demo
+from productos.models import MovimientoStock, Opcion, Variante
 from productos.servicios import mover_stock
 
 from .models import MetodoPago, Venta
@@ -45,14 +46,16 @@ def cargar_ventas(dias=7, por_dia=(6, 14)):
                 break
             elegidas = azar.sample(variantes, k=min(len(variantes), azar.choice([1, 1, 2, 2, 3, 4])))
             items = [{"variante": v.pk, "cantidad": str(azar.choice([1, 1, 1, 2, 3]) if not v.producto.fraccionable
-                                                          else Decimal(azar.choice(["0.5", "1", "1.5", "2"])))} for v in elegidas]
+                                                          else Decimal(azar.choice(["0.5", "1", "1.5", "2"]))),
+                      "opciones": opciones_demo(v.producto, azar)} for v in elegidas]
             for v, i in zip(elegidas, items):  # reponer antes de quedarse sin stock, como haría la tienda
                 v.refresh_from_db(fields=["stock"])
                 if v.producto.maneja_stock and v.stock - Decimal(i["cantidad"]) < 1:
                     mov = mover_stock(v, Decimal("24"), MovimientoStock.Tipo.INGRESO, nota="Compra a proveedor",
                                       costo_unitario=v.costo_efectivo, referencia="Factura de ejemplo")
                     MovimientoStock.objects.filter(pk=mov.pk).update(fecha=fecha - timedelta(minutes=30))
-            total = sum(v.precio_venta * Decimal(i["cantidad"]) for v, i in zip(elegidas, items))
+            total = sum((v.precio_venta + sum((o.precio for o in Opcion.objects.filter(pk__in=i["opciones"])), Decimal(0)))
+                        * Decimal(i["cantidad"]) for v, i in zip(elegidas, items))
             metodo = azar.choices(["EFE", "YAP", "PLI", "TAR"], weights=[55, 25, 10, 10])[0]
             monto = total
             if metodo == MetodoPago.EFECTIVO:

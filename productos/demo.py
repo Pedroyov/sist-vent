@@ -66,6 +66,39 @@ CATALOGOS = {
 }
 
 
+def opciones_demo(producto, azar=None):
+    """Para pedidos de ejemplo: la primera opción de cada grupo obligatorio y, a veces, algún adicional."""
+    ids = []
+    for g in producto.grupos.filter(activo=True).prefetch_related("opciones"):
+        ops = [o for o in g.opciones.all() if o.activa]
+        if not ops:
+            continue
+        if g.minimo:
+            ids += [o.pk for o in (azar.sample(ops, g.minimo) if azar else ops[:g.minimo])]
+        elif azar and azar.random() < .35:
+            ids.append(azar.choice(ops).pk)
+    return ids
+
+
+def _opciones_restaurante():
+    from .models import GrupoOpciones, Opcion
+    from .rubros import GRUPOS
+
+    grupos = {}
+    for i, (nombre, mn, mx, ops) in enumerate(GRUPOS[Rubro.RESTAURANTE]):
+        g = GrupoOpciones.objects.create(nombre=nombre, minimo=mn, maximo=mx, orden=i * 10)
+        for j, linea in enumerate(ops):
+            n, _, pr = linea.partition("|")
+            Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(pr or "0"), orden=j)
+        grupos[nombre] = g
+    usos = {"Lomo saltado": ["Término de la carne", "Adicionales"], "Pollo a la brasa": ["Acompañamiento", "Cremas", "Adicionales"],
+            "Inca Kola 500 ml": ["Temperatura"], "Menú ejecutivo": ["Adicionales"]}
+    for nombre, gs in usos.items():
+        p = Producto.objects.filter(nombre=nombre).first()
+        if p:
+            p.grupos.set([grupos[g] for g in gs])
+
+
 def cargar_catalogo(rubro, usuario=None):
     """Crea el catálogo de ejemplo si todavía no hay productos. Devuelve cuántos productos hay."""
     if Producto.objects.exists():
@@ -106,4 +139,6 @@ def cargar_catalogo(rubro, usuario=None):
                 if cantidad:
                     mover_stock(v, cantidad, MovimientoStock.Tipo.INICIAL, usuario, "Datos de ejemplo",
                                 costo_unitario=p.costo)
+    if rubro == Rubro.RESTAURANTE:
+        _opciones_restaurante()
     return Producto.objects.count()

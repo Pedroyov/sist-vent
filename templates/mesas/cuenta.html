@@ -31,7 +31,7 @@
   <div class="d-flex align-items-center mb-2"><strong>{% if NEGOCIO.cocina_pantalla %}<i class="bi bi-check2-circle me-1"></i>Enviado a la pantalla de cocina:{% else %}<i class="bi bi-megaphone me-1"></i>Díctale a cocina:{% endif %}</strong>
     <a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" data-imprimir="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-printer me-1"></i>Comanda</a></div>
   <ul class="list-unstyled mb-0 dictar">
-    {% for i in recien %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
+    {% for i in recien %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.opciones %} <span class="fw-semibold">({{ i.texto_opciones }})</span>{% endif %}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
   </ul>
   <div class="small mt-2">{{ c.titulo }}</div>
 </div>
@@ -58,7 +58,7 @@
         <span class="cant">{{ i.cantidad|cantidad }}</span>
         <button name="accion" value="mas" class="btn btn-sm btn-outline-secondary" aria-label="Más"><i class="bi bi-plus"></i></button>
       </form>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</div>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</div>
       <span class="text-nowrap">{{ i.subtotal|soles }}</span>
     </li>
     {% endfor %}
@@ -76,7 +76,7 @@
     <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
       <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
       <span class="cant">{{ i.cantidad|cantidad }}</span>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}
           {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en cocina</span>{% endif %}</div></div>
       <span class="text-nowrap">{{ i.subtotal|soles }}</span>
