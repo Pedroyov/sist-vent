@@ -2,16 +2,16 @@
 Roles del sistema (grupos de Django).
 
 Lo que puede hacer cada rol se define con permisos (ver core/permisos.py) y se
-marca en Configuración → Roles y permisos. Dirección y el superusuario siempre
+marca en Configuración → Roles y permisos. Administración y el superusuario siempre
 tienen acceso total.
 """
-from .permisos import DIRECCION, DOCENTE, ROLES_BASE, TESORERIA  # noqa: F401
+from .permisos import ADMINISTRACION, CAJERO, ROLES_BASE, VENDEDOR  # noqa: F401
 
 ROLES = ROLES_BASE  # roles que vienen con el sistema
 
 
 def roles_disponibles():
-    """Todos los roles (los del sistema primero y luego los creados por el colegio)."""
+    """Todos los roles (los del sistema primero y luego los creados por el negocio)."""
     from django.contrib.auth.models import Group
 
     nombres = list(Group.objects.filter(permisos_sis__isnull=False).values_list("name", flat=True))

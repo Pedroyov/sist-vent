@@ -21,7 +21,7 @@ if not exist db_demo.sqlite3 (
 )
 echo.
 if defined RED goto :red
-echo  Abre http://127.0.0.1:8000  (usuario: director  clave: demo1234)
+echo  Abre http://127.0.0.1:8000  (usuario: gerente  clave: demo1234)
 echo  Para volver a generar los datos: demo.bat nuevo
 echo  Para abrirlo tambien desde un celular: demo.bat red
 echo.
@@ -35,7 +35,7 @@ echo  En esta PC:        http://127.0.0.1:8000
 if defined IP echo  En el celular:     http://%IP%:8000   (mismo WiFi o datos compartidos desde tu celular)
 if not defined IP echo  En el celular: escribe ipconfig en otra ventana y usa la "Direccion IPv4" con :8000
 echo  Si Windows pregunta por el firewall, marca "Redes privadas" y pulsa Permitir.
-echo  Usuario: director  clave: demo1234
+echo  Usuario: gerente  clave: demo1234
 echo.
 python manage.py runserver 0.0.0.0:8000
 goto :eof

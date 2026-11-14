@@ -1,5 +1,5 @@
 """
-Configuración del Sistema de Gestión Escolar.
+Configuración del Sistema de Ventas.
 
 Los valores sensibles o que cambian entre desarrollo y producción
 se leen del archivo .env (ver .env.example).
@@ -31,9 +31,9 @@ if RENDER_EXTERNAL_HOSTNAME:
 # Modo demostración: muestra un aviso y los usuarios de prueba, y no deja cambiar contraseñas
 DEMO = env.bool("DEMO", default=False)
 
-# Nombre del colegio que se muestra en la interfaz
-COLEGIO_NOMBRE = env("COLEGIO_NOMBRE", default="Mi Colegio")
-COLEGIO_NOMBRE_CORTO = env("COLEGIO_NOMBRE_CORTO", default="SisGestión")
+# Nombre del negocio que se muestra mientras no se llenen los Datos del negocio
+NEGOCIO_NOMBRE = env("NEGOCIO_NOMBRE", default="Mi Negocio")
+NEGOCIO_NOMBRE_CORTO = env("NEGOCIO_NOMBRE_CORTO", default="SisVentas")
 
 
 # --- Aplicaciones -----------------------------------------------------------
@@ -57,12 +57,6 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "core",
-    "alumnos",
-    "cobranza",
-    "academico",
-    "asistencia",
-    "personal",
-    "evaluacion",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -92,7 +86,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "core.context_processors.colegio",
+                "core.context_processors.negocio",
             ],
         },
     },
@@ -103,7 +97,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 # --- Base de datos ----------------------------------------------------------
 # Por defecto SQLite (desarrollo). En producción, poner en .env por ejemplo:
-# DATABASE_URL=postgres://usuario:clave@localhost:5432/sistgestion
+# DATABASE_URL=postgres://usuario:clave@localhost:5432/sistventas
 
 DATABASES = {
     "default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
@@ -144,7 +138,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/archivos/"  # se sirven con control de acceso (core.views.archivo), nunca públicos
 MEDIA_ROOT = BASE_DIR / "media"
-# Archivos temporales que nunca se publican (por ejemplo, plantillas del SIAGIE subidas)
+# Archivos temporales que nunca se publican (caché, importaciones)
 ARCHIVOS_PRIVADOS = BASE_DIR / "privado"
 
 STORAGES = {

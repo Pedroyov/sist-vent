@@ -12,11 +12,6 @@
     </ul>
 
     <ul class="navbar-nav ms-auto align-items-center">
-      {% if ANIO_ACTUAL %}
-      <li class="nav-item me-1">
-        <span class="badge text-bg-light border" title="Año lectivo en curso"><i class="bi bi-calendar3 me-1"></i>{{ ANIO_ACTUAL }}</span>
-      </li>
-      {% endif %}
       {# Botón "Instalar app": se muestra solo cuando el navegador lo permite #}
       <li class="nav-item d-none" id="btn-instalar-wrap">
         <button type="button" class="btn btn-sm btn-outline-primary me-2" id="btn-instalar">

@@ -37,7 +37,7 @@
           <td class="d-none d-md-table-cell">{{ u.username }}</td>
           <td>
             {% if u.is_superuser %}<span class="badge text-bg-dark">Administrador</span>{% endif %}
-            {% for g in u.groups.all %}<span class="badge text-bg-{% if g.name == 'Dirección' %}primary{% elif g.name == 'Tesorería' %}success{% else %}info{% endif %}">{{ g.name }}</span>{% endfor %}
+            {% for g in u.groups.all %}<span class="badge text-bg-{% if g.name == 'Administración' %}primary{% elif g.name == 'Cajero' %}success{% else %}info{% endif %}">{{ g.name }}</span>{% endfor %}
             {% if not u.is_superuser and not u.groups.all %}<span class="badge text-bg-light border">Sin rol</span>{% endif %}
           </td>
           <td class="d-none d-sm-table-cell">

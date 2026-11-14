@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{% block title %}{{ COLEGIO_NOMBRE_CORTO }}{% endblock %} · {{ COLEGIO_NOMBRE }}</title>
+  <title>{% block title %}{{ NEGOCIO_NOMBRE_CORTO }}{% endblock %} · {{ NEGOCIO_NOMBRE }}</title>
 
   {# PWA #}
   <link rel="manifest" href="{% url 'core:manifest' %}">
-  <meta name="theme-color" content="{{ COLEGIO.color|default:'#0d6efd' }}">
+  <meta name="theme-color" content="{{ NEGOCIO.color|default:'#0d6efd' }}">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="{{ COLEGIO_NOMBRE_CORTO }}">
-  <link rel="apple-touch-icon" href="{{ COLEGIO.icono_url_180 }}">
-  <link rel="icon" type="image/png" href="{{ COLEGIO.icono_url_192 }}">
+  <meta name="apple-mobile-web-app-title" content="{{ NEGOCIO_NOMBRE_CORTO }}">
+  <link rel="apple-touch-icon" href="{{ NEGOCIO.icono_url_180 }}">
+  <link rel="icon" type="image/png" href="{{ NEGOCIO.icono_url_192 }}">
 
   <script>
     // Aplica el tema guardado (claro/oscuro) antes de pintar la página
@@ -66,8 +66,8 @@
   </main>
 
   <footer class="app-footer small">
-    <div class="float-end d-none d-sm-inline">Sistema de gestión escolar</div>
-    <strong>{{ COLEGIO_NOMBRE }}</strong> &copy; {% now "Y" %}
+    <div class="float-end d-none d-sm-inline">Sistema de ventas</div>
+    <strong>{{ NEGOCIO_NOMBRE }}</strong> &copy; {% now "Y" %}
   </footer>
 </div>
 {% endblock %}

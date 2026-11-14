@@ -1,6 +1,6 @@
-# Sistema de Gestión Escolar
+# Sistema de Ventas
 
-Sistema web para la gestión interna del colegio: alumnos, cobranza, asistencia y notas.
+Sistema web de ventas para pequeños negocios: restaurantes, tiendas de ropa, librerías y útiles, peluquerías, bodegas, etc.
 Responsivo y se puede instalar en el celular como app (PWA).
 
 **Tecnologías:** Django 5.2 · AdminLTE 4 (Bootstrap 5) · HTMX · SQLite (desarrollo) / PostgreSQL (producción)
@@ -14,7 +14,7 @@ Requisito: **Python 3.10 o superior** (marca "Add Python to PATH" al instalarlo)
 Abre una terminal (PowerShell o CMD) en la carpeta del proyecto:
 
 ```powershell
-cd "C:\proyectos\sist gestion"
+cd "C:\proyectos\sist-vent"
 
 # 1. Crear y activar el entorno virtual
 python -m venv .venv
@@ -54,41 +54,21 @@ Abre http://127.0.0.1:8000 e ingresa con el usuario que creaste.
 
 ## Estructura
 
-```
-sist gestion/
-├── config/            # Configuración del proyecto (settings, urls)
-├── core/              # Inicio, login y PWA (manifest, service worker)
-├── templates/
-│   ├── base.html      # Plantilla principal (AdminLTE)
-│   ├── partials/      # Menú lateral, barra superior, mensajes
-│   ├── registration/  # Login
-│   └── core/          # Inicio, offline, service worker
-├── static/
-│   ├── css/app.css    # Estilos propios
-│   ├── js/app.js      # JS propio (PWA, tema oscuro)
-│   ├── img/icons/     # Íconos de la app
-│   └── vendor/        # AdminLTE, Bootstrap, Bootstrap Icons, HTMX (locales)
-├── manage.py
-├── requirements.txt
-└── .env.example
-```
+Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 
 ## Avance
 
-- [x] **Paso 0** – Proyecto base, configuración con `.env`
-- [x] **Paso 1** – Plantilla AdminLTE responsiva, login, inicio, PWA instalable
-- [ ] **Paso 2** – `core`: año lectivo, niveles, grados, secciones, roles
-- [ ] **Paso 3** – `alumnos`: alumnos, apoderados, matrícula, importar Excel
-- [ ] **Paso 4** – `cobranza`: cronograma, pagos, recibos, morosos
-- [ ] **Paso 5** – `asistencia`
-- [ ] **Paso 6** – `notas` y libretas
-- [ ] **Paso 7** – Despliegue con HTTPS
+- [x] **Base** – Login con bloqueo, usuarios, roles y permisos, módulos activables, datos del negocio (rubro, logo, RUC), PWA instalable
+- [ ] Productos y servicios (precios, variantes talla/color, stock)
+- [ ] Punto de venta y tickets
+- [ ] Caja (apertura, cierre, ingresos y egresos)
+- [ ] Clientes
+- [ ] Reportes
+- [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo
 
-Doble clic en `demo.bat` (o ejecútalo desde la terminal). Crea una base aparte, `db_demo.sqlite3`,
-con un año escolar completo: ~240 alumnos, pagos y morosos, asistencia, horarios sin cruces, notas
-y libretas. **Tu base real (`db.sqlite3`) no se toca.**
+Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo. **Tu base real (`db.sqlite3`) no se toca.**
 
-Usuarios (clave `demo1234`): `admin` (administrador principal: módulos del sistema), `director`, `tesoreria`, `lmedina` (tutora de primaria), `lrios` (docente de secundaria).
+Usuarios (clave `demo1234`): `admin` (administrador principal: módulos del sistema), `gerente` (Administración), `cajero`, `vendedor`.
 Para regenerar los datos: `demo.bat nuevo`.

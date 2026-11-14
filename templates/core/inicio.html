@@ -22,19 +22,6 @@
 {% endblock %}
 
 {% block content %}
-{% if not ANIO_ACTUAL %}
-<div class="alert alert-warning d-flex align-items-center gap-2">
-  <i class="bi bi-exclamation-circle fs-4"></i>
-  <div class="flex-grow-1">{% if P.config_colegio %}Primero configura el año lectivo, sus periodos y las secciones.{% else %}Dirección aún no configura el año escolar.{% endif %}</div>
-  {% if P.config_colegio %}<a href="{% url 'core:anio_nuevo' %}" class="btn btn-sm btn-warning">Configurar</a>{% endif %}
-</div>
-{% endif %}
-
-{% if t.sin_clases and ANIO_ACTUAL %}
-<div class="alert alert-light border d-flex align-items-center gap-2 py-2"><i class="bi bi-cup-hot fs-5"></i>
-  <div>Hoy no hay clases: <strong>{{ t.sin_clases }}</strong>.</div></div>
-{% endif %}
-
 {# ---------- Atajos ---------- #}
 {% if t.atajos %}
 <div class="row g-2 g-md-3 mb-4">
@@ -68,7 +55,7 @@
         </a>
         {% endfor %}
       </div>
-      {% elif ANIO_ACTUAL %}
+      {% else %}
       <div class="card-body text-center py-4">
         <i class="bi bi-check2-circle text-success" style="font-size: 2.5rem"></i>
         <p class="mb-0 mt-2 fw-semibold">¡Todo al día!</p>
@@ -94,86 +81,7 @@
       {% endfor %}
     </div>
 
-    {% if t.caja and t.caja.n %}
-    <div class="card mb-4">
-      <div class="card-header d-flex align-items-center">
-        <h3 class="card-title mb-0"><i class="bi bi-cash-stack me-1"></i> Caja de hoy</h3>
-        <a href="{% url 'cobranza:pagos' %}" class="ms-auto small">Ver pagos</a>
-      </div>
-      <ul class="list-group list-group-flush">
-        {% for m in t.caja.metodos %}
-        <li class="list-group-item d-flex"><span>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></span><span class="ms-auto">{{ m.total|soles }}</span></li>
-        {% endfor %}
-        <li class="list-group-item d-flex fw-bold"><span>Total ({{ t.caja.n }})</span><span class="ms-auto">{{ t.caja.total|soles }}</span></li>
-      </ul>
-    </div>
-    {% endif %}
   </div>
-</div>
-
-<div class="row">
-  {# ---------- Faltaron ---------- #}
-  {% if t.faltaron %}
-  <div class="col-lg-6 col-xl-5">
-    <div class="card mb-4">
-      <div class="card-header d-flex align-items-center">
-        <h3 class="card-title mb-0"><i class="bi bi-person-dash me-1"></i> Faltaron {{ t.faltaron.cuando }}</h3>
-        <span class="badge text-bg-danger ms-2">{{ t.faltaron.lista|length }}</span>
-        <a href="{% url 'asistencia:resumen' %}?fecha={{ t.faltaron.fecha|date:'Y-m-d' }}" class="ms-auto small">Resumen</a>
-      </div>
-      {% if t.faltaron.lista %}
-      <ul class="list-group list-group-flush lista-scroll">
-        {% for f in t.faltaron.lista %}
-        <li class="list-group-item d-flex align-items-center gap-2">
-          <a href="{% url 'alumnos:detalle' f.alumno.pk %}" class="flex-grow-1 text-body text-decoration-none">
-            <div class="fw-semibold">{{ f.alumno.apellido_paterno }} {{ f.alumno.apellido_materno }}, {{ f.alumno.nombres }}</div>
-            <div class="small text-body-secondary">{{ f.seccion.grado.nombre }} «{{ f.seccion.nombre }}» · {{ f.seccion.grado.nivel }}</div>
-          </a>
-          {% if f.wa %}<a href="{{ f.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Escribir a {{ f.apoderado.nombres }}"><i class="bi bi-whatsapp"></i></a>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <div class="card-body small text-body-secondary">Nadie faltó. 🎉</div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  {# ---------- Alertas de alumnos ---------- #}
-  {% if t.alertas %}
-  <div class="col-lg-6 col-xl-4">
-    <div class="card card-outline card-danger mb-4">
-      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-bell me-1"></i> Para llamar a los padres</h3></div>
-      <ul class="list-group list-group-flush lista-scroll">
-        {% for a in t.alertas %}
-        <li class="list-group-item d-flex align-items-center gap-2">
-          <i class="bi {{ a.icono }} text-danger"></i>
-          <a href="{{ a.url }}" class="flex-grow-1 text-body text-decoration-none">{{ a.texto }}{% if a.detalle %}<div class="small text-body-secondary">{{ a.detalle }}</div>{% endif %}</a>
-          {% if a.wa %}<a href="{{ a.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp"></i></a>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-  </div>
-  {% endif %}
-
-  {# ---------- Cumpleaños ---------- #}
-  {% if t.cumpleanos %}
-  <div class="col-lg-6 col-xl-3">
-    <div class="card mb-4">
-      <div class="card-header"><h3 class="card-title mb-0">🎂 Cumpleaños de hoy</h3></div>
-      <ul class="list-group list-group-flush lista-scroll">
-        {% for c in t.cumpleanos %}
-        <li class="list-group-item d-flex align-items-center gap-2">
-          <i class="bi {{ c.icono }} text-body-secondary"></i>
-          <div><div class="fw-semibold">{{ c.nombre }}</div><div class="small text-body-secondary">{{ c.detalle }}</div></div>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-  </div>
-  {% endif %}
 </div>
 
 <div class="card mb-4 d-none" id="tarjeta-instalar">

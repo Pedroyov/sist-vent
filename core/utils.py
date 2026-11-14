@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ValidationError
 from django.utils.deconstruct import deconstructible
 
@@ -7,6 +9,13 @@ def entero(valor):
     texto = str(valor if valor is not None else "").strip()
     return int(texto) if texto.isdigit() else None
 
+
+def numero_whatsapp(telefono):
+    """'987 654 321' -> '51987654321' (para enlaces wa.me). Vacío si no hay número."""
+    d = re.sub(r"\D", "", telefono or "")
+    if len(d) == 9 and d.startswith("9"):
+        d = "51" + d
+    return d
 
 
 @deconstructible

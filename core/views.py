@@ -7,7 +7,6 @@ from django.urls import reverse
 from django.views.decorators.cache import cache_control
 
 
-
 @login_required
 def inicio(request):
     from .tablero import Tablero
@@ -36,7 +35,7 @@ def manifest(request):
     data = {
         "name": c.nombre_mostrar,
         "short_name": c.corto_mostrar,
-        "description": "Sistema de gestión escolar",
+        "description": "Sistema de ventas",
         "lang": "es-PE",
         "start_url": reverse("core:inicio"),
         "scope": "/",
@@ -79,8 +78,10 @@ def offline(request):
 
 
 def archivo(request, ruta):
-    """Fotos y vouchers: solo para usuarios con permiso (no se publican en /media).
-    El logo y los íconos del colegio (colegio/) son públicos: se ven en el ingreso y en el celular."""
+    """Imágenes subidas: solo para usuarios con permiso (no se publican en /media).
+    El logo y los íconos del negocio (negocio/) son públicos: se ven en el ingreso y en el celular.
+    Cada app que guarde imágenes agrega su carpeta en `reglas`, por ejemplo
+    "productos/": ("productos.ver",)."""
     import mimetypes
     import os
 
@@ -89,8 +90,8 @@ def archivo(request, ruta):
 
     from .permisos import puede
 
-    reglas = {"cobranza/": ("cobranza.ver",), "alumnos/": ("alumnos.ver", "asistencia.tomar", "notas.registrar")}
-    publico = ruta.startswith("colegio/") and ruta.count("/") == 1
+    reglas = {}
+    publico = ruta.startswith("negocio/") and ruta.count("/") == 1
     permisos = next((p for prefijo, p in reglas.items() if ruta.startswith(prefijo)), None)
     if not publico:
         if permisos is None:

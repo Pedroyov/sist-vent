@@ -3,8 +3,8 @@
 <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
   <div class="sidebar-brand">
     <a href="{% url 'core:inicio' %}" class="brand-link">
-      <img src="{{ COLEGIO.icono_url_192 }}" alt="" class="brand-image {% if not COLEGIO.tiene_logo %}opacity-75 {% endif %}shadow bg-white">
-      <span class="brand-text fw-light">{{ COLEGIO_NOMBRE_CORTO }}</span>
+      <img src="{{ NEGOCIO.icono_url_192 }}" alt="" class="brand-image {% if not NEGOCIO.tiene_logo %}opacity-75 {% endif %}shadow bg-white">
+      <span class="brand-text fw-light">{{ NEGOCIO_NOMBRE_CORTO }}</span>
     </a>
   </div>
 
@@ -19,156 +19,16 @@
           </a>
         </li>
 
-        <li class="nav-header">GESTIÓN</li>
+        {# ---------- Módulos del negocio (ventas, productos, caja…) van aquí ---------- #}
 
-        {% if P.alumnos_ver %}
-        <li class="nav-item">
-          <a href="{% url 'alumnos:lista' %}" class="nav-link {% if ns == 'alumnos' %}active{% endif %}">
-            <i class="nav-icon bi bi-people"></i>
-            <p>Alumnos</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.cobranza_ver or P.cobranza_cobrar or P.cobranza_otros or P.cobranza_configurar %}
-        <li class="nav-item {% if ns == 'cobranza' %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if ns == 'cobranza' %}active{% endif %}">
-            <i class="nav-icon bi bi-cash-coin"></i>
-            <p>Cobranza <i class="nav-arrow bi bi-chevron-right"></i></p>
-          </a>
-          <ul class="nav nav-treeview">
-            {% if P.cobranza_ver %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:inicio' %}" class="nav-link {% if ns == 'cobranza' and url == 'inicio' or ns == 'cobranza' and url == 'cobrar' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>{% if P.cobranza_cobrar %}Cobrar por alumno{% else %}Estado de cuenta{% endif %}</p>
-              </a>
-            </li>
-            {% endif %}
-            {% if P.cobranza_cobrar %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:rapido' %}" class="nav-link {% if ns == 'cobranza' and url == 'rapido' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Cobro rápido</p>
-              </a>
-            </li>
-            {% endif %}
-            {% if P.cobranza_ver %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:morosos' %}" class="nav-link {% if ns == 'cobranza' and url == 'morosos' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Morosos</p>
-              </a>
-            </li>
-            {% endif %}
-            {% if P.cobranza_ver or P.cobranza_otros %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:otros' %}" class="nav-link {% if ns == 'cobranza' and 'otro' in url %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Otros cobros</p>
-              </a>
-            </li>
-            {% endif %}
-            {% if P.cobranza_ver %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:pagos' %}" class="nav-link {% if ns == 'cobranza' and url == 'pagos' or ns == 'cobranza' and url == 'recibo' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Pagos / caja</p>
-              </a>
-            </li>
-            {% endif %}
-            {% if P.cobranza_configurar %}
-            <li class="nav-item">
-              <a href="{% url 'cobranza:configuracion' %}" class="nav-link {% if ns == 'cobranza' and url == 'configuracion' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Cronograma</p>
-              </a>
-            </li>
-            {% endif %}
-          </ul>
-        </li>
-        {% endif %}
-        {% if P.asistencia_tomar or P.asistencia_todas %}
-        <li class="nav-item">
-          <a href="{% url 'asistencia:hoy' %}" class="nav-link {% if ns == 'asistencia' %}active{% endif %}">
-            <i class="nav-icon bi bi-calendar-check"></i>
-            <p>Asistencia</p>
-          </a>
-        </li>
-        {% elif P.asistencia_reportes %}
-        <li class="nav-item">
-          <a href="{% url 'asistencia:resumen' %}" class="nav-link {% if ns == 'asistencia' %}active{% endif %}">
-            <i class="nav-icon bi bi-calendar-check"></i>
-            <p>Asistencia</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.notas_registrar or P.notas_todas %}
-        <li class="nav-item">
-          <a href="{% url 'evaluacion:inicio' %}" class="nav-link {% if ns == 'evaluacion' %}active{% endif %}">
-            <i class="nav-icon bi bi-journal-check"></i>
-            <p>Notas</p>
-          </a>
-        </li>
-        {% elif P.notas_avance or P.notas_siagie or P.notas_configurar %}
-        <li class="nav-item">
-          <a href="{% if P.notas_avance %}{% url 'evaluacion:avance' %}{% elif P.notas_siagie %}{% url 'evaluacion:siagie' %}{% else %}{% url 'evaluacion:configuracion' %}{% endif %}" class="nav-link {% if ns == 'evaluacion' %}active{% endif %}">
-            <i class="nav-icon bi bi-journal-check"></i>
-            <p>Notas</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.mod_programacion and not P.programacion_editar %}
-        {% if P.programacion_horarios %}
-        <li class="nav-item">
-          <a href="{% url 'academico:horarios' %}" class="nav-link {% if ns == 'academico' and url != 'horario_docente' %}active{% endif %}">
-            <i class="nav-icon bi bi-table"></i>
-            <p>Horarios</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if user.asignaciones.exists %}
-        <li class="nav-item">
-          <a href="{% url 'academico:horario_docente' user.pk %}" class="nav-link {% if url == 'horario_docente' %}active{% endif %}">
-            <i class="nav-icon bi bi-clock"></i>
-            <p>Mi horario</p>
-          </a>
-        </li>
-        {% endif %}
-        {% endif %}
-
-        {% if P.programacion_editar or P.personal_ver or P.personal_planilla or P.config_colegio or P.config_usuarios or P.acceso_total %}
+        {% if P.config_negocio or P.config_usuarios or P.acceso_total %}
         <li class="nav-header">CONFIGURACIÓN</li>
         {% endif %}
-        {% if P.programacion_editar %}
+        {% if P.config_negocio %}
         <li class="nav-item">
-          <a href="{% url 'academico:panel' %}" class="nav-link {% if ns == 'academico' or '/configuracion/anios/' in path or '/configuracion/periodos/' in path or '/configuracion/secciones/' in path %}active{% endif %}">
-            <i class="nav-icon bi bi-calendar2-week"></i>
-            <p>Programación del año</p>
-          </a>
-        </li>
-        {% elif P.config_colegio %}
-        <li class="nav-item">
-          <a href="{% url 'core:configuracion' %}" class="nav-link {% if '/configuracion/anios/' in path or '/configuracion/periodos/' in path or '/configuracion/secciones/' in path or url == 'configuracion' and ns == 'core' %}active{% endif %}">
-            <i class="nav-icon bi bi-calendar2-week"></i>
-            <p>Año y secciones</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.config_colegio %}
-        <li class="nav-item">
-          <a href="{% url 'core:datos_colegio' %}" class="nav-link {% if '/configuracion/colegio/' in path %}active{% endif %}">
-            <i class="nav-icon bi bi-building"></i>
-            <p>Datos del colegio</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.personal_ver %}
-        <li class="nav-item">
-          <a href="{% url 'personal:lista' %}" class="nav-link {% if ns == 'personal' and url != 'planilla' %}active{% endif %}">
-            <i class="nav-icon bi bi-person-vcard"></i>
-            <p>Personal</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.personal_planilla and not P.personal_ver %}
-        <li class="nav-item">
-          <a href="{% url 'personal:planilla' %}" class="nav-link {% if ns == 'personal' %}active{% endif %}">
-            <i class="nav-icon bi bi-wallet2"></i>
-            <p>Planilla</p>
+          <a href="{% url 'core:datos_negocio' %}" class="nav-link {% if '/configuracion/negocio/' in path %}active{% endif %}">
+            <i class="nav-icon bi bi-shop"></i>
+            <p>Datos del negocio</p>
           </a>
         </li>
         {% endif %}

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load crispy_forms_tags %}
 
-{% block title %}Datos del colegio{% endblock %}
-{% block page_title %}Datos del colegio{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item active">Datos del colegio</li>{% endblock %}
+{% block title %}Datos del negocio{% endblock %}
+{% block page_title %}Datos del negocio{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Datos del negocio</li>{% endblock %}
 
 {% block content %}
 <form method="post" enctype="multipart/form-data" novalidate>
@@ -11,9 +11,12 @@
   <div class="row">
     <div class="col-lg-8">
       <div class="card card-outline card-primary mb-4">
-        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-building me-1"></i> Identidad</h3></div>
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-shop me-1"></i> Identidad</h3></div>
         <div class="card-body">
-          {{ form.nombre|as_crispy_field }}
+          <div class="row">
+            <div class="col-md-8">{{ form.nombre|as_crispy_field }}</div>
+            <div class="col-md-4">{{ form.rubro|as_crispy_field }}</div>
+          </div>
           <div class="row">
             <div class="col-md-5">{{ form.nombre_corto|as_crispy_field }}</div>
             <div class="col-md-7">{{ form.lema|as_crispy_field }}</div>
@@ -26,14 +29,11 @@
       </div>
 
       <div class="card mb-4">
-        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-card-text me-1"></i> Datos oficiales</h3></div>
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-card-text me-1"></i> Datos tributarios</h3></div>
         <div class="card-body">
           <div class="row">
+            <div class="col-md-8">{{ form.razon_social|as_crispy_field }}</div>
             <div class="col-md-4">{{ form.ruc|as_crispy_field }}</div>
-            <div class="col-md-4">{{ form.codigo_modular|as_crispy_field }}</div>
-            <div class="col-md-4">{{ form.ugel|as_crispy_field }}</div>
-            <div class="col-md-6">{{ form.resolucion|as_crispy_field }}</div>
-            <div class="col-md-6">{{ form.director|as_crispy_field }}</div>
           </div>
         </div>
       </div>
@@ -53,8 +53,8 @@
       </div>
 
       <div class="card mb-4">
-        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Recibos</h3></div>
-        <div class="card-body">{{ form.nota_recibo|as_crispy_field }}</div>
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Tickets</h3></div>
+        <div class="card-body">{{ form.nota_ticket|as_crispy_field }}</div>
       </div>
     </div>
 
@@ -66,7 +66,7 @@
           <div class="text-center border rounded p-3 mb-3 bg-body-tertiary">
             <img src="{{ c.logo_url }}" alt="" id="prev-logo" style="max-width: 110px; max-height: 90px" class="mb-2">
             <div class="fw-semibold" id="prev-nombre">{{ c.nombre_mostrar }}</div>
-            <div class="small text-body-secondary" id="prev-lema">{{ c.lema|default:"Sistema de gestión escolar" }}</div>
+            <div class="small text-body-secondary" id="prev-lema">{{ c.lema|default:"Sistema de ventas" }}</div>
             <div class="small text-body-secondary mt-1">(pantalla de ingreso)</div>
           </div>
           <div class="d-flex align-items-center gap-2 border rounded p-2 mb-3">
@@ -74,8 +74,8 @@
             <div><div class="fw-semibold small" id="prev-corto">{{ c.corto_mostrar }}</div><div class="small text-body-secondary">ícono en el celular</div></div>
             <span class="ms-auto rounded" id="prev-color" style="width: 22px; height: 22px; background: {{ c.color }}" title="Color de la barra"></span>
           </div>
-          <p class="small text-body-secondary mb-0">El nombre y el logo salen en el menú, la pantalla de ingreso, los recibos, las libretas y los mensajes de WhatsApp.
-            El RUC y la dirección van en el recibo; el código modular y el director, en la libreta.</p>
+          <p class="small text-body-secondary mb-0">El nombre y el logo salen en el menú, la pantalla de ingreso, los tickets y los mensajes de WhatsApp.
+            La razón social, el RUC y la dirección van en el ticket.</p>
         </div>
       </div>
     </div>
@@ -97,7 +97,7 @@
     }
     enlazar("id_nombre", "prev-nombre", "{{ c.nombre_mostrar|escapejs }}");
     enlazar("id_nombre_corto", "prev-corto", "{{ c.corto_mostrar|escapejs }}");
-    enlazar("id_lema", "prev-lema", "Sistema de gestión escolar");
+    enlazar("id_lema", "prev-lema", "Sistema de ventas");
     var color = document.getElementById("id_color");
     if (color) color.addEventListener("input", function () { document.getElementById("prev-color").style.background = color.value; });
     var logo = document.getElementById("id_logo");

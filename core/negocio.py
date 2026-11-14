@@ -1,4 +1,4 @@
-"""Acceso rápido a los datos del colegio (Configuración → Datos del colegio)."""
+"""Acceso rápido a los datos del negocio (Configuración → Datos del negocio)."""
 
 
 def datos():

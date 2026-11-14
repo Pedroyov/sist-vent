@@ -7,9 +7,9 @@
 {% block layout %}
 <div class="login-box">
   <div class="text-center mb-3">
-    <img src="{{ COLEGIO.logo_url }}" alt="Logo de {{ COLEGIO_NOMBRE }}" style="max-width: 120px; max-height: 96px" class="{% if not COLEGIO.tiene_logo %}rounded-3 shadow-sm {% endif %}mb-2">
-    <h1 class="h4 mb-0">{{ COLEGIO_NOMBRE }}</h1>
-    <div class="text-body-secondary small">{% if COLEGIO.lema %}{{ COLEGIO.lema }}{% else %}Sistema de gestión escolar{% endif %}</div>
+    <img src="{{ NEGOCIO.logo_url }}" alt="Logo de {{ NEGOCIO_NOMBRE }}" style="max-width: 120px; max-height: 96px" class="{% if not NEGOCIO.tiene_logo %}rounded-3 shadow-sm {% endif %}mb-2">
+    <h1 class="h4 mb-0">{{ NEGOCIO_NOMBRE }}</h1>
+    <div class="text-body-secondary small">{% if NEGOCIO.lema %}{{ NEGOCIO.lema }}{% else %}Sistema de ventas{% endif %}</div>
   </div>
 
   <div class="card card-outline card-primary">
@@ -18,7 +18,7 @@
 
       {% if form.non_field_errors %}
         <div class="alert alert-danger py-2 small">
-          {% for e in form.non_field_errors.as_data %}{% if e.code == "bloqueado" %}{{ e.message }}{% elif e.code == "inactive" %}Tu usuario está desactivado. Consulta con Dirección.{% else %}Usuario o contraseña incorrectos. Vuelve a intentarlo.{% endif %}{% endfor %}
+          {% for e in form.non_field_errors.as_data %}{% if e.code == "bloqueado" %}{{ e.message }}{% elif e.code == "inactive" %}Tu usuario está desactivado. Consulta con el administrador.{% else %}Usuario o contraseña incorrectos. Vuelve a intentarlo.{% endif %}{% endfor %}
         </div>
       {% endif %}
 
@@ -54,10 +54,9 @@
       <div class="alert alert-info small mt-3 mb-0">
         <strong>Demostración.</strong> Entra con cualquiera de estos usuarios (clave <strong>demo1234</strong>):
         <ul class="mb-0 mt-1 ps-3">
-          <li><strong>director</strong> – Dirección, ve todo</li>
-          <li><strong>tesoreria</strong> – cobranza</li>
-          <li><strong>lmedina</strong> – docente de primaria</li>
-          <li><strong>lrios</strong> – docente de secundaria</li>
+          <li><strong>gerente</strong> – Administración, ve todo</li>
+          <li><strong>cajero</strong> – caja</li>
+          <li><strong>vendedor</strong> – ventas</li>
         </ul>
       </div>
       {% endif %}

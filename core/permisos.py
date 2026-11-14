@@ -3,7 +3,7 @@ Módulos y permisos del sistema.
 
 - Cada rol (grupo de Django) tiene una lista de permisos que se marca en
   Configuración → Roles y permisos.
-- Dirección y el superusuario siempre tienen todos los permisos (así nadie
+- Administración y el superusuario siempre tienen todos los permisos (así nadie
   puede quedarse sin acceso a la configuración).
 - Un módulo desactivado desaparece para todos, aunque el rol tenga el permiso.
 """
@@ -11,63 +11,33 @@ from functools import wraps
 
 from django.core.exceptions import PermissionDenied
 
-DIRECCION = "Dirección"
-TESORERIA = "Tesorería"
-DOCENTE = "Docente"
-ROLES_BASE = [DIRECCION, TESORERIA, DOCENTE]
+ADMINISTRACION = "Administración"
+CAJERO = "Cajero"
+VENDEDOR = "Vendedor"
+ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR]
 
-# Módulos que se pueden desactivar. Alumnos y Configuración son la base y siempre están activos.
-MODULOS = [
-    ("cobranza", "Cobranza", "bi-cash-coin", "Pensiones, pagos, recibos, morosos y otros cobros."),
-    ("asistencia", "Asistencia", "bi-calendar-check", "Asistencia diaria o por curso, reportes y avisos."),
-    ("notas", "Notas", "bi-journal-check", "Registro de notas, conducta, libretas y SIAGIE."),
-    ("programacion", "Programación del año", "bi-calendar2-week",
-     "Calendario, plan de estudios, docentes por curso y horarios. Notas y asistencia por curso la usan."),
-    ("personal", "Personal", "bi-person-vcard", "Trabajadores, horarios y planilla."),
-]
-MODULOS_BASE = ("alumnos", "config")
+# Módulos que se pueden desactivar. Configuración es la base y siempre está activa.
+# Al crear una app nueva se agrega aquí, por ejemplo:
+#   ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets y anulaciones."),
+#   ("productos", "Productos", "bi-box-seam", "Catálogo, precios, variantes (talla/color) y stock."),
+#   ("caja", "Caja", "bi-cash-stack", "Apertura, cierre, ingresos y egresos."),
+#   ("clientes", "Clientes", "bi-people", "Clientes, historial y deudas."),
+MODULOS = []
+MODULOS_BASE = ("config",)
 
 # (código, módulo, descripción, roles que lo tienen por defecto)
+# Administración y el superusuario siempre tienen todos.
 PERMISOS = [
-    ("alumnos.ver", "alumnos", "Ver alumnos, su ficha y exportar la lista", [TESORERIA]),
-    ("alumnos.editar", "alumnos", "Registrar y editar alumnos, apoderados y matrículas; importar Excel", [TESORERIA]),
-    ("alumnos.pase", "alumnos", "Pase de año", []),
-
-    ("cobranza.ver", "cobranza", "Ver estados de cuenta, pagos, morosos y reportes de caja", [TESORERIA]),
-    ("cobranza.cobrar", "cobranza", "Registrar pagos (por alumno y cobro rápido)", [TESORERIA]),
-    ("cobranza.descuentos", "cobranza", "Dar y quitar descuentos", [TESORERIA]),
-    ("cobranza.otros", "cobranza", "Crear otros cobros y asignarlos a alumnos", [TESORERIA]),
-    ("cobranza.anular", "cobranza", "Anular pagos y eliminar otros cobros", []),
-    ("cobranza.configurar", "cobranza", "Montos de matrícula y pensión, cronograma y mora", []),
-
-    ("asistencia.tomar", "asistencia", "Tomar asistencia de sus secciones y cursos (últimos 7 días)", [DOCENTE]),
-    ("asistencia.todas", "asistencia", "Tomar y corregir la asistencia de todas las secciones, cualquier fecha", []),
-    ("asistencia.reportes", "asistencia", "Resumen del día, reportes de todas las secciones y avisos a padres", []),
-
-    ("notas.registrar", "notas", "Registrar notas de sus cursos y conducta de su tutoría", [DOCENTE]),
-    ("notas.todas", "notas", "Ver y editar notas de todas las secciones, incluso con el periodo cerrado", []),
-    ("notas.libretas", "notas", "Ver e imprimir libretas de cualquier alumno (el tutor siempre ve las suyas)", [TESORERIA]),
-    ("notas.avance", "notas", "Ver el avance del registro de notas por docente", []),
-    ("notas.configurar", "notas", "Escala de calificación, competencias y cierre de periodos", []),
-    ("notas.siagie", "notas", "Exportar para el SIAGIE y llenar plantillas", []),
-
-    ("programacion.horarios", "programacion", "Ver los horarios de todas las secciones y docentes (su propio horario siempre lo ve)", []),
-    ("programacion.editar", "programacion", "Calendario, plan de estudios, cursos, docentes, jornada, horarios y carga docente", []),
-
-    ("personal.ver", "personal", "Ver trabajadores y sus horarios", []),
-    ("personal.editar", "personal", "Registrar y editar trabajadores", []),
-    ("personal.planilla", "personal", "Ver la planilla y lo que se paga a cada trabajador", []),
-
-    ("config.colegio", "config", "Años lectivos, periodos y secciones", []),
-    ("config.usuarios", "config", "Crear y editar usuarios (el rol Dirección solo lo da Dirección)", []),
+    ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
+    ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),
 ]
 CODIGOS = [p[0] for p in PERMISOS]
 MODULO_DE = {p[0]: p[1] for p in PERMISOS}
-NOMBRE_MODULO = {"alumnos": "Alumnos", "config": "Configuración", **{m[0]: m[1] for m in MODULOS}}
+NOMBRE_MODULO = {"config": "Configuración", **{m[0]: m[1] for m in MODULOS}}
 
 
 def permisos_por_defecto(rol):
-    if rol == DIRECCION:
+    if rol == ADMINISTRACION:
         return list(CODIGOS)
     return [p[0] for p in PERMISOS if rol in p[3]]
 
@@ -90,7 +60,7 @@ def permisos_de(user):
 
     activos = modulos_activos()
     grupos = list(user.groups.values_list("pk", "name"))
-    if user.is_superuser or any(nombre == DIRECCION for _, nombre in grupos):
+    if user.is_superuser or any(nombre == ADMINISTRACION for _, nombre in grupos):
         codigos = set(CODIGOS)
     else:
         codigos = set()
@@ -103,10 +73,10 @@ def permisos_de(user):
 
 
 def acceso_total(user):
-    """Dirección o administrador: tiene todo y es quien maneja roles, permisos y módulos."""
+    """Rol Administración o superusuario: tiene todo y es quien maneja roles, permisos y módulos."""
     if not getattr(user, "is_authenticated", False):
         return False
-    return user.is_superuser or user.groups.filter(name=DIRECCION).exists()
+    return user.is_superuser or user.groups.filter(name=ADMINISTRACION).exists()
 
 
 def acceso_total_requerido(vista):
@@ -135,7 +105,7 @@ def modulo_activo(user, modulo):
 
 
 def requiere_modulo(modulo):
-    """Para vistas propias de docentes (sin permiso fijo): solo exige que el módulo esté activo."""
+    """Para vistas sin permiso fijo: solo exige que el módulo esté activo."""
 
     def decorador(vista):
         @wraps(vista)
@@ -154,7 +124,7 @@ def requiere_modulo(modulo):
 
 
 def permiso_requerido(*codigos):
-    """@permiso_requerido("cobranza.cobrar") — basta con tener uno de los permisos indicados."""
+    """@permiso_requerido("ventas.vender") — basta con tener uno de los permisos indicados."""
     for c in codigos:
         assert c in CODIGOS, f"Permiso desconocido: {c}"
 
@@ -176,7 +146,7 @@ def permiso_requerido(*codigos):
 
 
 class PermisosPlantilla(dict):
-    """En plantillas: {% if P.cobranza_ver %} … {% if P.mod_notas %}"""
+    """En plantillas: {% if P.config_negocio %} … {% if P.mod_ventas %}"""
 
     def __init__(self, user):
         super().__init__()

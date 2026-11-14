@@ -62,7 +62,7 @@
   });
 })();
 
-// Botones de WhatsApp que además anotan el aviso en el sistema (Morosos → Recordar, Asistencia → Avisar).
+// Botones de WhatsApp que además anotan el aviso en el sistema (por ejemplo, recordar una deuda a un cliente).
 // El enlace abre WhatsApp normalmente; el registro va aparte para no bloquear esa apertura.
 document.addEventListener("click", function (e) {
   var a = e.target.closest(".btn-recordar");

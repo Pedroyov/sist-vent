@@ -17,25 +17,26 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | Carpeta | Qué contiene |
 | --- | --- |
 | `config/` | settings (todo por `.env`), urls, formatos |
-| `core/` | Base reutilizable: año lectivo, periodos, secciones, usuarios, **roles y permisos**, **módulos activos**, datos de la empresa (`Ajustes`), inicio (`tablero.py`), archivos privados, PWA, utilidades |
-| `alumnos/` | Personas (alumnos, apoderados), matrícula, importar y exportar Excel, pase de año |
-| `cobranza/` | Conceptos, cargos (deudas), pagos y recibos, descuentos, mora, morosos, recordatorios por WhatsApp, caja |
-| `asistencia/` | Sesiones (diaria o por curso), estados P/T/F/J, reportes, avisos |
-| `academico/` | Programación del año: cursos, plan, docentes, jornada, horarios, carga docente (prefijo de URL `programacion/`) |
-| `evaluacion/` | Notas, competencias, conducta, libretas, SIAGIE (prefijo de URL `notas/`) |
-| `personal/` | Trabajadores, horarios, planilla estimada |
-| `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar) y una carpeta por app |
+| `core/` | Base reutilizable: datos del negocio y rubro (`Ajustes`), usuarios, **roles y permisos**, **módulos activos**, inicio (`tablero.py`), archivos privados, PWA, utilidades |
+| `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
+
+Las apps del negocio (ventas, productos, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
+
+## Rubros
+
+`core.models.Rubro` guarda el tipo de negocio (tienda, restaurante, ropa, librería/útiles, peluquería, otro). Se elige en Datos del negocio y sirve para ajustar textos y opciones por rubro (mesas en restaurante, tallas y colores en ropa, servicios y citas en peluquería) sin hacer un sistema distinto para cada uno.
 
 ## Piezas clave para reutilizar
 
 - **Permisos:** en `core/permisos.py`.
   - Lista de `PERMISOS` con el formato (código, módulo, texto, roles por defecto) y la lista `MODULOS`.
   - En las vistas: `@permiso_requerido("modulo.accion")`. En plantillas: `{% if P.modulo_accion %}`; para saber si un módulo está activo, `{% if P.mod_modulo %}`.
-  - Dirección y el superusuario tienen todo. Los módulos solo los activa el superusuario (`/configuracion/modulos/`).
+  - Los roles base son **Administración** (acceso total), **Cajero** y **Vendedor** (migración `core/0002_roles_iniciales`).
+  - Administración y el superusuario tienen todo. Los módulos solo los activa el superusuario (`/configuracion/modulos/`).
   - Los roles son grupos de Django más `PermisosRol`; se editan en `/configuracion/roles/`.
-- **Datos de la empresa:** `core.models.Ajustes` (singleton, `Ajustes.cargar()`): nombre, logo (genera los íconos de la PWA), RUC, contacto y color. En plantillas está disponible como `COLEGIO`.
+- **Datos del negocio:** `core.models.Ajustes` (singleton, `Ajustes.cargar()`): rubro, nombre, logo (genera los íconos de la PWA), razón social, RUC, contacto, nota del ticket y color. En plantillas está disponible como `NEGOCIO` (y `NEGOCIO_NOMBRE`, `NEGOCIO_NOMBRE_CORTO`).
 - **Inicio:** `core/tablero.py` arma atajos, pendientes y tarjetas según los permisos de cada usuario.
-- **Archivos privados:** el `MEDIA_URL` es `/archivos/`, servido por `core.views.archivo` con control de permisos. Solo `colegio/` es público (el logo).
+- **Archivos privados:** el `MEDIA_URL` es `/archivos/`, servido por `core.views.archivo` con control de permisos. Solo `negocio/` es público (el logo). Cada app que guarde imágenes agrega su carpeta y permiso en `reglas`.
 - **Seguridad:**
   - Login con bloqueo tras 5 intentos fallidos (`core/forms.LoginForm` y caché en archivos dentro de `privado/`).
   - Exportes a Excel sin fórmulas (`core/excel.a_bytes`).
@@ -43,10 +44,10 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
   - Límite de tamaño para archivos subidos (`TamanoMaximo`).
   - Modo demo (`DEMO=True`): bloquea cambios de clave, usuarios y admin (`core/middleware.py`).
 - **WhatsApp:**
-  - Enlaces `wa.me` con el mensaje ya armado.
+  - Enlaces `wa.me` con el mensaje ya armado (`core.utils.numero_whatsapp` agrega el 51).
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
-- **Datos de ejemplo:** `python manage.py datos_demo` (en `core/management/commands`). `demo.bat` los carga en una base aparte.
+- **Datos de ejemplo:** `python manage.py datos_demo` (en `core/management/commands`): negocio de ejemplo y usuarios `admin`, `gerente`, `cajero`, `vendedor` (clave `demo1234`). `demo.bat` los carga en una base aparte.
 
 ## Convenciones
 
@@ -56,9 +57,14 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 - Fechas en formato `d/m/Y`.
 - Toda vista nueva lleva su `@permiso_requerido` y, si corresponde, un permiso nuevo agregado a `PERMISOS`.
 
-## Para empezar un proyecto nuevo con esta base
+## Cómo agregar un módulo nuevo (por ejemplo, ventas)
 
-1. Copiar la carpeta **sin** `.venv`, `.git`, `db*.sqlite3`, `.env`, `media`, `privado`, `staticfiles` ni `_to_delete`.
-2. Crear un `.venv` nuevo, ejecutar `pip install -r requirements.txt`, copiar `.env.example` a `.env` con una `SECRET_KEY` nueva, y luego `migrate` y `createsuperuser`.
-3. Quitar de `INSTALLED_APPS` y de `config/urls.py` las apps que no se usen, junto con sus módulos y permisos en `core/permisos.py` y su parte en `core/tablero.py`.
-4. Renombrar textos ("colegio", "alumno", etc.) según el nuevo rubro.
+1. `python manage.py startapp ventas` y agregarla a `LOCAL_APPS` en `config/settings.py` y a `config/urls.py`.
+2. En `core/permisos.py`: agregar el módulo a `MODULOS` y sus permisos a `PERMISOS` (con los roles que los tienen por defecto). Si un rol base debe tenerlos ya creados, hacer una migración de datos que actualice su `PermisosRol`.
+3. En `templates/partials/sidebar.html`: su entrada en el menú, con `{% if P.ventas_ver %}`.
+4. En `core/tablero.py`: sus atajos, pendientes y tarjetas.
+5. Datos de ejemplo en `datos_demo`.
+
+## Historial
+
+Esta base salió del sistema escolar. El commit `a4337f9 Base inicial` de git guarda las apps del colegio (alumnos, cobranza, asistencia, notas, programación, personal) por si se quiere consultar cómo se hizo algo, por ejemplo los recibos, la caja o los recordatorios por WhatsApp de `cobranza`.

@@ -2,7 +2,7 @@
 # Cada vez que Render reinicia el servicio, la demo vuelve a los datos de ejemplo.
 services:
   - type: web
-    name: sistema-escolar-demo
+    name: sistema-ventas-demo
     runtime: python
     plan: free
     region: oregon
@@ -23,7 +23,7 @@ services:
         generateValue: true
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
-      - key: COLEGIO_NOMBRE
-        value: "I.E.P. Colegio Demo"
-      - key: COLEGIO_NOMBRE_CORTO
-        value: "Colegio Demo"
+      - key: NEGOCIO_NOMBRE
+        value: "Bazar Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Bazar Demo"
