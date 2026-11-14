@@ -1,0 +1,48 @@
+{% load sis %}
+{% if pendientes %}
+<div class="row g-3">
+  {% for co in pendientes %}
+  <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
+    <div class="card comanda h-100 {% if co.minutos >= 20 %}muy-tarde border-danger{% elif co.minutos >= 10 %}tarde border-warning{% else %}border-primary{% endif %}"
+         data-clave="{{ co.clave }}" data-comanda="{% url 'mesas:comanda' co.cuenta.pk %}?enviado={{ co.enviado_iso|urlencode }}">
+      <div class="card-header d-flex align-items-center">
+        <span>{{ co.cuenta.titulo }}</span>
+        <span class="ms-auto fs-6 fw-semibold {% if co.minutos >= 20 %}text-danger{% elif co.minutos >= 10 %}text-warning-emphasis{% else %}text-body-secondary{% endif %}"><i class="bi bi-clock"></i> {{ co.minutos }} min</span>
+      </div>
+      <div class="card-body py-2">
+        <div class="small text-body-secondary mb-1">{{ co.enviado|date:"H:i" }} · {{ co.cuenta.mozo.first_name|default:co.cuenta.mozo.username }} · {{ co.cuenta.personas }} pers.</div>
+        <ul class="list-unstyled mb-0">
+          {% for i in co.items %}
+          <li class="plato py-1 border-bottom {% if i.anulado %}quitado{% elif i.listo_en %}hecho{% endif %}"
+              {% if not i.anulado %}hx-post="{% url 'mesas:cocina_marcar' %}" hx-vals='{"item": "{{ i.pk }}"}' hx-target="#kds" title="Toca para marcar este plato"{% endif %}>
+            <strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}
+            {% if i.anulado %}<span class="badge text-bg-danger">QUITADO</span>{% endif %}
+            {% if i.nota %}<span class="nota">» {{ i.nota }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="card-footer p-2">
+        <button class="btn btn-success w-100 btn-listo" hx-post="{% url 'mesas:cocina_marcar' %}" hx-target="#kds"
+                hx-vals='{"cuenta": "{{ co.cuenta.pk }}", "enviado": "{{ co.enviado_iso }}"}'><i class="bi bi-check-lg me-1"></i>LISTO</button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-body-secondary py-5"><i class="bi bi-cup-hot display-1"></i><p class="fs-4 mt-2">Sin pedidos pendientes</p></div>
+{% endif %}
+
+{% if listas %}
+<h6 class="text-body-secondary mt-4 mb-2"><i class="bi bi-check2-all me-1"></i>Listos hace poco</h6>
+<div class="d-flex flex-wrap gap-2">
+  {% for co in listas %}
+  <div class="border rounded px-2 py-1 bg-body small d-flex align-items-center gap-2">
+    <strong>{{ co.cuenta.titulo }}</strong> {{ co.listo|date:"H:i" }}
+    <button class="btn btn-sm btn-link p-0" hx-post="{% url 'mesas:cocina_marcar' %}" hx-target="#kds"
+            hx-vals='{"cuenta": "{{ co.cuenta.pk }}", "enviado": "{{ co.enviado_iso }}", "listo": "0"}' title="Volver a pendientes">Deshacer</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

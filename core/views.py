@@ -9,6 +9,14 @@ from django.views.decorators.cache import cache_control
 
 @login_required
 def inicio(request):
+    from .permisos import puede
+
+    # Quien solo trabaja en cocina va directo a su pantalla
+    if puede(request.user, "mesas.cocina") and not puede(request.user, "mesas.atender", "mesas.cobrar", "ventas.vender",
+                                                         "ventas.ver", "productos.ver", "config.negocio"):
+        from django.shortcuts import redirect
+
+        return redirect("mesas:cocina")
     from .tablero import Tablero
 
     t = Tablero(request.user).construir()

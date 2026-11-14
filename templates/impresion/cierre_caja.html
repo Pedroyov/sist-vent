@@ -1,0 +1,43 @@
+{% extends "impresion/base.html" %}
+{% load sis %}
+{% block titulo %}Cierre de caja {{ s.numero }}{% endblock %}
+{% block contenido %}
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">{% if s.abierta %}CORTE DE CAJA (PARCIAL){% else %}CIERRE DE CAJA{% endif %} N° {{ s.numero }}</span></div>
+<div>Cajero: {{ s.usuario|nombre }}</div>
+<div>Abrió: {{ s.abierta_en|date:"d/m/Y H:i" }}</div>
+{% if s.cerrada_en %}<div>Cerró: {{ s.cerrada_en|date:"d/m/Y H:i" }}</div>{% else %}<div>Impreso: {% now "d/m/Y H:i" %}</div>{% endif %}
+<div class="linea"></div>
+<div class="b">VENTAS ({{ r.n_ventas }})</div>
+<table>
+  {% for m in r.metodos %}<tr><td>{{ m.metodo }} ({{ m.n }})</td><td class="r">{{ m.total }}</td></tr>{% endfor %}
+  <tr class="b"><td>Total vendido</td><td class="r">{{ r.total_ventas }}</td></tr>
+  {% if r.propinas %}<tr><td>Propinas</td><td class="r">{{ r.propinas }}</td></tr>{% endif %}
+  {% if r.anuladas %}<tr><td>Anuladas</td><td class="r">{{ r.anuladas }}</td></tr>{% endif %}
+</table>
+<div class="linea"></div>
+<div class="b">EFECTIVO</div>
+<table>
+  <tr><td>Monto inicial</td><td class="r">{{ r.inicial }}</td></tr>
+  <tr><td>+ Ventas efectivo</td><td class="r">{{ r.efectivo_ventas }}</td></tr>
+  {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="r">{{ r.ingresos }}</td></tr>{% endif %}
+  {% if r.egresos %}<tr><td>- Egresos</td><td class="r">{{ r.egresos }}</td></tr>{% endif %}
+  <tr class="b"><td>Debe haber</td><td class="r">{{ r.esperado }}</td></tr>
+  {% if not s.abierta %}
+  <tr><td>Contado</td><td class="r">{{ s.contado }}</td></tr>
+  <tr class="grande"><td>{% if s.diferencia < 0 %}FALTANTE{% elif s.diferencia > 0 %}SOBRANTE{% else %}CUADRA{% endif %}</td><td class="r">{% if s.diferencia %}{{ s.diferencia }}{% else %}0.00{% endif %}</td></tr>
+  {% endif %}
+</table>
+{% if movimientos %}
+<div class="linea"></div>
+<div class="b">INGRESOS Y EGRESOS</div>
+<table>{% for m in movimientos %}<tr><td>{{ m.fecha|date:"H:i" }} {{ m.concepto|truncatechars:26 }}</td><td class="r">{% if m.tipo == "EGR" %}-{% endif %}{{ m.monto }}</td></tr>{% endfor %}</table>
+{% endif %}
+{% if conteo %}
+<div class="linea"></div>
+<div class="b">CONTEO</div>
+<table>{% for d, n in conteo %}<tr><td>{{ n }} x {{ d }}</td><td class="r"></td></tr>{% endfor %}</table>
+{% endif %}
+{% if s.nota_cierre %}<div class="linea"></div><div>Nota: {{ s.nota_cierre }}</div>{% endif %}
+<div class="linea"></div>
+<br><br><div class="c">____________________<br>Firma del cajero</div>
+{% endblock %}

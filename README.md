@@ -62,7 +62,8 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Productos** – Productos y servicios, categorías, variantes (talla, color, tamaño), códigos de barras, stock con kardex, importar y exportar Excel
 - [x] **Punto de venta** – Venta rápida con lectora de códigos, variantes, cobro en efectivo con vuelto, Yape, Plin, tarjeta o mixto, ticket 80 mm y WhatsApp, ventas del día por método, anulaciones
 - [x] **Caja** – Turno por cajero, ingresos y egresos, cierre con conteo de billetes y diferencia, historial
-- [x] **Mesas** – Mapa de mesas en vivo, pedidos desde el celular con notas, envío a cocina, precuenta, cambiar y juntar mesas, cobro total o dividido, para llevar, propina opcional
+- [x] **Mesas** – Mapa de mesas en vivo, pedidos desde el celular con notas, envío a cocina, precuenta, cambiar y juntar mesas, cobro total o dividido, para llevar, propina opcional, pantalla de cocina con sonido
+- [x] **Impresión** – Ticket, precuenta, comanda y cierre de caja del tamaño del rollo (80 o 58 mm)
 - [ ] Clientes
 - [ ] Reportes
 - [ ] Despliegue con HTTPS

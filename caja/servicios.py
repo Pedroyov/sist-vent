@@ -62,7 +62,7 @@ def calcular(sesion):
     movs = sesion.movimientos.values("tipo").annotate(t=Sum("monto"))
     ingresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.INGRESO), CERO)
     egresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.EGRESO), CERO)
-    return {
+    resultado = {
         "inicial": sesion.monto_inicial, "n_ventas": v["n"] or 0, "total_ventas": v["total"] or CERO,
         "propinas": v["propinas"] or CERO, "metodos": metodos, "efectivo_ventas": efectivo_ventas,
         "otros_medios": sum((m["total"] for m in metodos if m["codigo"] != MetodoPago.EFECTIVO), CERO),
@@ -70,6 +70,17 @@ def calcular(sesion):
         "esperado": sesion.monto_inicial + efectivo_ventas + ingresos - egresos,
         "anuladas": Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.ANULADA).count(),
     }
+    # Las sumas de la base de datos pueden traer decimales de más (357.2000000): todo a céntimos
+    for clave, valor in resultado.items():
+        if isinstance(valor, Decimal):
+            resultado[clave] = _c(valor)
+    for m in resultado["metodos"]:
+        m["total"] = _c(m["total"])
+    return resultado
+
+
+def _c(valor):
+    return Decimal(valor).quantize(Decimal("0.01"))
 
 
 def total_conteo(conteo):

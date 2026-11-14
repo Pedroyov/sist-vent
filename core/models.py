@@ -51,6 +51,16 @@ class Ajustes(models.Model):
         help_text="Si está desmarcado (recomendado), cada venta queda en la caja abierta de quien cobra y así cuadra al cierre.")
     propina_activa = models.BooleanField(
         "pedir propina al cobrar", default=False, help_text="Muestra un campo de propina al cobrar (útil en restaurantes).")
+    # --- Impresión y cocina ---
+    ticket_ancho = models.PositiveSmallIntegerField(
+        "ancho del papel de la ticketera", choices=[(80, "80 mm (el más común)"), (58, "58 mm (ticketeras pequeñas o portátiles)")],
+        default=80)
+    imprimir_auto = models.BooleanField(
+        "imprimir el ticket al terminar cada venta", default=False,
+        help_text="Abre la impresión sola. Con Chrome en modo «kiosk-printing» imprime sin preguntar.")
+    cocina_pantalla = models.BooleanField(
+        "la cocina usa la pantalla de cocina", default=False,
+        help_text="Una tablet, celular o PC en cocina recibe los pedidos al instante y marca qué está listo.")
     color = models.CharField("color principal", max_length=7, default="#0d6efd",
                              help_text="Color de la barra del celular cuando el sistema está instalado como app.")
     version_logo = models.PositiveIntegerField(default=0, editable=False)

@@ -54,6 +54,17 @@ def sesion(request, pk):
 
 
 @permiso_requerido("caja.usar", "caja.ver")
+def imprimir(request, pk):
+    s = get_object_or_404(SesionCaja.objects.select_related("usuario"), pk=pk)
+    if not _puede_ver(request.user, s):
+        raise PermissionDenied
+    r = calcular(s) if s.abierta else resumen_guardado(s)
+    return render(request, "impresion/cierre_caja.html", {
+        "s": s, "r": r, "movimientos": s.movimientos.order_by("fecha"),
+        "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)]})
+
+
+@permiso_requerido("caja.usar", "caja.ver")
 def nuevo_movimiento(request, pk, tipo):
     s = get_object_or_404(SesionCaja, pk=pk, estado=SesionCaja.Estado.ABIERTA)
     if not (s.usuario_id == request.user.pk or puede(request.user, "caja.ver")):

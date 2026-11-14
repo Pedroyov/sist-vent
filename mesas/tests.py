@@ -123,3 +123,68 @@ class MesasTests(TestCase):
         Ajustes.objects.filter(pk=1).update(modulos_inactivos=["mesas"])
         self.client.force_login(self.jefe)
         self.assertEqual(self.client.get(reverse("mesas:mapa")).status_code, 403)
+
+
+class CocinaEImpresionTests(TestCase):
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True, "ticket_ancho": 58})
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.chef = User.objects.create_user("chef", password="x-clave-123")
+        self.chef.groups.add(Group.objects.get(name="Cocina"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        p = Producto.objects.create(nombre="Ceviche", precio=D("30"), maneja_stock=False)
+        self.v = asegurar_variante_unica(p)
+        self.c = abrir_cuenta(self.mozo, self.mesa, 2)
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 2, "nota": "poco picante"}], self.mozo)
+        self.ts = enviar_cocina(self.c)
+
+    def test_rol_cocina(self):
+        self.client.force_login(self.chef)
+        self.assertRedirects(self.client.get(reverse("core:inicio")), reverse("mesas:cocina"))
+        r = self.client.get(reverse("mesas:cocina"))
+        self.assertContains(r, "poco picante")
+        self.assertContains(r, "Mesa 1")
+        self.assertEqual(self.client.get(reverse("mesas:mapa")).status_code, 403)
+        self.client.force_login(self.mozo)
+        self.assertEqual(self.client.get(reverse("mesas:cocina")).status_code, 403)
+
+    def test_listo_y_servido(self):
+        self.client.force_login(self.chef)
+        self.client.post(reverse("mesas:cocina_marcar"), {"cuenta": self.c.pk, "enviado": self.ts.isoformat()})
+        item = self.c.items.get()
+        self.assertIsNotNone(item.listo_en)
+        r = self.client.get(reverse("mesas:cocina"))
+        self.assertEqual(r.context["pendientes"], [])
+        self.assertEqual(len(r.context["listas"]), 1)
+        self.client.post(reverse("mesas:cocina_marcar"), {"cuenta": self.c.pk, "enviado": self.ts.isoformat(), "listo": "0"})
+        item.refresh_from_db()
+        self.assertIsNone(item.listo_en)
+        self.client.post(reverse("mesas:cocina_marcar"), {"item": item.pk})  # un plato: alterna
+        item.refresh_from_db()
+        self.assertIsNotNone(item.listo_en)
+        self.client.force_login(self.mozo)
+        self.assertContains(self.client.get(reverse("mesas:mapa"), HTTP_HX_REQUEST="true"), "bi-bell-fill")
+        self.assertContains(self.client.get(reverse("mesas:cuenta", args=[self.c.pk])), "Ya serví lo listo")
+        self.client.post(reverse("mesas:servido", args=[self.c.pk]))
+        item.refresh_from_db()
+        self.assertIsNotNone(item.servido_en)
+
+    def test_impresiones(self):
+        self.client.force_login(self.mozo)
+        r = self.client.get(reverse("mesas:comanda", args=[self.c.pk]) + "?enviado=" + self.ts.isoformat().replace("+", "%2B"))
+        self.assertContains(r, "POCO PICANTE")
+        self.assertContains(r, "58mm")  # ancho configurado
+        self.assertContains(self.client.get(reverse("mesas:precuenta", args=[self.c.pk])), "PRECUENTA")
+        abrir(self.cajero, D("0"))
+        v = cobrar(self.c, self.cajero, [{"metodo": "EFE", "monto": "60"}])
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("ventas:imprimir", args=[v.pk]))
+        self.assertContains(r, "NOTA DE VENTA N° " + v.numero_str)
+        self.assertContains(r, "Mozo: mozo")
+        r = self.client.get(reverse("caja:imprimir", args=[v.sesion_caja_id]))
+        self.assertContains(r, "CORTE DE CAJA (PARCIAL)")
+        self.client.force_login(self.mozo)  # el ticket de otro no
+        self.assertEqual(self.client.get(reverse("ventas:imprimir", args=[v.pk])).status_code, 403)

@@ -30,6 +30,7 @@ window.Cobro = (function () {
   function estado() {
     var t = aCobrar(), ps = pagos();
     $("c-total").textContent = soles(t);
+    $("c-detalle").textContent = propina() ? "Consumo " + soles(actual.total) + " + propina " + soles(propina()) : (actual.detalle || "Total a cobrar");
     var pagado = ps.reduce(function (a, p) { return a + p.c; }, 0);
     var efectivo = ps.filter(function (p) { return p.metodo === "EFE"; }).reduce(function (a, p) { return a + p.c; }, 0);
     var e = $("c-estado"), ok = false;

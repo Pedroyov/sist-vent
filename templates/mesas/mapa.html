@@ -15,6 +15,7 @@
   <span class="small"><span class="badge rounded-pill text-bg-success">&nbsp;</span> Libre</span>
   <span class="small"><span class="badge rounded-pill text-bg-danger">&nbsp;</span> Ocupada</span>
   <span class="small"><span class="badge rounded-pill text-bg-warning">&nbsp;</span> Pidió la cuenta</span>
+  {% if NEGOCIO.cocina_pantalla %}<span class="small"><i class="bi bi-bell-fill text-success"></i> Platos listos</span>{% endif %}
   {% if P.mesas_atender %}<button type="button" class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#m-llevar"><i class="bi bi-bag me-1"></i>Para llevar</button>{% endif %}
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-sm btn-outline-secondary {% if not P.mesas_atender %}ms-auto{% endif %}" title="Configurar mesas"><i class="bi bi-gear"></i></a>{% endif %}
 </div>

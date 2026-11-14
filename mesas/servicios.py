@@ -72,6 +72,17 @@ def enviar_cocina(cuenta):
     return ahora if n else None
 
 
+def marcar_listo(items, listo=True):
+    """Cocina: marca (o desmarca) platos como listos para servir."""
+    ahora = timezone.now() if listo else None
+    return ItemCuenta.objects.filter(pk__in=[i.pk for i in items], anulado=False, enviado_en__isnull=False).update(listo_en=ahora)
+
+
+def marcar_servido(cuenta):
+    """Mozo: ya llevó a la mesa todo lo que la cocina marcó como listo."""
+    return cuenta.items.filter(listo_en__isnull=False, servido_en__isnull=True).update(servido_en=timezone.now())
+
+
 def cambiar_cantidad(item, delta):
     """+1 / −1 a algo que todavía no se envió a cocina. Si llega a 0, se quita."""
     _abierta(item.cuenta)

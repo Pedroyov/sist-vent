@@ -20,9 +20,17 @@
         </li>
 
         {# ---------- Módulos del negocio ---------- #}
+        {% if P.mesas_cocina %}
+        <li class="nav-item">
+          <a href="{% url 'mesas:cocina' %}" class="nav-link {% if ns == 'mesas' and url == 'cocina' %}active{% endif %}">
+            <i class="nav-icon bi bi-fire"></i>
+            <p>Pantalla de cocina</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.mesas_atender or P.mesas_cobrar %}
         <li class="nav-item">
-          <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' %}active{% endif %}">
+          <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' and url != 'cocina' %}active{% endif %}">
             <i class="nav-icon bi bi-grid-3x3-gap"></i>
             <p>Mesas</p>
           </a>

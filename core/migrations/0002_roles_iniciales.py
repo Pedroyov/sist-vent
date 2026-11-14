@@ -4,6 +4,7 @@ DESCRIPCIONES = {
     "Administración": "Acceso total (no se puede limitar).",
     "Cajero": "Cobra las ventas y maneja la caja.",
     "Vendedor": "Registra pedidos y ventas.",
+    "Cocina": "Ve los pedidos en la pantalla de cocina y los marca como listos.",
 }
 
 

@@ -28,8 +28,8 @@
 
 {% if recien %}
 <div class="alert alert-info">
-  <div class="d-flex align-items-center mb-2"><strong><i class="bi bi-megaphone me-1"></i>Díctale a cocina:</strong>
-    <a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-printer me-1"></i>Comanda</a></div>
+  <div class="d-flex align-items-center mb-2"><strong>{% if NEGOCIO.cocina_pantalla %}<i class="bi bi-check2-circle me-1"></i>Enviado a la pantalla de cocina:{% else %}<i class="bi bi-megaphone me-1"></i>Díctale a cocina:{% endif %}</strong>
+    <a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" data-imprimir="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-printer me-1"></i>Comanda</a></div>
   <ul class="list-unstyled mb-0 dictar">
     {% for i in recien %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
   </ul>
@@ -69,14 +69,16 @@
 {# ---------- En cocina / servido ---------- #}
 {% if enviados %}
 <div class="card mb-3">
-  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-fire me-1"></i> Pedido</h3></div>
+  <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-fire me-1"></i> Pedido</h3>
+    {% if hay_listos %}<form method="post" action="{% url 'mesas:servido' c.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-bell me-1"></i>Ya serví lo listo</button></form>{% endif %}</div>
   <ul class="list-group list-group-flush items">
     {% for i in enviados %}
     <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
       <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
       <span class="cant">{{ i.cantidad|cantidad }}</span>
       <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>
-        <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}</div></div>
+        <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}
+          {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en cocina</span>{% endif %}</div></div>
       <span class="text-nowrap">{{ i.subtotal|soles }}</span>
       {% if c.abierta and puede_anular %}
       <button type="button" class="btn btn-sm btn-link text-danger px-1" data-bs-toggle="modal" data-bs-target="#m-quitar"
@@ -128,7 +130,7 @@
       <ul class="dropdown-menu dropdown-menu-end">
         {% if por_enviar or enviados %}
         <li><form method="post" action="{% url 'mesas:pedir_cuenta' c.pk %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-receipt me-2"></i>{% if c.pidio_cuenta %}Quitar «pidió la cuenta»{% else %}Pidió la cuenta (precuenta){% endif %}</button></form></li>
-        <li><a class="dropdown-item" href="{% url 'mesas:precuenta' c.pk %}"><i class="bi bi-printer me-2"></i>Imprimir precuenta</a></li>
+        <li><a class="dropdown-item" href="{% url 'mesas:precuenta' c.pk %}" data-imprimir="{% url 'mesas:precuenta' c.pk %}"><i class="bi bi-printer me-2"></i>Imprimir precuenta</a></li>
         {% if P.mesas_cobrar %}<li><button type="button" class="dropdown-item" id="btn-dividir"><i class="bi bi-scissors me-2"></i>Dividir cuenta</button></li>{% endif %}
         {% endif %}
         {% if c.mesa and P.mesas_atender %}<li><a class="dropdown-item" href="{% url 'mesas:cambiar' c.pk %}"><i class="bi bi-arrow-left-right me-2"></i>Cambiar o juntar mesa</a></li>{% endif %}
@@ -169,6 +171,7 @@
 {% block extra_js %}
 {% if c.abierta %}
 <script src="{% static 'js/cobro.js' %}"></script>
+{% if imprimir_precuenta %}<script>window.addEventListener("load", function () { window.imprimir("{% url 'mesas:precuenta' c.pk %}"); });</script>{% endif %}
 <script>
 (function () {
   var lista = document.getElementById("lista"), token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Cocina{% endblock %}
+{% block body_class %}bg-body-tertiary{% endblock %}
+{% block extra_css %}
+<style>
+  .kds-barra { position: sticky; top: 0; z-index: 10; }
+  .comanda { border-width: 2px; }
+  .comanda .card-header { font-size: 1.35rem; font-weight: 800; }
+  .comanda.tarde .card-header { background: var(--bs-warning-bg-subtle); }
+  .comanda.muy-tarde .card-header { background: var(--bs-danger-bg-subtle); }
+  .plato { font-size: 1.15rem; cursor: pointer; user-select: none; }
+  .plato.hecho { text-decoration: line-through; opacity: .45; }
+  .plato.quitado { text-decoration: line-through; color: var(--bs-danger); }
+  .plato .nota { display: block; font-size: .95rem; font-weight: 700; color: var(--bs-warning-text-emphasis); background: var(--bs-warning-bg-subtle); border-radius: .3rem; padding: 0 .35rem; margin-top: .15rem; }
+  .btn-listo { font-size: 1.2rem; font-weight: 700; padding: .7rem; }
+  @keyframes llega { from { box-shadow: 0 0 0 .5rem rgba(13,110,253,.6); } to { box-shadow: none; } }
+  .nueva { animation: llega 2.5s ease-out 2; }
+</style>
+{% endblock %}
+
+{% block layout %}
+<div class="kds-barra bg-dark text-white px-3 py-2 d-flex align-items-center gap-2 flex-wrap">
+  <i class="bi bi-fire fs-4 text-warning"></i><strong class="fs-5">Cocina</strong>
+  <span class="text-white-50 d-none d-sm-inline">· {{ NEGOCIO_NOMBRE }}</span>
+  <span class="badge text-bg-primary fs-6" id="n-pendientes">{{ pendientes|length }}</span>
+  <span class="ms-auto fs-5 fw-semibold" id="reloj"></span>
+  <button type="button" class="btn btn-sm btn-outline-light" id="btn-sonido"><i class="bi bi-volume-mute"></i> Activar sonido</button>
+  <div class="form-check form-switch text-white mb-0 ms-1" title="Imprime cada comanda nueva en la impresora de este equipo">
+    <input class="form-check-input" type="checkbox" id="auto-imprimir"><label class="form-check-label small" for="auto-imprimir"><i class="bi bi-printer"></i> Imprimir nuevas</label>
+  </div>
+  <button type="button" class="btn btn-sm btn-outline-light" id="btn-pantalla" title="Pantalla completa"><i class="bi bi-arrows-fullscreen"></i></button>
+  <a href="{% url 'core:inicio' %}" class="btn btn-sm btn-outline-light" title="Salir"><i class="bi bi-house"></i></a>
+</div>
+{% csrf_token %}
+<div class="container-fluid py-3" id="kds" hx-get="{% url 'mesas:cocina' %}" hx-trigger="every 5s" hx-swap="innerHTML">
+  {% include "mesas/partials/cocina.html" %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var kds = document.getElementById("kds");
+  var conocidas = new Set(Array.prototype.map.call(kds.querySelectorAll("[data-clave]"), function (e) { return e.dataset.clave; }));
+  var audio = null;
+  try { document.getElementById("auto-imprimir").checked = localStorage.getItem("cocina_imprimir") === "1"; } catch (e) {}
+  document.getElementById("auto-imprimir").addEventListener("change", function () {
+    try { localStorage.setItem("cocina_imprimir", this.checked ? "1" : "0"); } catch (e) {}
+  });
+  // Los navegadores solo dejan sonar después de un toque en la pantalla
+  document.getElementById("btn-sonido").addEventListener("click", function () {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume();
+    this.innerHTML = '<i class="bi bi-volume-up"></i> Sonido activo';
+    this.classList.replace("btn-outline-light", "btn-success");
+    timbre();
+  });
+  function timbre() {
+    if (!audio) return;
+    [0, .18, .36].forEach(function (t) {
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 880; o.type = "sine";
+      g.gain.setValueAtTime(.35, audio.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + t + .16);
+      o.connect(g); g.connect(audio.destination); o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .17);
+    });
+  }
+  document.body.addEventListener("htmx:afterSwap", function (e) {
+    if (e.target.id !== "kds") return;
+    var nuevas = [];
+    kds.querySelectorAll("[data-clave]").forEach(function (el) {
+      if (!conocidas.has(el.dataset.clave)) { nuevas.push(el); conocidas.add(el.dataset.clave); el.classList.add("nueva"); }
+    });
+    document.getElementById("n-pendientes").textContent = kds.querySelectorAll(".comanda[data-clave]").length;
+    if (nuevas.length) {
+      timbre();
+      if (document.getElementById("auto-imprimir").checked) {
+        nuevas.forEach(function (el, i) { setTimeout(function () { window.imprimir(el.dataset.comanda); }, i * 2500); });
+      }
+    }
+  });
+  function reloj() { var d = new Date(); document.getElementById("reloj").textContent = d.toLocaleTimeString("es-PE", {hour: "2-digit", minute: "2-digit"}); }
+  reloj(); setInterval(reloj, 15000);
+  document.getElementById("btn-pantalla").addEventListener("click", function () {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(function () {});
+  });
+  // Evita que la tablet se apague mientras la pantalla está abierta
+  if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(function () {});
+})();
+</script>
+{% endblock %}

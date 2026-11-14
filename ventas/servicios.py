@@ -193,10 +193,11 @@ def resumen(ventas):
     for i in VentaItem.objects.filter(venta__in=pagadas, costo_unitario__isnull=False).values("cantidad", "costo_unitario"):
         costo += i["cantidad"] * i["costo_unitario"]
     sin_costo = VentaItem.objects.filter(venta__in=pagadas, costo_unitario__isnull=True).exists()
+    total = dinero(Decimal(total))
     return {
         "total": total, "n": n, "promedio": dinero(total / n) if n else CERO, "descuentos": t["descuentos"] or CERO,
-        "metodos": [{"metodo": nombres.get(m["metodo"], m["metodo"]), "codigo": m["metodo"], "total": m["total"], "n": m["n"]} for m in metodos],
+        "metodos": [{"metodo": nombres.get(m["metodo"], m["metodo"]), "codigo": m["metodo"], "total": dinero(Decimal(m["total"])), "n": m["n"]} for m in metodos],
         "ganancia": total - dinero(costo), "sin_costo": sin_costo,
-        "propinas": t["propinas"] or CERO,
+        "propinas": dinero(Decimal(t["propinas"] or 0)),
         "anuladas": ventas.filter(estado=Venta.Estado.ANULADA).count(),
     }

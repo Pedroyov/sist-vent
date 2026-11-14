@@ -14,7 +14,8 @@ from django.core.exceptions import PermissionDenied
 ADMINISTRACION = "Administración"
 CAJERO = "Cajero"
 VENDEDOR = "Vendedor"
-ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR]
+COCINA = "Cocina"
+ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, COCINA]
 
 # Módulos que se pueden desactivar. Configuración es la base y siempre está activa.
 # Al crear una app nueva se agrega aquí, por ejemplo:
@@ -39,6 +40,7 @@ PERMISOS = [
     ("mesas.atender", "mesas", "Abrir mesas, tomar pedidos, enviar a cocina, precuenta, cambiar y juntar mesas", [CAJERO, VENDEDOR]),
     ("mesas.cobrar", "mesas", "Cobrar mesas (todo o dividiendo la cuenta)", [CAJERO]),
     ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
+    ("mesas.cocina", "mesas", "Usar la pantalla de cocina: ver pedidos y marcarlos como listos", [COCINA]),
     ("mesas.configurar", "mesas", "Crear y editar zonas y mesas", []),
 
     ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),

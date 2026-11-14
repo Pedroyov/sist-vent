@@ -1,0 +1,51 @@
+{% load sis %}<!doctype html>
+{% comment %}
+Base de todo lo que se imprime en la ticketera (ticket, precuenta, comanda, cierre de caja).
+- El ancho sale de Datos del negocio (80 o 58 mm).
+- El alto de la "hoja" se calcula con el contenido: así no sale una hoja A4 casi vacía.
+- ?auto=1 abre la impresión apenas carga (se usa al imprimir desde el celular).
+{% endcomment %}
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}Imprimir{% endblock %}</title>
+<style>
+  :root { --ancho: {% if NEGOCIO.ticket_ancho == 58 %}48mm{% else %}72mm{% endif %}; --letra: {% if NEGOCIO.ticket_ancho == 58 %}10.5px{% else %}12px{% endif %}; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #e9ecef; }
+  .papel { width: var(--ancho); margin: 12px auto; padding: 3mm 0; background: #fff; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+           font: var(--letra)/1.35 ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace; }
+  .papel .in { padding: 0 2mm; }
+  .c { text-align: center; } .r { text-align: right; white-space: nowrap; } .b { font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; } td { vertical-align: top; padding: .5px 0; }
+  .linea { border-top: 1px dashed #000; margin: 1.6mm 0; }
+  .grande { font-size: 1.3em; font-weight: bold; } .enorme { font-size: 1.7em; font-weight: bold; }
+  .logo { max-width: 60%; max-height: 22mm; filter: grayscale(1); }
+  .sello { border: 2px solid #000; text-align: center; font-weight: bold; padding: 1mm; margin: 1mm 0; }
+  .acciones { width: var(--ancho); min-width: 260px; margin: 0 auto 16px; display: flex; gap: 8px; font-family: system-ui, sans-serif; }
+  .acciones button, .acciones a { flex: 1; padding: 10px; font-size: 15px; border-radius: 8px; border: 1px solid #0d6efd; background: #0d6efd; color: #fff; text-align: center; text-decoration: none; cursor: pointer; }
+  .acciones a { background: #fff; color: #0d6efd; }
+  .en-marco .acciones { display: none; }
+  @media print {
+    html, body { background: #fff; }
+    .papel { margin: 0; box-shadow: none; padding: 1mm 0 4mm; }
+    .acciones { display: none; }
+  }
+</style>
+<style id="tam-pagina">@page { margin: 0; }</style>
+</head>
+<body>
+<div class="papel"><div class="in">
+{% block contenido %}{% endblock %}
+</div></div>
+<div class="acciones"><button type="button" onclick="window.print()">Imprimir</button>{% block volver %}<a href="javascript:history.back()">Volver</a>{% endblock %}</div>
+<script>
+  (function () {
+    if (window.self !== window.top) document.documentElement.classList.add("en-marco");
+    // Hoja del tamaño exacto del ticket (ancho del rollo × alto del contenido)
+    var papel = document.querySelector(".papel");
+    var mm = papel.getBoundingClientRect().height * 25.4 / 96 + 6;
+    document.getElementById("tam-pagina").textContent =
+      "@page { size: {{ NEGOCIO.ticket_ancho|default:80 }}mm " + Math.ceil(mm) + "mm; margin: 0; } @media print { .papel { width: 100%; } }";
+    if (/[?&]auto=1/.test(location.search)) window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 250); });
+  })();
+</script>
+</body></html>

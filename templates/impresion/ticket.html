@@ -1,0 +1,36 @@
+{% extends "impresion/base.html" %}
+{% load sis %}
+{% block titulo %}Ticket {{ v.numero_str }}{% endblock %}
+{% block contenido %}
+<div class="c">
+  {% if NEGOCIO.tiene_logo %}<img src="{{ NEGOCIO.logo_url }}" alt="" class="logo"><br>{% endif %}
+  <span class="grande">{{ NEGOCIO_NOMBRE }}</span><br>
+  {% if NEGOCIO.razon_social %}{{ NEGOCIO.razon_social }}<br>{% endif %}
+  {% if NEGOCIO.ruc %}RUC {{ NEGOCIO.ruc }}<br>{% endif %}
+  {% if NEGOCIO.linea_contacto %}{{ NEGOCIO.linea_contacto }}<br>{% endif %}
+</div>
+<div class="linea"></div>
+{% if v.anulada %}<div class="sello">*** VENTA ANULADA ***</div>{% endif %}
+<div class="c b">NOTA DE VENTA N° {{ v.numero_str }}</div>
+<div>Fecha: {{ v.fecha|date:"d/m/Y H:i" }}</div>
+{% if v.cliente_nombre or v.cliente_documento %}<div>Cliente: {{ v.cliente_nombre }}{% if v.cliente_documento %} ({{ v.cliente_documento }}){% endif %}</div>{% endif %}
+<div>{% if v.atendio %}Mozo: {{ v.atendio.first_name|default:v.atendio.username }} · Caja: {% else %}Atendió: {% endif %}{{ v.usuario.first_name|default:v.usuario.username }}</div>
+{% if v.nota %}<div>{{ v.nota }}</div>{% endif %}
+<div class="linea"></div>
+<table>
+  {% for i in v.items.all %}
+  <tr><td colspan="2">{{ i.descripcion }}</td></tr>
+  <tr><td>&nbsp;{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}</td><td class="r">{{ i.subtotal }}</td></tr>
+  {% endfor %}
+</table>
+<div class="linea"></div>
+<table>
+  {% if v.descuento %}<tr><td>Subtotal</td><td class="r">{{ v.subtotal }}</td></tr><tr><td>Descuento</td><td class="r">-{{ v.descuento }}</td></tr>{% endif %}
+  <tr class="grande"><td>TOTAL S/</td><td class="r">{{ v.total }}</td></tr>
+  {% if v.propina %}<tr><td>Propina</td><td class="r">{{ v.propina }}</td></tr>{% endif %}
+  {% for p in v.pagos.all %}<tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="r">{{ p.monto }}</td></tr>{% endfor %}
+  {% if v.vuelto %}<tr><td>Vuelto</td><td class="r">{{ v.vuelto }}</td></tr>{% endif %}
+</table>
+<div class="linea"></div>
+<div class="c">{{ NEGOCIO.nota_ticket|default:"¡Gracias por su compra!" }}</div>
+{% endblock %}

@@ -107,6 +107,8 @@ class ItemCuenta(models.Model):
     agregado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     creado = models.DateTimeField(default=timezone.now)
     enviado_en = models.DateTimeField("enviado a cocina", null=True, blank=True)
+    listo_en = models.DateTimeField("listo en cocina", null=True, blank=True)
+    servido_en = models.DateTimeField(null=True, blank=True)
     anulado = models.BooleanField(default=False)
     motivo_anulacion = models.CharField(max_length=200, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")

@@ -1,12 +1,14 @@
-{% extends "mesas/_impreso.html" %}
+{% extends "impresion/base.html" %}
 {% load sis %}
 {% block titulo %}Precuenta {{ c.titulo }}{% endblock %}
 {% block contenido %}
-<div class="c"><strong>{{ NEGOCIO_NOMBRE }}</strong><br>PRECUENTA · {{ c.titulo }}<br>{% now "d/m/Y H:i" %} · {{ c.personas }} pers.</div>
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }} · {{ c.personas }} pers.<br>{% now "d/m/Y H:i" %}</div>
 <div class="linea"></div>
 <table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>
 <div class="linea"></div>
-<table><tr class="grande"><td>TOTAL S/</td><td class="r">{{ total }}</td></tr></table>
-{% if NEGOCIO.propina_activa %}<p class="c">Propina sugerida (10%): S/ {% widthratio total 10 1 %}</p>{% endif %}
-<p class="c">No es comprobante de pago.</p>
+<table><tr class="grande"><td>TOTAL S/</td><td class="r">{{ total }}</td></tr>
+{% if NEGOCIO.propina_activa %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}</table>
+<div class="linea"></div>
+<div class="c">No es comprobante de pago</div>
 {% endblock %}
+{% block volver %}<a href="{% url 'mesas:cuenta' c.pk %}">Volver</a>{% endblock %}

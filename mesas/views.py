@@ -14,7 +14,8 @@ from core.permisos import permiso_requerido, puede
 from core.utils import entero
 
 from .models import Cuenta, ItemCuenta, Mesa, Zona
-from .servicios import MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, enviar_cocina, juntar, mover, quitar
+from .servicios import (MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, enviar_cocina, juntar,
+                        marcar_listo, marcar_servido, mover, quitar)
 
 
 def _abiertas():
@@ -32,12 +33,14 @@ def _datos_mapa():
             if m.cuenta:
                 m.cuenta.total = sum((i.subtotal for i in m.cuenta.vigentes), 0)
                 m.cuenta.sin_enviar = sum(1 for i in m.cuenta.vigentes if not i.enviado_en)
+                m.cuenta.listos = sum(1 for i in m.cuenta.vigentes if i.listo_en and not i.servido_en)
         if mesas:
             zonas.append({"zona": z, "mesas": mesas, "libres": sum(1 for m in mesas if not m.cuenta)})
     llevar = [c for c in _abiertas() if not c.mesa_id]
     for c in llevar:
         c.total = sum((i.subtotal for i in c.vigentes), 0)
         c.sin_enviar = sum(1 for i in c.vigentes if not i.enviado_en)
+        c.listos = sum(1 for i in c.vigentes if i.listo_en and not i.servido_en)
     return {"zonas": zonas, "llevar": llevar, "ahora": timezone.now()}
 
 
@@ -91,6 +94,8 @@ def cuenta(request, pk):
         "recien_ts": request.GET.get("enviado", ""),
         "falta_caja": falta_caja and puede(request.user, "mesas.cobrar"),
         "puede_anular": puede(request.user, "mesas.anular"),
+        "hay_listos": any(i.listo_en and not i.servido_en for i in enviados + pagados),
+        "imprimir_precuenta": request.GET.get("precuenta") == "1",
     })
 
 
@@ -168,14 +173,26 @@ def pedir_cuenta(request, pk):
         c.pidio_cuenta = not c.pidio_cuenta
         c.save(update_fields=["pidio_cuenta"])
     if c.pidio_cuenta:
-        return redirect("mesas:precuenta", pk=pk)
+        return redirect(reverse("mesas:cuenta", args=[pk]) + "?precuenta=1")
+    return redirect("mesas:cuenta", pk=pk)
+
+
+@permiso_requerido("mesas.atender")
+@require_POST
+def servido(request, pk):
+    c = _cuenta(pk)
+    n = marcar_servido(c)
+    if n:
+        messages.success(request, f"Listo: {n} plato{'s' if n != 1 else ''} servido{'s' if n != 1 else ''}.")
     return redirect("mesas:cuenta", pk=pk)
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")
 def precuenta(request, pk):
     c = _cuenta(pk)
-    return render(request, "mesas/precuenta.html", {"c": c, "items": c.por_cobrar().order_by("creado"), "total": c.total_por_cobrar})
+    total = c.total_por_cobrar
+    return render(request, "mesas/precuenta.html", {"c": c, "items": c.por_cobrar().order_by("creado"), "total": total,
+                                                    "propina_sugerida": (total / 10).quantize(total.__class__("0.10"))})
 
 
 @permiso_requerido("mesas.atender")
@@ -292,3 +309,57 @@ def configurar(request):
         return redirect("mesas:configurar")
     zonas = Zona.objects.prefetch_related("mesas").annotate(n=Count("mesas"))
     return render(request, "mesas/configurar.html", {"zonas": zonas})
+
+
+# --- Pantalla de cocina ----------------------------------------------------------
+
+def _comandas():
+    """Pedidos enviados a cocina, agrupados por envío (una comanda = una mesa + una hora de envío)."""
+    from datetime import timedelta
+
+    desde = timezone.now() - timedelta(hours=12)
+    items = (ItemCuenta.objects.filter(enviado_en__gte=desde).exclude(cuenta__estado=Cuenta.Estado.ANULADA)
+             .select_related("cuenta__mesa", "cuenta__mozo").order_by("enviado_en", "id"))
+    grupos = {}
+    for i in items:
+        grupos.setdefault((i.cuenta_id, i.enviado_en), []).append(i)
+    pendientes, listas = [], []
+    hace_rato = timezone.now() - timedelta(minutes=20)
+    for (cuenta_id, enviado), lista in grupos.items():
+        vigentes = [i for i in lista if not i.anulado]
+        if not vigentes:
+            continue
+        comanda = {"cuenta": lista[0].cuenta, "enviado": enviado, "items": lista, "clave": f"{cuenta_id}-{int(enviado.timestamp() * 1e6)}",
+                   "minutos": int((timezone.now() - enviado).total_seconds() // 60), "enviado_iso": enviado.isoformat()}
+        if any(i.listo_en is None for i in vigentes):
+            pendientes.append(comanda)
+        elif max(i.listo_en for i in vigentes) >= hace_rato:
+            comanda["listo"] = max(i.listo_en for i in vigentes)
+            listas.append(comanda)
+    listas.sort(key=lambda c: c["listo"], reverse=True)
+    return {"pendientes": pendientes, "listas": listas[:12]}
+
+
+@permiso_requerido("mesas.cocina")
+def cocina(request):
+    datos = _comandas()
+    if request.htmx:
+        return render(request, "mesas/partials/cocina.html", datos)
+    return render(request, "mesas/cocina.html", datos)
+
+
+@permiso_requerido("mesas.cocina")
+@require_POST
+def cocina_marcar(request):
+    """Marca como listo (o deshace) un plato o una comanda entera."""
+    listo = request.POST.get("listo", "1") == "1"
+    if request.POST.get("item"):
+        items = ItemCuenta.objects.filter(pk=entero(request.POST.get("item")))
+    else:
+        enviado = parse_datetime(request.POST.get("enviado", "") or "")
+        items = ItemCuenta.objects.filter(cuenta_id=entero(request.POST.get("cuenta")), enviado_en=enviado) if enviado else ItemCuenta.objects.none()
+    if listo and request.POST.get("item"):
+        it = items.first()
+        listo = it is not None and it.listo_en is None  # un plato: alterna
+    marcar_listo(list(items), listo)
+    return render(request, "mesas/partials/cocina.html", _comandas()) if request.htmx else redirect("mesas:cocina")

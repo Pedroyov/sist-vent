@@ -5,7 +5,7 @@ Lo que puede hacer cada rol se define con permisos (ver core/permisos.py) y se
 marca en Configuración → Roles y permisos. Administración y el superusuario siempre
 tienen acceso total.
 """
-from .permisos import ADMINISTRACION, CAJERO, ROLES_BASE, VENDEDOR  # noqa: F401
+from .permisos import ADMINISTRACION, CAJERO, COCINA, ROLES_BASE, VENDEDOR  # noqa: F401
 
 ROLES = ROLES_BASE  # roles que vienen con el sistema
 

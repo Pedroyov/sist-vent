@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from core.models import Ajustes, Rubro
-from core.permisos import ADMINISTRACION, CAJERO, VENDEDOR
+from core.permisos import ADMINISTRACION, CAJERO, COCINA, VENDEDOR
 
 CLAVE = "demo1234"
 USUARIOS = [
@@ -21,6 +21,7 @@ USUARIOS = [
     ("gerente", "Rosa", "Quispe Huamán", ADMINISTRACION, False),
     ("cajero", "Luis", "Ramos Torres", CAJERO, False),
     ("vendedor", "Ana", "Flores Díaz", VENDEDOR, False),
+    ("cocina", "Pedro", "Huamán Ríos", COCINA, False),
 ]
 
 
@@ -44,6 +45,8 @@ class Command(BaseCommand):
         a.lema = lema
         inactivos = [m for m in (a.modulos_inactivos or []) if m != "mesas"]
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + ["mesas"]
+        a.cocina_pantalla = rubro == Rubro.RESTAURANTE
+        a.propina_activa = rubro == Rubro.RESTAURANTE
         a.ruc = a.ruc or "20123456789"
         a.direccion = a.direccion or "Av. Principal 123"
         a.distrito = a.distrito or "Lima"

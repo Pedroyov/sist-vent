@@ -70,3 +70,24 @@ document.addEventListener("click", function (e) {
   var vals = a.dataset.avisoFecha ? {fecha: a.dataset.avisoFecha} : {};
   htmx.ajax("POST", a.dataset.avisoUrl, {source: a, target: a.dataset.avisoDestino, swap: "innerHTML", values: vals});
 });
+
+// Imprimir sin salir de la pantalla: <a data-imprimir="/ruta/de/impresion/">.
+// En la PC se imprime desde un marco oculto; en el celular se abre en otra pestaña y se imprime solo.
+window.imprimir = function (url) {
+  var movil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (movil) { window.open(url + (url.indexOf("?") >= 0 ? "&" : "?") + "auto=1", "_blank"); return; }
+  var viejo = document.getElementById("marco-impresion");
+  if (viejo) viejo.remove();
+  var marco = document.createElement("iframe");
+  marco.id = "marco-impresion";
+  marco.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  marco.src = url;
+  marco.onload = function () { setTimeout(function () { marco.contentWindow.focus(); marco.contentWindow.print(); }, 150); };
+  document.body.appendChild(marco);
+};
+document.addEventListener("click", function (e) {
+  var a = e.target.closest("[data-imprimir]");
+  if (!a) return;
+  e.preventDefault();
+  window.imprimir(a.dataset.imprimir);
+});

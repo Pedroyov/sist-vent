@@ -60,6 +60,19 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - El cuadro de cobro es compartido: `templates/ventas/partials/modal_cobro.html` + `static/js/cobro.js` (lo usan el punto de venta y las mesas). La **propina** se activa en Datos del negocio: va en `Venta.propina`, no suma al total vendido y se cobra dentro de los pagos.
 - El módulo Mesas empieza apagado y se activa solo al elegir el rubro Restaurante.
 
+## Impresión (ticketera)
+
+- Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del rollo (Datos del negocio → 80 o 58 mm). Un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4.
+- Para imprimir sin salir de la pantalla: `<a data-imprimir="/ruta/">` (o `window.imprimir(url)`, en `static/js/app.js`). En la PC imprime desde un marco oculto; en el celular abre otra pestaña con `?auto=1`.
+- Impresiones: ticket (`ventas:imprimir`), precuenta y comanda (`mesas:precuenta`, `mesas:comanda`), cierre o corte de caja (`caja:imprimir`).
+- Para imprimir **sin el cuadro de diálogo** (ticket automático o comandas en cocina), abre Chrome con `--kiosk-printing` y deja la ticketera como impresora predeterminada.
+
+## Pantalla de cocina
+
+- `mesas:cocina`, con el permiso `mesas.cocina` (rol base **Cocina**; quien solo tiene ese rol entra directo ahí). Muestra las comandas pendientes, se actualiza cada 5 segundos, suena al llegar una nueva (tras tocar "Activar sonido") y puede imprimir cada comanda nueva en la impresora de ese equipo.
+- Cocina marca la comanda entera (LISTO) o un plato (tocándolo). `ItemCuenta.listo_en` → el mozo ve 🔔 en el mapa y "¡Listo!" en la cuenta → pulsa "Ya serví lo listo" (`servido_en`). Los platos quitados después de enviarse aparecen tachados en rojo para que cocina no los prepare.
+- Datos del negocio → "la cocina usa la pantalla de cocina" cambia los textos del mozo ("Enviado a la pantalla de cocina" en vez de "Díctale a cocina").
+
 ## Rubros
 
 `core.models.Rubro` guarda el tipo de negocio (tienda, restaurante, ropa, librería/útiles, peluquería, otro). Se elige en Datos del negocio y sirve para ajustar textos y opciones por rubro (mesas en restaurante, tallas y colores en ropa, servicios y citas en peluquería) sin hacer un sistema distinto para cada uno.

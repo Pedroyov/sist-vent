@@ -115,6 +115,14 @@ def ticket(request, pk):
     })
 
 
+@permiso_requerido("ventas.vender", "ventas.ver")
+def imprimir(request, pk):
+    venta = get_object_or_404(Venta.objects.select_related("usuario", "atendio").prefetch_related("items", "pagos"), pk=pk)
+    if not _puede_ver(request.user, venta):
+        raise PermissionDenied
+    return render(request, "impresion/ticket.html", {"v": venta})
+
+
 def _rango(request):
     hoy = timezone.localdate()
     try:

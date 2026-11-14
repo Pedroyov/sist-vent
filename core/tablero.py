@@ -51,6 +51,8 @@ class Tablero:
 
     def _atajos(self):
         a, u = self.atajos, self.user
+        if puede(u, "mesas.cocina"):
+            a.append({"texto": "Pantalla de cocina", "url": reverse("mesas:cocina"), "icono": "bi-fire", "color": "warning"})
         if puede(u, "mesas.atender", "mesas.cobrar"):
             a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
         if puede(u, "ventas.vender"):

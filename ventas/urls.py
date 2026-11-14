@@ -10,4 +10,5 @@ urlpatterns = [
     path("lista/", views.lista, name="lista"),
     path("<int:pk>/", views.ticket, name="ticket"),
     path("<int:pk>/anular/", views.anular, name="anular"),
+    path("<int:pk>/imprimir/", views.imprimir, name="imprimir"),
 ]
