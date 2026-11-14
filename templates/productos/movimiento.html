@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load sis crispy_forms_tags %}
+
+{% block title %}Stock de {{ p.nombre }}{% endblock %}
+{% block page_title %}Stock <small class="text-body-secondary fs-6">{{ p.nombre }}</small>{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'productos:detalle' p.pk %}">{{ p.nombre|truncatechars:30 }}</a></li>
+  <li class="breadcrumb-item active">Stock</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8 col-xl-6">
+    <div class="card card-outline card-primary mb-4">
+      <form method="post" novalidate id="form-mov">
+        {% csrf_token %}
+        <div class="card-body">
+          {{ form.non_field_errors }}
+          {{ form.operacion|as_crispy_field }}
+          {{ form.variante|as_crispy_field }}
+          {% if not p.tiene_variantes %}<p class="small text-body-secondary">Stock actual: <strong>{{ p.stock_total|cantidad }}</strong> {{ p.get_unidad_display|lower }}</p>{% endif %}
+          <div class="row">
+            <div class="col-6">{{ form.cantidad|as_crispy_field }}</div>
+            {% if form.costo_unitario %}<div class="col-6 solo-ingreso">{{ form.costo_unitario|as_crispy_field }}</div>{% endif %}
+          </div>
+          <div class="solo-ingreso">{{ form.referencia|as_crispy_field }}</div>
+          {{ form.nota|as_crispy_field }}
+        </div>
+        <div class="card-footer d-flex flex-wrap gap-2">
+          <a href="{% url 'productos:detalle' p.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+          {% if p.tiene_variantes %}<button name="otro" value="1" class="btn btn-outline-primary ms-auto">Guardar y seguir</button>{% endif %}
+          <button class="btn btn-primary {% if not p.tiene_variantes %}ms-auto{% endif %}"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById("form-mov");
+    var etiqueta = document.querySelector("label[for=id_cantidad]");
+    var textos = {ING: "Cantidad que llegó", SAL: "Cantidad que sale", AJU: "Stock real contado"};
+    function actualizar() {
+      var op = (form.querySelector("input[name=operacion]:checked") || {}).value;
+      form.querySelectorAll(".solo-ingreso").forEach(function (el) { el.classList.toggle("d-none", op !== "ING"); });
+      if (etiqueta && textos[op]) etiqueta.firstChild.textContent = textos[op];
+    }
+    form.addEventListener("change", actualizar);
+    actualizar();
+  })();
+</script>
+{% endblock %}

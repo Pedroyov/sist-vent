@@ -59,7 +59,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 ## Avance
 
 - [x] **Base** – Login con bloqueo, usuarios, roles y permisos, módulos activables, datos del negocio (rubro, logo, RUC), PWA instalable
-- [ ] Productos y servicios (precios, variantes talla/color, stock)
+- [x] **Productos** – Productos y servicios, categorías, variantes (talla, color, tamaño), códigos de barras, stock con kardex, importar y exportar Excel
 - [ ] Punto de venta y tickets
 - [ ] Caja (apertura, cierre, ingresos y egresos)
 - [ ] Clientes
@@ -68,7 +68,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 
 ## Ver el sistema con datos de ejemplo
 
-Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo. **Tu base real (`db.sqlite3`) no se toca.**
+Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo (bodega). Para otro rubro: `python manage.py datos_demo --rubro ROP` (ROP ropa, RES restaurante, LIB librería, PEL peluquería) sobre una base vacía. **Tu base real (`db.sqlite3`) no se toca.**
 
 Usuarios (clave `demo1234`): `admin` (administrador principal: módulos del sistema), `gerente` (Administración), `cajero`, `vendedor`.
 Para regenerar los datos: `demo.bat nuevo`.

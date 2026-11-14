@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Importar productos{% endblock %}
+{% block page_title %}Importar productos{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">Importar</li>
+{% endblock %}
+
+{% block content %}
+{% if listo %}
+  <div class="alert alert-success d-flex flex-wrap align-items-center gap-2">
+    <i class="bi bi-check-circle fs-4"></i>
+    <div class="flex-grow-1">
+      Todo correcto: <strong>{{ filas|length }}</strong> fila{{ filas|length|pluralize }}
+      ({{ nuevos }} nueva{{ nuevos|pluralize }}{% if actualizar %}, {{ actualizar }} ya existían y se actualizarán{% endif %}). Revisa y confirma.
+      {% if sin_permiso_stock %}<div class="small">La columna Stock no se aplicará: no tienes permiso para cambiar el stock.</div>{% endif %}
+    </div>
+    <form method="post">{% csrf_token %}
+      <a href="{% url 'productos:importar' %}" class="btn btn-outline-secondary">Cancelar</a>
+      <button name="confirmar" class="btn btn-success"><i class="bi bi-cloud-upload me-1"></i>Confirmar importación</button>
+    </form>
+  </div>
+{% else %}
+  <div class="row">
+    <div class="col-lg-7">
+      <div class="card card-outline card-primary mb-4">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <div class="card-body">
+            {{ form|crispy }}
+            <p class="small text-body-secondary mb-0">Primero se revisa el archivo y se muestra una vista previa. No se guarda nada hasta que confirmes.</p>
+          </div>
+          <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-search me-1"></i>Revisar archivo</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-info-circle me-1"></i> Cómo hacerlo</h3></div>
+        <div class="card-body small">
+          <ol class="ps-3 mb-3">
+            <li>Descarga la plantilla y llénala, o copia y pega desde tu Excel actual.</li>
+            <li>Si un producto tiene tallas o colores, pon una fila por cada uno con el mismo nombre.</li>
+            <li>Sube el archivo, revisa y confirma.</li>
+          </ol>
+          <p>También sirve para <strong>actualizar precios o stock</strong>: exporta tu lista, cámbiala en Excel y vuelve a subirla.</p>
+          <a href="{% url 'productos:plantilla' %}" class="btn btn-success w-100"><i class="bi bi-file-earmark-excel me-1"></i>Descargar plantilla</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% for e in errores %}<div class="alert alert-danger"><i class="bi bi-x-circle me-1"></i>{{ e }}</div>{% endfor %}
+
+{% if con_error %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>
+  Hay <strong>{{ con_error|length }}</strong> fila{{ con_error|length|pluralize }} con problemas. Corrígelas en el Excel y vuelve a subirlo. No se guardó nada.</div>
+{% endif %}
+
+{% if filas %}
+<div class="card mb-4">
+  <div class="table-responsive" style="max-height: 60vh">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="sticky-top"><tr><th class="ps-3">Fila</th><th>Producto</th><th>Variante</th><th>Código</th><th>Categoría</th><th class="text-end">Precio</th><th class="text-end">Stock</th><th>Resultado</th></tr></thead>
+      <tbody>
+        {% for f in filas %}
+        <tr class="{% if f.errores %}table-danger{% endif %}">
+          <td class="ps-3 text-body-secondary">{{ f.fila }}</td>
+          <td>{{ f.nombre|default:"—" }}{% if f.tipo == "S" %} <span class="badge text-bg-info">Servicio</span>{% endif %}</td>
+          <td>{{ f.variante }}</td>
+          <td class="font-monospace small">{{ f.codigo }}</td>
+          <td>{{ f.categoria }}</td>
+          <td class="text-end">{{ f.precio|default:"" }}</td>
+          <td class="text-end">{{ f.stock|default:"" }}</td>
+          <td class="small">{% if f.errores %}<span class="text-danger">{{ f.errores|join:"; " }}</span>
+            {% elif f.accion == "nuevo" %}<span class="badge text-bg-success">Nuevo</span>{% else %}<span class="badge text-bg-primary">Actualizar</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

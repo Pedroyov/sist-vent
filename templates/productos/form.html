@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% if producto %}Editar {{ producto.nombre }}{% else %}Nuevo producto{% endif %}{% endblock %}
+{% block page_title %}{% if producto %}Editar producto{% else %}Nuevo producto{% endif %}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  {% if producto %}<li class="breadcrumb-item"><a href="{% url 'productos:detalle' producto.pk %}">{{ producto.nombre|truncatechars:30 }}</a></li>{% endif %}
+  <li class="breadcrumb-item active">{% if producto %}Editar{% else %}Nuevo{% endif %}</li>
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate id="form-producto">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card card-outline card-primary mb-4">
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="btn-group" role="group" aria-label="Tipo">
+              {% for r in form.tipo %}
+              <input type="radio" class="btn-check" name="tipo" id="tipo-{{ r.data.value }}" value="{{ r.data.value }}" {% if r.data.selected %}checked{% endif %}>
+              <label class="btn btn-outline-primary" for="tipo-{{ r.data.value }}"><i class="bi {% if r.data.value == 'S' %}bi-scissors{% else %}bi-box{% endif %} me-1"></i>{{ r.choice_label }}</label>
+              {% endfor %}
+            </div>
+            <div class="form-text">Un servicio (corte, manicure, delivery, copias…) no maneja stock.</div>
+          </div>
+          {{ form.nombre|as_crispy_field }}
+          <div class="row">
+            <div class="col-md-6">{{ form.categoria|as_crispy_field }}</div>
+            {% if form.codigo %}<div class="col-md-6">{{ form.codigo|as_crispy_field }}</div>{% endif %}
+          </div>
+          <div class="row">
+            <div class="col-6 col-md-4">{{ form.precio|as_crispy_field }}</div>
+            {% if form.costo %}<div class="col-6 col-md-4">{{ form.costo|as_crispy_field }}</div>{% endif %}
+            <div class="col-md-4 solo-servicio">{{ form.duracion_min|as_crispy_field }}</div>
+            <div class="col-md-4 solo-producto">{{ form.unidad|as_crispy_field }}</div>
+          </div>
+          {% if form.costo %}<div class="small text-body-secondary mb-3 d-none" id="ganancia"></div>{% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-4 solo-producto">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-boxes me-1"></i> Stock</h3></div>
+        <div class="card-body">
+          {{ form.maneja_stock|as_crispy_field }}
+          <div class="row con-stock">
+            {% if form.stock_inicial %}<div class="col-6">{{ form.stock_inicial|as_crispy_field }}</div>{% endif %}
+            <div class="col-6">{{ form.stock_minimo|as_crispy_field }}</div>
+          </div>
+          {% if producto and producto.maneja_stock %}
+          <p class="small text-body-secondary mb-0 con-stock"><i class="bi bi-info-circle me-1"></i>El stock actual se cambia con
+            <a href="{% url 'productos:movimiento' producto.pk %}">ingresos, salidas o conteos</a>, para que quede en el historial.</p>
+          {% endif %}
+          {% if form.instance.pk is None %}
+          <p class="small text-body-secondary mb-0"><i class="bi bi-info-circle me-1"></i>¿Tiene tallas, colores o tamaños? Guárdalo y luego agrega sus variantes.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-image me-1"></i> Foto y detalles</h3></div>
+        <div class="card-body">
+          {% if producto.imagen %}<img src="{{ producto.imagen.url }}" alt="" class="img-fluid rounded border mb-2" style="max-height: 160px">{% endif %}
+          {{ form.imagen|as_crispy_field }}
+          {{ form.descripcion|as_crispy_field }}
+          {{ form.activo|as_crispy_field }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card sticky-bottom mb-4">
+    <div class="card-body d-flex flex-wrap gap-2 py-2">
+      <a href="{% if producto %}{% url 'productos:detalle' producto.pk %}{% else %}{% url 'productos:lista' %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
+      {% if not producto %}<button name="otro" value="1" class="btn btn-outline-primary ms-auto"><i class="bi bi-plus-lg me-1"></i>Guardar y agregar otro</button>{% endif %}
+      <button class="btn btn-primary {% if producto %}ms-auto{% endif %}"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById("form-producto");
+    var stock = document.getElementById("id_maneja_stock");
+    function mostrar(sel, si) { form.querySelectorAll(sel).forEach(function (el) { el.classList.toggle("d-none", !si); }); }
+    function actualizar() {
+      var servicio = (form.querySelector("input[name=tipo]:checked") || {}).value === "S";
+      mostrar(".solo-servicio", servicio);
+      mostrar(".solo-producto", !servicio);
+      mostrar(".con-stock", !servicio && stock && stock.checked);
+      var precio = parseFloat(document.getElementById("id_precio").value);
+      var costoEl = document.getElementById("id_costo"), g = document.getElementById("ganancia");
+      if (costoEl && g) {
+        var costo = parseFloat(costoEl.value);
+        if (precio > 0 && costo >= 0) {
+          var m = precio - costo;
+          g.innerHTML = 'Ganancia por unidad: <strong class="' + (m < 0 ? "text-danger" : "text-success") + '">S/ ' + m.toFixed(2) +
+                        "</strong> (" + Math.round(m / precio * 100) + "% del precio)";
+          g.classList.remove("d-none");
+        } else { g.classList.add("d-none"); }
+      }
+    }
+    form.addEventListener("input", actualizar);
+    form.addEventListener("change", actualizar);
+    actualizar();
+    // Enter en el código (lectora) no envía el formulario
+    var cod = document.getElementById("id_codigo");
+    if (cod) cod.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); });
+  })();
+</script>
+{% endblock %}

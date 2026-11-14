@@ -1,7 +1,10 @@
-"""Datos de ejemplo para probar el sistema: python manage.py datos_demo
+"""Datos de ejemplo para probar el sistema:
 
-Crea los datos del negocio y usuarios de prueba (clave demo1234). Cada app nueva
-puede agregar aquí sus propios datos de ejemplo (productos, ventas, clientes…).
+    python manage.py datos_demo                # bodega / tienda
+    python manage.py datos_demo --rubro ROP    # TIE, RES, ROP, LIB, PEL
+
+Crea los datos del negocio, usuarios de prueba (clave demo1234) y un catálogo de
+ejemplo según el rubro. Cada app nueva agrega aquí sus propios datos de ejemplo.
 """
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -22,15 +25,23 @@ USUARIOS = [
 
 
 class Command(BaseCommand):
-    help = "Carga datos de ejemplo (negocio y usuarios de prueba con clave demo1234)."
+    help = "Carga datos de ejemplo (negocio, usuarios de prueba con clave demo1234 y catálogo según el rubro)."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--rubro", default=Rubro.TIENDA, choices=Rubro.values,
+                            help="TIE tienda, RES restaurante, ROP ropa, LIB librería, PEL peluquería")
 
     @transaction.atomic
     def handle(self, *args, **opciones):
+        from productos.demo import NEGOCIOS, cargar_catalogo
+
+        rubro = opciones["rubro"]
+        nombre, lema = NEGOCIOS.get(rubro, ("Negocio Demo", ""))
         a = Ajustes.cargar()
-        a.rubro = Rubro.TIENDA
-        a.nombre = a.nombre or "Bazar Demo"
-        a.nombre_corto = a.nombre_corto or "Bazar Demo"
-        a.lema = a.lema or "Todo lo que necesitas, cerca de ti"
+        a.rubro = rubro
+        a.nombre = nombre
+        a.nombre_corto = nombre
+        a.lema = lema
         a.ruc = a.ruc or "20123456789"
         a.direccion = a.direccion or "Av. Principal 123"
         a.distrito = a.distrito or "Lima"
@@ -48,5 +59,6 @@ class Command(BaseCommand):
             u.save()
             if rol:
                 u.groups.add(Group.objects.get(name=rol))
+        n = cargar_catalogo(rubro, User.objects.get(username="admin"))
         self.stdout.write(self.style.SUCCESS(
-            f"Datos de ejemplo listos. Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))
+            f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos). Usuarios: {', '.join(x[0] for x in USUARIOS)} (clave {CLAVE})."))

@@ -1,0 +1,74 @@
+{% load sis %}
+{% if pagina.object_list %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th class="d-none d-md-table-cell">Categoría</th>
+        <th class="text-end">Precio</th>
+        <th class="text-end">Stock</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pagina.object_list %}
+      {% url 'productos:detalle' p.pk as url_p %}
+      <tr data-url="{{ url_p }}" onclick="location.href=this.dataset.url" style="cursor: pointer" class="{% if not p.activo %}text-body-secondary{% endif %}">
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            {% if p.imagen %}<img src="{{ p.imagen.url }}" alt="" width="40" height="40" class="rounded object-fit-cover flex-none border" loading="lazy">
+            {% else %}<span class="rounded bg-body-tertiary border d-grid flex-none text-body-tertiary" style="width:40px;height:40px;place-items:center"><i class="bi {% if p.es_servicio %}bi-scissors{% else %}bi-box{% endif %}"></i></span>{% endif %}
+            <div class="min-w-0">
+              <a href="{{ url_p }}" class="fw-semibold text-body text-decoration-none">{{ p.nombre }}</a>
+              {% if not p.activo %}<span class="badge text-bg-secondary ms-1">Inactivo</span>{% endif %}
+              <div class="small text-body-secondary">
+                {% if p.es_servicio %}<span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle me-1">Servicio</span>{% endif %}
+                {% if p.n_variantes %}{{ p.n_variantes }} variante{{ p.n_variantes|pluralize }}{% elif p.codigo %}<i class="bi bi-upc"></i> {{ p.codigo }}{% endif %}
+                {% if p.categoria %}<span class="d-md-none">{% if p.n_variantes or p.codigo or p.es_servicio %}· {% endif %}{{ p.categoria }}</span>{% endif %}
+              </div>
+            </div>
+          </div>
+        </td>
+        <td class="d-none d-md-table-cell">{{ p.categoria|default:"—" }}</td>
+        <td class="text-end text-nowrap">{% if p.precio_min == p.precio_max %}{{ p.precio_min|soles }}{% else %}<small class="text-body-secondary">desde</small> {{ p.precio_min|soles }}{% endif %}</td>
+        <td class="text-end text-nowrap">
+          {% if p.maneja_stock %}
+            <span class="{% if p.stock_suma <= 0 %}text-danger fw-semibold{% elif p.reponer %}text-warning-emphasis fw-semibold{% endif %}">{{ p.stock_suma|cantidad }}</span>
+            {% if p.reponer %}<i class="bi bi-exclamation-triangle-fill text-warning" title="Por reponer"></i>{% endif %}
+            <div class="small text-body-secondary">{{ p.get_unidad_display|lower }}</div>
+          {% else %}<span class="text-body-tertiary" title="No controla stock">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+  <span class="small text-body-secondary">{{ total }} producto{{ total|pluralize }}{% if pagina.paginator.num_pages > 1 %} · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}{% endif %}</span>
+  {% if pagina.paginator.num_pages > 1 %}
+  <div class="btn-group">
+    {% if pagina.has_previous %}
+    <a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}"
+       hx-get="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}" hx-target="#tabla" hx-push-url="true"><i class="bi bi-chevron-left"></i> Anterior</a>
+    {% endif %}
+    {% if pagina.has_next %}
+    <a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}"
+       hx-get="?{{ query.urlencode }}&page={{ pagina.next_page_number }}" hx-target="#tabla" hx-push-url="true">Siguiente <i class="bi bi-chevron-right"></i></a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="text-center py-5 px-3">
+  <i class="bi bi-box-seam display-5 text-body-secondary"></i>
+  {% if hay_productos %}
+    <p class="mt-2 text-body-secondary mb-0">No hay productos con esos filtros.</p>
+  {% else %}
+    <p class="mt-2 text-body-secondary">Aún no registras productos ni servicios.</p>
+    {% if P.productos_editar %}
+    <a href="{% url 'productos:nuevo' %}" class="btn btn-primary me-1"><i class="bi bi-plus-lg me-1"></i>Nuevo producto</a>
+    <a href="{% url 'productos:importar' %}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-arrow-up me-1"></i>Importar Excel</a>
+    {% endif %}
+  {% endif %}
+</div>
+{% endif %}

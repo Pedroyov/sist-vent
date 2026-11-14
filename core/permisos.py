@@ -22,12 +22,19 @@ ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR]
 #   ("productos", "Productos", "bi-box-seam", "Catálogo, precios, variantes (talla/color) y stock."),
 #   ("caja", "Caja", "bi-cash-stack", "Apertura, cierre, ingresos y egresos."),
 #   ("clientes", "Clientes", "bi-people", "Clientes, historial y deudas."),
-MODULOS = []
+MODULOS = [
+    ("productos", "Productos", "bi-box-seam", "Catálogo de productos y servicios, variantes (talla, color, tamaño), precios y stock."),
+]
 MODULOS_BASE = ("config",)
 
 # (código, módulo, descripción, roles que lo tienen por defecto)
 # Administración y el superusuario siempre tienen todos.
 PERMISOS = [
+    ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR]),
+    ("productos.editar", "productos", "Crear y editar productos, variantes, precios y categorías; importar Excel", []),
+    ("productos.stock", "productos", "Registrar ingresos, salidas y conteos de stock; ver movimientos", []),
+    ("productos.costos", "productos", "Ver costos y ganancia", []),
+
     ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
     ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),
 ]

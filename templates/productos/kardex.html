@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Movimientos de stock{% endblock %}
+{% block page_title %}Movimientos de stock{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">Movimientos</li>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+  <div class="card-header">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" for="q">Producto, código o comprobante</label>
+        <input type="search" name="q" id="q" value="{{ f.q }}" class="form-control" autocomplete="off">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1" for="tipo">Movimiento</label>
+        <select name="tipo" id="tipo" class="form-select">
+          <option value="">Todos</option>
+          {% for v, t in tipos %}<option value="{{ v }}" {% if f.tipo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="desde">Desde</label><input type="date" name="desde" id="desde" value="{{ f.desde }}" class="form-control"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-1" for="hasta">Hasta</label><input type="date" name="hasta" id="hasta" value="{{ f.hasta }}" class="form-control"></div>
+      <div class="col-6 col-md-2 d-flex gap-1">
+        <button class="btn btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Filtrar</button>
+        <button class="btn btn-outline-success" name="excel" value="1" title="Exportar a Excel"><i class="bi bi-file-earmark-excel"></i></button>
+      </div>
+    </form>
+  </div>
+  {% if pagina.object_list %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead><tr>
+        <th class="ps-3">Fecha</th><th>Producto</th><th>Movimiento</th><th class="text-end">Cant.</th><th class="text-end">Saldo</th>
+        <th class="d-none d-lg-table-cell">Usuario</th>
+      </tr></thead>
+      <tbody>
+        {% for m in pagina.object_list %}
+        <tr>
+          <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m/Y" }}<div class="text-body-secondary">{{ m.fecha|date:"H:i" }}</div></td>
+          <td><a href="{% url 'productos:detalle' m.variante.producto_id %}" class="text-body">{{ m.variante.producto.nombre }}</a>
+            {% if m.variante.nombre %}<div class="small text-body-secondary">{{ m.variante.nombre }}</div>{% endif %}</td>
+          <td>{{ m.get_tipo_display }}{% if m.referencia or m.nota %}<div class="small text-body-secondary">{{ m.referencia }}{% if m.referencia and m.nota %} · {% endif %}{{ m.nota }}</div>{% endif %}</td>
+          <td class="text-end fw-semibold {% if m.entra %}text-success{% else %}text-danger{% endif %}">{% if m.entra %}+{% endif %}{{ m.cantidad|cantidad }}</td>
+          <td class="text-end">{{ m.saldo|cantidad }}</td>
+          <td class="d-none d-lg-table-cell small">{{ m.usuario|nombre }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagina.paginator.num_pages > 1 %}
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <span class="small text-body-secondary">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    <div class="btn-group">
+      {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}"><i class="bi bi-chevron-left"></i> Anterior</a>{% endif %}
+      {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}">Siguiente <i class="bi bi-chevron-right"></i></a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="card-body text-center text-body-secondary py-5"><i class="bi bi-arrow-left-right display-6"></i><p class="mt-2 mb-0">No hay movimientos{% if f.q or f.tipo or f.desde or f.hasta %} con esos filtros{% endif %}.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

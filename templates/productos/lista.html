@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Productos{% endblock %}
+{% block page_title %}Productos{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Productos</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.productos_editar %}
+  <a href="{% url 'productos:nuevo' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nuevo producto</a>
+  <a href="{% url 'productos:importar' %}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-arrow-up me-1"></i>Importar Excel</a>
+  {% endif %}
+  <a href="{% url 'productos:exportar' %}?{{ query.urlencode }}" id="btn-exportar" class="btn btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
+</div>
+
+{% if n_reponer and f.estado != "reponer" %}
+<a href="?estado=reponer" class="alert alert-warning d-flex align-items-center gap-2 py-2 text-decoration-none">
+  <i class="bi bi-exclamation-triangle"></i>
+  <span><strong>{{ n_reponer }}</strong> producto{{ n_reponer|pluralize }} por reponer (en su stock mínimo o sin stock).</span>
+  <span class="ms-auto small">Ver <i class="bi bi-chevron-right"></i></span>
+</a>
+{% endif %}
+
+<div class="card mb-4">
+  <div class="card-header">
+    <form id="filtros" class="row g-2 align-items-center" onsubmit="return false"
+          hx-get="{% url 'productos:lista' %}" hx-target="#tabla" hx-push-url="true"
+          hx-trigger="input changed delay:300ms from:#q, change from:select">
+      <div class="col-12 col-md-5">
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+          <input type="search" name="q" id="q" value="{{ f.q }}" class="form-control" placeholder="Buscar por nombre o escanear código" autocomplete="off" autofocus>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <select name="cat" class="form-select" aria-label="Categoría">
+          <option value="">Todas las categorías</option>
+          {% for c in categorias %}<option value="{{ c.pk }}" {% if f.cat == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}
+          <option value="sin" {% if f.cat == "sin" %}selected{% endif %}>Sin categoría</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <select name="tipo" class="form-select" aria-label="Tipo">
+          <option value="">Productos y servicios</option>
+          <option value="P" {% if f.tipo == "P" %}selected{% endif %}>Solo productos</option>
+          <option value="S" {% if f.tipo == "S" %}selected{% endif %}>Solo servicios</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <select name="estado" class="form-select" aria-label="Estado">
+          <option value="activos" {% if f.estado == "activos" %}selected{% endif %}>Activos</option>
+          <option value="reponer" {% if f.estado == "reponer" %}selected{% endif %}>Por reponer</option>
+          <option value="inactivos" {% if f.estado == "inactivos" %}selected{% endif %}>Inactivos</option>
+          <option value="todos" {% if f.estado == "todos" %}selected{% endif %}>Todos</option>
+        </select>
+      </div>
+    </form>
+  </div>
+  <div id="tabla">
+    {% include "productos/partials/tabla.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Mantiene "Exportar" con los mismos filtros que la lista
+  document.body.addEventListener("htmx:afterSwap", function () {
+    var params = new URLSearchParams(new FormData(document.getElementById("filtros")));
+    document.getElementById("btn-exportar").href = "{% url 'productos:exportar' %}?" + params.toString();
+  });
+  // Lectora de código de barras: escribe el código y da Enter. Si hay un solo resultado, abre el producto.
+  document.getElementById("q").addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    htmx.trigger("#filtros", "input");
+    htmx.on("htmx:afterSwap", function abrir() {
+      htmx.off("htmx:afterSwap", abrir);
+      var filas = document.querySelectorAll("#tabla [data-url]");
+      if (filas.length === 1) location.href = filas[0].dataset.url;
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Categorías{% endblock %}
+{% block page_title %}Categorías{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">Categorías</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      {% if categorias %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Categoría</th><th class="text-end">Productos</th><th class="text-end d-none d-sm-table-cell">Orden</th><th></th></tr></thead>
+          <tbody>
+            {% for c in categorias %}
+            <tr class="{% if not c.activa %}text-body-secondary{% endif %}">
+              <td class="ps-3 fw-semibold">{{ c.nombre }}{% if not c.activa %} <span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
+              <td class="text-end"><a href="{% url 'productos:lista' %}?cat={{ c.pk }}">{{ c.n }}</a></td>
+              <td class="text-end d-none d-sm-table-cell">{{ c.orden }}</td>
+              <td class="text-end text-nowrap">
+                <a href="{% url 'productos:categoria_editar' c.pk %}" class="btn btn-sm btn-link px-1" title="Editar"><i class="bi bi-pencil"></i></a>
+                <button type="button" class="btn btn-sm btn-link px-1 text-danger" title="Eliminar" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                        data-url="{% url 'productos:categoria_eliminar' c.pk %}" data-mensaje="¿Eliminar la categoría «{{ c.nombre }}»?{% if c.n %} Sus productos quedarán sin categoría (no se borran).{% endif %}"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-body-secondary py-4">Aún no hay categorías.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-plus-lg me-1"></i> Nueva categoría</h3></div>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card-body">{{ form|crispy }}</div>
+        <div class="card-footer text-end"><button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Crear</button></div>
+      </form>
+    </div>
+
+    {% if sugeridas %}
+    <div class="card mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-lightbulb me-1"></i> Sugeridas para {{ NEGOCIO.get_rubro_display|lower }}</h3></div>
+      <form method="post" action="{% url 'productos:categorias_sugeridas' %}">
+        {% csrf_token %}
+        <div class="card-body">
+          {% for n in sugeridas %}
+          <div class="form-check"><input class="form-check-input" type="checkbox" name="nombre" value="{{ n }}" id="sug-{{ forloop.counter }}" checked>
+            <label class="form-check-label" for="sug-{{ forloop.counter }}">{{ n }}</label></div>
+          {% endfor %}
+          <p class="small text-body-secondary mt-2 mb-0">El rubro se cambia en <a href="{% url 'core:datos_negocio' %}">Datos del negocio</a>.</p>
+        </div>
+        <div class="card-footer text-end"><button class="btn btn-outline-primary"><i class="bi bi-magic me-1"></i>Crear las marcadas</button></div>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

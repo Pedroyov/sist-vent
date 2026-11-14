@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load sis crispy_forms_tags %}
+
+{% block title %}{{ p.nombre }}{% endblock %}
+{% block page_title %}{{ p.nombre }}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">{{ p.nombre|truncatechars:30 }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.productos_stock and p.maneja_stock %}
+  <a href="{% url 'productos:movimiento' p.pk %}?op=ING" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Ingreso</a>
+  <a href="{% url 'productos:movimiento' p.pk %}?op=SAL" class="btn btn-outline-danger"><i class="bi bi-box-arrow-up me-1"></i>Salida</a>
+  <a href="{% url 'productos:movimiento' p.pk %}?op=AJU" class="btn btn-outline-secondary"><i class="bi bi-clipboard-check me-1"></i>Conteo</a>
+  {% endif %}
+  {% if P.productos_editar %}
+  <a href="{% url 'productos:editar' p.pk %}" class="btn btn-outline-primary ms-sm-auto"><i class="bi bi-pencil me-1"></i>Editar</a>
+  <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+          data-url="{% url 'productos:eliminar' p.pk %}" data-mensaje="¿Eliminar «{{ p.nombre }}»? Si ya tiene movimientos no se podrá: en ese caso desactívalo."><i class="bi bi-trash"></i></button>
+  {% endif %}
+</div>
+
+<div class="row">
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      {% if p.imagen %}<img src="{{ p.imagen.url }}" alt="" class="card-img-top object-fit-contain bg-body-tertiary" style="max-height: 240px">{% endif %}
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Tipo</span><span class="ms-auto">{{ p.get_tipo_display }}{% if not p.activo %} <span class="badge text-bg-secondary">Inactivo</span>{% endif %}</span></li>
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Categoría</span><span class="ms-auto">{{ p.categoria|default:"—" }}</span></li>
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Precio</span><span class="ms-auto fw-bold fs-5">{{ p.precio|soles }}</span></li>
+        {% if ver_costos and p.costo is not None %}
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Costo</span><span class="ms-auto">{{ p.costo|soles }}
+          {% if p.margen is not None %}<small class="{% if p.margen < 0 %}text-danger{% else %}text-success{% endif %}">({{ p.margen|floatformat:0 }}% ganancia)</small>{% endif %}</span></li>
+        {% endif %}
+        {% if p.es_servicio %}
+          {% if p.duracion_min %}<li class="list-group-item d-flex"><span class="text-body-secondary">Duración</span><span class="ms-auto">{{ p.duracion_min }} min</span></li>{% endif %}
+        {% else %}
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Unidad</span><span class="ms-auto">{{ p.get_unidad_display }}</span></li>
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Stock</span>
+          <span class="ms-auto">{% if p.maneja_stock %}<strong class="fs-5 {% if p.stock_total <= p.stock_minimo %}text-danger{% endif %}">{{ p.stock_total|cantidad }}</strong>
+            <small class="text-body-secondary">(mínimo {{ p.stock_minimo|cantidad }})</small>{% else %}<span class="text-body-secondary">No se controla</span>{% endif %}</span></li>
+        {% endif %}
+        {% if not con_variantes and variantes.0.codigo %}
+        <li class="list-group-item d-flex"><span class="text-body-secondary">Código</span><span class="ms-auto font-monospace">{{ variantes.0.codigo }}</span></li>
+        {% endif %}
+      </ul>
+      {% if p.descripcion %}<div class="card-body small border-top">{{ p.descripcion|linebreaksbr }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    {# ---------- Variantes ---------- #}
+    <div class="card mb-4" id="variantes">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-grid-3x3-gap me-1"></i> Variantes <small class="text-body-secondary">({{ etiqueta_variantes|lower }})</small></h3>
+        {% if P.productos_editar %}<button class="btn btn-sm btn-outline-primary ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#generar"><i class="bi bi-plus-lg me-1"></i>Agregar</button>{% endif %}
+      </div>
+      {% if P.productos_editar %}
+      <div class="collapse {% if not con_variantes and request.GET.variantes %}show{% endif %}" id="generar">
+        <form method="post" action="{% url 'productos:variantes_generar' p.pk %}" class="card-body border-bottom bg-body-tertiary">
+          {% csrf_token %}
+          <div class="row">
+            <div class="col-md-6">{{ form_generar.opciones1|as_crispy_field }}</div>
+            <div class="col-md-6">{{ form_generar.opciones2|as_crispy_field }}</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="small text-body-secondary">Se crea una variante por cada combinación. Luego puedes ponerles código y precio.</span>
+            <button class="btn btn-primary btn-sm ms-auto"><i class="bi bi-magic me-1"></i>Crear variantes</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+      {% if con_variantes %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead><tr>
+            <th class="ps-3">Variante</th><th class="d-none d-sm-table-cell">Código</th><th class="text-end">Precio</th>
+            {% if p.maneja_stock %}<th class="text-end">Stock</th>{% endif %}<th></th>
+          </tr></thead>
+          <tbody>
+            {% for v in variantes %}
+            <tr>
+              <td class="ps-3 fw-semibold">{{ v.nombre }}<div class="small text-body-secondary font-monospace d-sm-none">{{ v.codigo }}</div></td>
+              <td class="d-none d-sm-table-cell font-monospace small">{{ v.codigo|default:"—" }}</td>
+              <td class="text-end text-nowrap">{{ v.precio_venta|soles }}{% if v.precio is not None %} <i class="bi bi-tag-fill text-primary small" title="Precio propio de esta variante"></i>{% endif %}</td>
+              {% if p.maneja_stock %}<td class="text-end {% if v.por_reponer %}text-danger fw-semibold{% endif %}">{{ v.stock|cantidad }}</td>{% endif %}
+              <td class="text-end text-nowrap">
+                {% if P.productos_stock and p.maneja_stock %}<a href="{% url 'productos:movimiento' p.pk %}?variante={{ v.pk }}" class="btn btn-sm btn-link px-1" title="Ingreso / conteo"><i class="bi bi-box-arrow-in-down"></i></a>{% endif %}
+                {% if P.productos_editar %}
+                <a href="{% url 'productos:variante_editar' v.pk %}" class="btn btn-sm btn-link px-1" title="Editar"><i class="bi bi-pencil"></i></a>
+                <button type="button" class="btn btn-sm btn-link px-1 text-danger" title="Quitar" data-bs-toggle="modal" data-bs-target="#modalEliminar"
+                        data-url="{% url 'productos:variante_eliminar' v.pk %}" data-mensaje="¿Quitar la variante «{{ v.nombre }}»?{% if v.n_mov %} Tiene historial, así que solo se desactivará.{% endif %}"><i class="bi bi-x-lg"></i></button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body small text-body-secondary">Este producto no tiene variantes: se vende {% if p.maneja_stock %}y se cuenta {% endif %}como uno solo.
+        {% if P.productos_editar %}Si tiene {{ etiqueta_variantes|lower }}, pulsa <strong>Agregar</strong>.{% endif %}</div>
+      {% endif %}
+    </div>
+
+    {# ---------- Movimientos ---------- #}
+    {% if p.maneja_stock or movimientos %}
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-arrow-left-right me-1"></i> Últimos movimientos</h3>
+        {% if P.productos_stock and movimientos %}<a href="{% url 'productos:kardex' %}?q={{ p.nombre|urlencode }}" class="ms-auto small">Ver todos</a>{% endif %}
+      </div>
+      {% if movimientos %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th class="ps-3">Fecha</th><th>Movimiento</th>{% if con_variantes %}<th>Variante</th>{% endif %}<th class="text-end">Cant.</th><th class="text-end pe-3">Saldo</th></tr></thead>
+          <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+              <td>{{ m.get_tipo_display }}{% if m.referencia or m.nota %}<div class="small text-body-secondary">{{ m.referencia }}{% if m.referencia and m.nota %} · {% endif %}{{ m.nota }}</div>{% endif %}</td>
+              {% if con_variantes %}<td class="small">{{ m.variante.nombre|default:"—" }}</td>{% endif %}
+              <td class="text-end fw-semibold {% if m.entra %}text-success{% else %}text-danger{% endif %}">{% if m.entra %}+{% endif %}{{ m.cantidad|cantidad }}</td>
+              <td class="text-end pe-3">{{ m.saldo|cantidad }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body small text-body-secondary">Todavía no hay movimientos.</div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% include "partials/modal_eliminar.html" %}
+{% endblock %}

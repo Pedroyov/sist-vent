@@ -19,7 +19,36 @@
           </a>
         </li>
 
-        {# ---------- Módulos del negocio (ventas, productos, caja…) van aquí ---------- #}
+        {# ---------- Módulos del negocio ---------- #}
+        {% if P.productos_ver %}
+        <li class="nav-item {% if ns == 'productos' %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if ns == 'productos' %}active{% endif %}">
+            <i class="nav-icon bi bi-box-seam"></i>
+            <p>Productos <i class="nav-arrow bi bi-chevron-right"></i></p>
+          </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a href="{% url 'productos:lista' %}" class="nav-link {% if ns == 'productos' and url != 'kardex' and url != 'categorias' and url != 'categoria_editar' %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Catálogo</p>
+              </a>
+            </li>
+            {% if P.productos_stock %}
+            <li class="nav-item">
+              <a href="{% url 'productos:kardex' %}" class="nav-link {% if ns == 'productos' and url == 'kardex' %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Movimientos de stock</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if P.productos_editar %}
+            <li class="nav-item">
+              <a href="{% url 'productos:categorias' %}" class="nav-link {% if ns == 'productos' and 'categoria' in url %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Categorías</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+        {% endif %}
 
         {% if P.config_negocio or P.config_usuarios or P.acceso_total %}
         <li class="nav-header">CONFIGURACIÓN</li>

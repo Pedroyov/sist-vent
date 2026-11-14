@@ -1,0 +1,406 @@
+from decimal import Decimal
+
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import Count, F, Prefetch, Q, Sum
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import content_disposition_header
+from django.views.decorators.http import require_POST
+
+from core.permisos import permiso_requerido, puede
+from core.utils import entero
+
+from . import excel
+from .forms import CategoriaForm, GenerarVariantesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
+from .models import CERO, Categoria, MovimientoStock, Producto, Variante
+from .rubros import CATEGORIAS, etiquetas_variantes, rubro_actual, valores_iniciales
+from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, mover_stock
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _excel(contenido, nombre):
+    resp = HttpResponse(contenido, content_type=XLSX)
+    resp["Content-Disposition"] = content_disposition_header(True, f"{nombre}_{timezone.localdate():%Y%m%d}.xlsx")
+    return resp
+
+
+def _form(request, form, titulo, cancelar, breadcrumb, **extra):
+    return render(request, "core/form.html", {"form": form, "titulo": titulo, "cancelar": cancelar,
+                                              "breadcrumb": breadcrumb, **extra})
+
+
+def por_reponer():
+    """Variantes con stock en el mínimo o debajo (solo productos activos que controlan stock)."""
+    return Variante.objects.filter(activa=True, producto__activo=True, producto__maneja_stock=True,
+                                   stock__lte=F("producto__stock_minimo"))
+
+
+# --- Lista ---------------------------------------------------------------------
+
+def _filtrar(request):
+    q = request.GET.get("q", "").strip()
+    cat = request.GET.get("cat", "")
+    estado = request.GET.get("estado", "activos")
+    tipo = request.GET.get("tipo", "")
+    productos = Producto.objects.select_related("categoria").prefetch_related(
+        Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"))
+    for palabra in q.split():
+        productos = productos.filter(Q(nombre__icontains=palabra) | Q(variantes__codigo__iexact=palabra)
+                                     | Q(variantes__nombre__icontains=palabra) | Q(categoria__nombre__icontains=palabra))
+    if cat == "sin":
+        productos = productos.filter(categoria__isnull=True)
+    elif entero(cat):
+        productos = productos.filter(categoria_id=entero(cat))
+    if tipo in ("P", "S"):
+        productos = productos.filter(tipo=tipo)
+    if estado == "inactivos":
+        productos = productos.filter(activo=False)
+    elif estado == "reponer":
+        productos = productos.filter(pk__in=por_reponer().values("producto_id"))
+    elif estado != "todos":
+        productos = productos.filter(activo=True)
+    filtros = {"q": q, "cat": cat, "estado": estado, "tipo": tipo}
+    return productos.distinct().order_by("nombre"), filtros
+
+
+def _resumir(productos):
+    for p in productos:
+        nombradas = [v for v in p.vars if v.nombre]
+        p.n_variantes = len(nombradas)
+        p.stock_suma = sum((v.stock for v in p.vars), CERO)
+        p.reponer = p.maneja_stock and any(v.stock <= p.stock_minimo for v in p.vars)
+        precios = {v.precio_venta for v in p.vars} or {p.precio}
+        p.precio_min, p.precio_max = min(precios), max(precios)
+        p.codigo = p.vars[0].codigo if len(p.vars) == 1 else ""
+    return productos
+
+
+@permiso_requerido("productos.ver")
+def lista(request):
+    productos, filtros = _filtrar(request)
+    pagina = Paginator(productos, 30).get_page(request.GET.get("page"))
+    _resumir(pagina.object_list)
+    query = request.GET.copy()
+    query.pop("page", None)
+    contexto = {"pagina": pagina, "f": filtros, "query": query, "total": pagina.paginator.count,
+                "hay_productos": Producto.objects.exists()}
+    if request.htmx and not request.htmx.boosted:
+        return render(request, "productos/partials/tabla.html", contexto)
+    contexto["categorias"] = Categoria.objects.all()
+    contexto["n_reponer"] = por_reponer().values("producto_id").distinct().count()
+    return render(request, "productos/lista.html", contexto)
+
+
+@permiso_requerido("productos.ver")
+def exportar(request):
+    productos, _ = _filtrar(request)
+    variantes = (Variante.objects.filter(producto__in=productos, activa=True)
+                 .select_related("producto__categoria").order_by("producto__nombre", "orden", "id"))
+    return _excel(excel.exportar(variantes, puede(request.user, "productos.costos")), "productos")
+
+
+# --- Crear / editar ----------------------------------------------------------------
+
+@permiso_requerido("productos.editar")
+def producto_form(request, pk=None):
+    producto = get_object_or_404(Producto, pk=pk) if pk else None
+    inicial = {} if producto else valores_iniciales()
+    if not producto and entero(request.GET.get("cat")):
+        inicial["categoria"] = entero(request.GET.get("cat"))
+    imagen_antes = producto.imagen.name if producto and producto.imagen else ""
+    form = ProductoForm(request.POST or None, request.FILES or None, instance=producto, initial=inicial)
+    if not puede(request.user, "productos.costos"):
+        del form.fields["costo"]
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            p = form.save()
+            if not form.con_variantes:
+                v = asegurar_variante_unica(p)
+                if "codigo" in form.cleaned_data and v.codigo != form.cleaned_data["codigo"]:
+                    v.codigo = form.cleaned_data["codigo"]
+                    v.save(update_fields=["codigo"])
+                stock = form.cleaned_data.get("stock_inicial")
+                if stock:
+                    mover_stock(v, stock, MovimientoStock.Tipo.INICIAL, request.user, "Al crear el producto",
+                                costo_unitario=p.costo)
+        if p.imagen and p.imagen.name != imagen_antes:
+            try:
+                p.procesar_imagen()
+            except Exception:
+                p.imagen = imagen_antes or None
+                p.save(update_fields=["imagen"])
+                messages.warning(request, "No se pudo procesar la imagen; prueba con otra foto (JPG o PNG).")
+        messages.success(request, f"«{p.nombre}» guardado.")
+        if "otro" in request.POST:
+            url = reverse("productos:nuevo")
+            return redirect(f"{url}?cat={p.categoria_id}" if p.categoria_id else url)
+        return redirect("productos:detalle", pk=p.pk)
+    return render(request, "productos/form.html", {"form": form, "producto": producto})
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def producto_eliminar(request, pk):
+    producto = get_object_or_404(Producto, pk=pk)
+    usado = MovimientoStock.objects.filter(variante__producto=producto).exclude(tipo=MovimientoStock.Tipo.INICIAL).exists()
+    if usado:
+        messages.error(request, f"«{producto.nombre}» ya tiene movimientos de stock o ventas. Desactívalo en vez de borrarlo.")
+        return redirect("productos:detalle", pk=pk)
+    with transaction.atomic():
+        MovimientoStock.objects.filter(variante__producto=producto).delete()
+        producto.delete()
+    messages.success(request, f"«{producto.nombre}» eliminado.")
+    return redirect("productos:lista")
+
+
+# --- Detalle y variantes ------------------------------------------------------------
+
+@permiso_requerido("productos.ver")
+def detalle(request, pk):
+    producto = get_object_or_404(Producto.objects.select_related("categoria"), pk=pk)
+    variantes = list(producto.variantes.filter(activa=True).annotate(n_mov=Count("movimientos")))
+    movimientos = (MovimientoStock.objects.filter(variante__producto=producto)
+                   .select_related("variante", "usuario")[:15])
+    e1, _, e2, _ = etiquetas_variantes()
+    return render(request, "productos/detalle.html", {
+        "p": producto,
+        "variantes": variantes,
+        "con_variantes": any(v.nombre for v in variantes),
+        "movimientos": movimientos,
+        "form_generar": GenerarVariantesForm(),
+        "etiqueta_variantes": f"{e1} y {e2.lower()}" if e2 else e1,
+        "ver_costos": puede(request.user, "productos.costos"),
+    })
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def variantes_generar(request, pk):
+    producto = get_object_or_404(Producto, pk=pk)
+    form = GenerarVariantesForm(request.POST)
+    if form.is_valid():
+        try:
+            creadas, existian = generar_variantes(producto, form.cleaned_data["opciones1"], form.cleaned_data["opciones2"])
+        except ValueError as e:
+            messages.error(request, str(e))
+        else:
+            msg = f"Se crearon {creadas} variante{'s' if creadas != 1 else ''}."
+            if existian:
+                msg += f" {existian} ya existían."
+            messages.success(request, msg + " Ponles código o un precio distinto si hace falta.")
+    else:
+        messages.error(request, "Escribe al menos una opción.")
+    return redirect(reverse("productos:detalle", args=[pk]) + "#variantes")
+
+
+@permiso_requerido("productos.editar")
+def variante_editar(request, pk):
+    v = get_object_or_404(Variante.objects.select_related("producto"), pk=pk)
+    form = VarianteForm(request.POST or None, instance=v, ver_costos=puede(request.user, "productos.costos"))
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Variante «{v.nombre}» guardada.")
+        return redirect(reverse("productos:detalle", args=[v.producto_id]) + "#variantes")
+    url = reverse("productos:detalle", args=[v.producto_id])
+    return _form(request, form, f"Variante {v.nombre}", url,
+                 [("Productos", reverse("productos:lista")), (v.producto.nombre, url)],
+                 subtitulo=v.producto.nombre, ayuda=f"Precio del producto: S/ {v.producto.precio}. Déjalo vacío para usar ese.")
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def variante_eliminar(request, pk):
+    v = get_object_or_404(Variante.objects.select_related("producto"), pk=pk)
+    producto = v.producto
+    if v.stock != CERO:
+        messages.error(request, f"«{v.nombre}» todavía tiene stock ({v.stock.normalize():f}). Ajústalo a 0 primero.")
+    elif v.movimientos.exists():
+        v.activa = False
+        v.save(update_fields=["activa"])
+        messages.success(request, f"«{v.nombre}» tiene historial: se desactivó en vez de borrarse.")
+    else:
+        v.delete()
+        messages.success(request, f"Variante «{v.nombre}» eliminada.")
+    if not producto.variantes.filter(activa=True).exists():
+        asegurar_variante_unica(producto)
+        messages.info(request, "El producto quedó sin variantes: ahora se vende y se cuenta como uno solo.")
+    return redirect(reverse("productos:detalle", args=[producto.pk]) + "#variantes")
+
+
+# --- Stock ---------------------------------------------------------------------------
+
+@permiso_requerido("productos.stock")
+def movimiento(request, pk):
+    producto = get_object_or_404(Producto, pk=pk)
+    if not producto.maneja_stock:
+        messages.info(request, f"«{producto.nombre}» no controla stock. Actívalo en Editar si lo necesitas.")
+        return redirect("productos:detalle", pk=pk)
+    ver_costos = puede(request.user, "productos.costos")
+    inicial = {"operacion": request.GET.get("op", "ING")}
+    if entero(request.GET.get("variante")):
+        inicial["variante"] = entero(request.GET.get("variante"))
+    form = MovimientoForm(request.POST or None, producto=producto, ver_costos=ver_costos, initial=inicial)
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        v, op = d["variante"], d["operacion"]
+        if op == "AJU":
+            mov = ajustar_a(v, d["cantidad"], request.user, d["nota"] or "Conteo de inventario")
+        else:
+            cantidad = d["cantidad"] if op == "ING" else -d["cantidad"]
+            mov = mover_stock(v, cantidad, op, request.user, d["nota"], d.get("costo_unitario") if op == "ING" else None,
+                              d["referencia"])
+        if mov is None:
+            messages.info(request, "El stock ya era ese; no se registró nada.")
+        else:
+            messages.success(request, f"{mov.get_tipo_display()} registrado. Stock de {v.nombre or producto.nombre}: {v.stock.normalize():f}.")
+        if "otro" in request.POST:
+            return redirect(reverse("productos:movimiento", args=[pk]) + f"?op={op}")
+        return redirect("productos:detalle", pk=pk)
+    return render(request, "productos/movimiento.html", {"form": form, "p": producto})
+
+
+@permiso_requerido("productos.stock")
+def kardex(request):
+    movs = MovimientoStock.objects.select_related("variante__producto", "usuario")
+    q = request.GET.get("q", "").strip()
+    tipo = request.GET.get("tipo", "")
+    desde, hasta = request.GET.get("desde", ""), request.GET.get("hasta", "")
+    for palabra in q.split():
+        movs = movs.filter(Q(variante__producto__nombre__icontains=palabra) | Q(variante__nombre__icontains=palabra)
+                           | Q(variante__codigo__iexact=palabra) | Q(referencia__icontains=palabra))
+    if tipo in MovimientoStock.Tipo.values:
+        movs = movs.filter(tipo=tipo)
+    try:
+        if desde:
+            movs = movs.filter(fecha__date__gte=desde)
+        if hasta:
+            movs = movs.filter(fecha__date__lte=hasta)
+    except Exception:
+        desde = hasta = ""
+    if request.GET.get("excel"):
+        return _excel(_kardex_excel(movs[:20000]), "movimientos_stock")
+    pagina = Paginator(movs, 40).get_page(request.GET.get("page"))
+    query = request.GET.copy()
+    query.pop("page", None)
+    return render(request, "productos/kardex.html", {
+        "pagina": pagina, "query": query, "tipos": MovimientoStock.Tipo.choices,
+        "f": {"q": q, "tipo": tipo, "desde": desde, "hasta": hasta},
+    })
+
+
+def _kardex_excel(movs):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    from core.excel import a_bytes
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Movimientos"
+    ws.append(["Fecha", "Producto", "Variante", "Código", "Movimiento", "Cantidad", "Saldo", "Costo unit.", "Referencia", "Nota", "Usuario"])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    for m in movs:
+        ws.append([timezone.localtime(m.fecha).strftime("%d/%m/%Y %H:%M"), m.variante.producto.nombre, m.variante.nombre,
+                   m.variante.codigo, m.get_tipo_display(), float(m.cantidad), float(m.saldo),
+                   float(m.costo_unitario) if m.costo_unitario is not None else None, m.referencia, m.nota,
+                   (m.usuario.get_full_name() or m.usuario.username) if m.usuario else ""])
+    return a_bytes(wb)
+
+
+# --- Categorías ------------------------------------------------------------------------
+
+@permiso_requerido("productos.editar")
+def categorias(request):
+    form = CategoriaForm(request.POST or None, initial={"orden": (Categoria.objects.count() + 1) * 10})
+    if request.method == "POST" and form.is_valid():
+        c = form.save()
+        messages.success(request, f"Categoría «{c.nombre}» creada.")
+        return redirect("productos:categorias")
+    lista = Categoria.objects.annotate(n=Count("productos", filter=Q(productos__activo=True)))
+    rubro = rubro_actual()
+    sugeridas = [n for n in CATEGORIAS.get(rubro, []) if not Categoria.objects.filter(nombre__iexact=n).exists()]
+    return render(request, "productos/categorias.html", {"form": form, "categorias": lista, "sugeridas": sugeridas})
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def categorias_sugeridas(request):
+    nombres = [n for n in request.POST.getlist("nombre") if n in CATEGORIAS.get(rubro_actual(), [])]
+    orden = (Categoria.objects.count() + 1) * 10
+    creadas = 0
+    for n in nombres:
+        _, nueva = Categoria.objects.get_or_create(nombre=n, defaults={"orden": orden})
+        orden += 10
+        creadas += nueva
+    messages.success(request, f"Se crearon {creadas} categorías.")
+    return redirect("productos:categorias")
+
+
+@permiso_requerido("productos.editar")
+def categoria_editar(request, pk):
+    c = get_object_or_404(Categoria, pk=pk)
+    form = CategoriaForm(request.POST or None, instance=c)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Categoría guardada.")
+        return redirect("productos:categorias")
+    return _form(request, form, f"Categoría {c.nombre}", reverse("productos:categorias"),
+                 [("Productos", reverse("productos:lista")), ("Categorías", reverse("productos:categorias"))])
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def categoria_eliminar(request, pk):
+    c = get_object_or_404(Categoria, pk=pk)
+    n = c.productos.count()
+    c.delete()
+    messages.success(request, f"Categoría «{c.nombre}» eliminada." + (f" {n} producto(s) quedaron sin categoría." if n else ""))
+    return redirect("productos:categorias")
+
+
+# --- Importar ---------------------------------------------------------------------------
+
+SESION_IMPORTAR = "productos_importar"
+
+
+@permiso_requerido("productos.editar")
+def plantilla(request):
+    return _excel(excel.plantilla(), "plantilla_productos")
+
+
+@permiso_requerido("productos.editar")
+def importar(request):
+    if request.method == "POST" and "confirmar" in request.POST:
+        filas = request.session.pop(SESION_IMPORTAR, None)
+        if not filas:
+            messages.error(request, "La revisión expiró. Vuelve a subir el archivo.")
+            return redirect("productos:importar")
+        if not puede(request.user, "productos.stock"):
+            for f in filas:
+                f["stock"] = None
+        try:
+            creados, actualizados = excel.importar(filas, request.user)
+        except ValueError as e:
+            messages.error(request, f"No se importó nada: {e}")
+            return redirect("productos:importar")
+        messages.success(request, f"Importación lista: {creados} nuevos y {actualizados} actualizados.")
+        return redirect("productos:lista")
+
+    form = ImportarForm(request.POST or None, request.FILES or None)
+    contexto = {"form": form}
+    if request.method == "POST" and form.is_valid():
+        filas, errores = excel.leer(form.cleaned_data["archivo"])
+        con_error = [f for f in filas if f["errores"]]
+        contexto.update({"filas": filas, "errores": errores, "con_error": con_error})
+        if filas and not errores and not con_error:
+            request.session[SESION_IMPORTAR] = filas
+            contexto.update({"listo": True, "nuevos": sum(f["accion"] == "nuevo" for f in filas),
+                             "actualizar": sum(f["accion"] == "actualizar" for f in filas),
+                             "sin_permiso_stock": not puede(request.user, "productos.stock")})
+    return render(request, "productos/importar.html", contexto)
