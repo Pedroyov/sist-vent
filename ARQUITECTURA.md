@@ -23,10 +23,23 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | `caja/` | Turnos de caja: apertura, ingresos y egresos, cierre con arqueo por billetes, historial |
 | `mesas/` | Restaurantes: zonas y mesas, cuentas abiertas, pedidos con notas, envío a cocina, precuenta, comanda, cambiar y juntar mesas, cobro total o dividido |
 | `clientes/` | Clientes (DNI/RUC validados), ventas al fiado con límite, pagos de deudas, estado de cuenta, recordatorio por WhatsApp |
+| `facturacion/` | Boletas, facturas y notas de crédito electrónicas: configuración, series, cálculo de IGV, conectores con el proveedor (Prueba y Nubefact), reenvío de pendientes |
 | `reportes/` | Reportes sin tablas propias: resumen con comparación, por día/hora/semana, productos, categorías, personal, mesas, inventario, deudores y control; Excel |
 | `templates/` | `base.html`, `partials/` (sidebar, navbar, mensajes, modal eliminar), `registration/` (login) y `core/` |
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
+
+## Facturación electrónica
+
+- **Módulo `facturacion`** (empieza apagado). Configuración en Configuración → Facturación (`facturacion.configurar`): proveedor, ruta y token, IGV (18 por defecto, editable), si los precios son gravados/exonerados/inafectos, series (B001, F001, BC01, FC01) y qué proponer al cobrar. Necesita RUC y razón social en Datos del negocio.
+- **Al cobrar** (punto de venta y mesas) se elige Nota de venta / Boleta / Factura en el mismo cuadro (`cobro.js`: valida RUC con dígito verificador, razón social y dirección para factura, DNI en boletas de más de S/ 700). El servidor: `preparar()` revisa antes de vender; `registrar_venta` y `crear()` van en **una sola transacción** (si el comprobante no se puede armar, la venta no se guarda); `enviar_seguro()` va **fuera**: si no hay internet la venta queda hecha y el comprobante **pendiente**.
+- **IGV por línea**, como lo valida SUNAT (precio con IGV / 1.18); el descuento de la venta se reparte entre las líneas; las cortesías (S/ 0) no van; la propina no es venta. Unidades: NIU, ZZ (servicios), KGM, LTR, MTR. Numeración con `Serie` bloqueada (`select_for_update`): sin números repetidos.
+- **Conectores** (`conectores.py`): `Prueba` (simula a SUNAT; el ticket dice "PRUEBA - SIN VALOR TRIBUTARIO") y `Nubefact` (API JSON: `generar_comprobante`, `consultar_comprobante`; si responde "ya existe", consulta). Otro proveedor = otra clase con `emitir` y `consultar`.
+- **Estados:** Pendiente (no se pudo enviar), Enviado (SUNAT confirma después, típico en boletas), Aceptado, Rechazado. Comprobantes → "Reenviar ahora" (o por cada uno, también desde la venta). Plazo de SUNAT: 3 días.
+- **Anular una venta** emite su **nota de crédito** (motivo 01) por la señal `ventas.senales.venta_anulada`: ventas no depende de facturación.
+- **Después de cobrar** con nota de venta, desde el ticket se puede emitir la boleta o factura (ventas de los últimos días).
+- **Ticket** (`impresion/ticket.html`): nombre y número del comprobante, cliente, op. gravada, IGV, QR en SVG (librería `qrcode`), hash y leyenda de representación impresa.
+- **Pendiente:** factura al crédito (cuotas), cortesías como transferencia gratuita, resumen de anulaciones por comunicación de baja, una serie por caja.
 
 ## Módulos y menú
 

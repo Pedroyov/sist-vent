@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Facturación electrónica{% endblock %}
+{% block page_title %}Facturación electrónica{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'facturacion:lista' %}">Comprobantes</a></li><li class="breadcrumb-item active">Configuración</li>{% endblock %}
+{% block content %}
+{% if not negocio.ruc or not negocio.razon_social %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Faltan el <strong>RUC</strong> y la <strong>razón social</strong> del negocio:
+  complétalos en <a href="{% url 'core:datos_negocio' %}">Datos del negocio</a>. Sin eso no se pueden emitir comprobantes.</div>
+{% endif %}
+<form method="post" novalidate>{% csrf_token %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-plug me-1"></i> Proveedor</h3></div>
+      <div class="card-body">
+        {{ form.proveedor|as_crispy_field }}
+        <div id="datos-api">{{ form.ruta|as_crispy_field }}{{ form.token|as_crispy_field }}</div>
+        <p class="small text-body-secondary mb-0">El proveedor (PSE/OSE) firma el comprobante, lo envía a SUNAT y devuelve la constancia.
+          Cada negocio contrata su propia cuenta con su RUC. En <strong>Prueba</strong> todo se simula para aprender a usarlo.</p>
+      </div></div>
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-percent me-1"></i> Impuesto</h3></div>
+      <div class="card-body"><div class="row"><div class="col-sm-4">{{ form.igv|as_crispy_field }}</div><div class="col-sm-8">{{ form.afectacion|as_crispy_field }}</div></div>
+        <p class="small text-body-secondary mb-0">Los precios de los productos ya incluyen el IGV: el sistema lo separa en cada comprobante.</p></div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-123 me-1"></i> Series</h3></div>
+      <div class="card-body"><div class="row">
+        <div class="col-6">{{ form.serie_boleta|as_crispy_field }}</div><div class="col-6">{{ form.serie_factura|as_crispy_field }}</div>
+        <div class="col-6">{{ form.serie_nc_boleta|as_crispy_field }}</div><div class="col-6">{{ form.serie_nc_factura|as_crispy_field }}</div></div>
+        <p class="small text-body-secondary mb-0">Tienen que ser las mismas que registraste con tu proveedor. Si usas dos cajas, cada una puede tener su serie más adelante.</p></div></div>
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Al cobrar</h3></div>
+      <div class="card-body">{{ form.por_defecto|as_crispy_field }}</div></div>
+  </div>
+</div>
+<div class="card sticky-bottom mb-4"><div class="card-body d-flex gap-2 py-2">
+  <a href="{% url 'facturacion:lista' %}" class="btn btn-outline-secondary">Volver</a>
+  <button class="btn btn-primary ms-auto"><i class="bi bi-check-lg me-1"></i>Guardar</button></div></div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  function verApi() {
+    var r = document.querySelector("[name=proveedor]:checked");
+    document.getElementById("datos-api").classList.toggle("d-none", !r || r.value === "PRU");
+  }
+  document.querySelectorAll("[name=proveedor]").forEach(function (r) { r.addEventListener("change", verApi); });
+  verApi();
+</script>
+{% endblock %}

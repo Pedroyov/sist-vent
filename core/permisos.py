@@ -15,7 +15,8 @@ ADMINISTRACION = "Administración"
 CAJERO = "Cajero"
 VENDEDOR = "Vendedor"
 COCINA = "Cocina"
-ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, COCINA]
+MOZO = "Mozo"  # restaurante: toma pedidos y entrega la precuenta; no cobra ni maneja caja
+ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, MOZO, COCINA]
 
 # Módulos = lo que el negocio contrató. Los activa o apaga el superusuario (el proveedor del sistema) en
 # Configuración → Módulos. Cómo usa el dueño lo contratado (propina, nivel de pedidos, ancho del ticket…) va en
@@ -33,6 +34,8 @@ MODULOS = [
      "Pedidos por teléfono o WhatsApp con dirección, costo de envío, repartidor, estados y hoja para el repartidor.", "mesas"),
     ("clientes", "Clientes y fiado", "bi-people", "Clientes con DNI/RUC, ventas al fiado con límite, pagos de deudas y recordatorios por WhatsApp.", None),
     ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control.", None),
+    ("facturacion", "Facturación electrónica", "bi-receipt-cutoff",
+     "Boletas y facturas electrónicas enviadas a SUNAT por medio de un proveedor (Nubefact); notas de crédito al anular.", None),
 ]
 MODULOS_BASE = ("config", "productos", "ventas")
 NECESITA = {m[0]: m[4] for m in MODULOS}
@@ -43,7 +46,7 @@ PERMISOS = [
     ("caja.usar", "caja", "Abrir y cerrar su propia caja, registrar ingresos y egresos", [CAJERO, VENDEDOR]),
     ("caja.ver", "caja", "Ver todas las cajas, sus cierres y diferencias; cerrar la caja de otro", []),
 
-    ("mesas.atender", "mesas", "Abrir mesas, tomar pedidos, enviar a cocina, precuenta, cambiar y juntar mesas", [CAJERO, VENDEDOR]),
+    ("mesas.atender", "mesas", "Abrir mesas, tomar pedidos, enviar a cocina, precuenta, cambiar y juntar mesas", [CAJERO, VENDEDOR, MOZO]),
     ("mesas.cobrar", "mesas", "Cobrar mesas (todo o dividiendo la cuenta)", [CAJERO]),
     ("mesas.cortesia", "mesas", "Dar cortesías (platos sin cobrar) o autorizarlas con su clave", []),
     ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
@@ -63,12 +66,15 @@ PERMISOS = [
     ("ventas.precio", "ventas", "Cambiar precios y dar descuentos (o autorizarlos con su clave)", []),
     ("ventas.anular", "ventas", "Anular ventas (devuelve el stock)", []),
 
-    ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR]),
+    ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR, MOZO]),
     ("productos.editar", "productos", "Crear y editar productos, variantes, precios y categorías; importar Excel", []),
     ("productos.stock", "productos", "Registrar ingresos, salidas y conteos de stock; ver movimientos", []),
     ("productos.costos", "productos", "Ver costos y ganancia", []),
-    ("productos.agotar", "productos", "Marcar productos y opciones como agotados por hoy", [CAJERO, VENDEDOR, COCINA]),
+    ("productos.agotar", "productos", "Marcar productos y opciones como agotados por hoy", [CAJERO, VENDEDOR, MOZO, COCINA]),
     ("productos.menu", "productos", "Armar el menú del día (entradas y segundos de hoy)", [CAJERO, COCINA]),
+
+    ("facturacion.ver", "facturacion", "Ver los comprobantes electrónicos y reenviar los pendientes", [CAJERO]),
+    ("facturacion.configurar", "facturacion", "Configurar la facturación electrónica (proveedor, series, IGV)", []),
 
     ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
     ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),

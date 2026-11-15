@@ -1,7 +1,7 @@
 {% extends "impresion/base.html" %}
-{% load sis %}
-{% block titulo %}Ticket {{ v.numero_str }}{% endblock %}
-{% block contenido %}
+{% load sis fe %}
+{% block titulo %}{% comprobante_de v as cp %}{% if cp %}{{ cp.numero_str }}{% else %}Ticket {{ v.numero_str }}{% endif %}{% endblock %}
+{% block contenido %}{% comprobante_de v as cp %}
 <div class="c">
   {% if NEGOCIO.tiene_logo %}<img src="{{ NEGOCIO.logo_url }}" alt="" class="logo"><br>{% endif %}
   <span class="grande">{{ NEGOCIO_NOMBRE }}</span><br>
@@ -11,9 +11,21 @@
 </div>
 <div class="linea"></div>
 {% if v.anulada %}<div class="sello">*** VENTA ANULADA ***</div>{% endif %}
+{% if cp %}
+{% if cp.prueba %}<div class="sello">PRUEBA - SIN VALOR TRIBUTARIO</div>{% endif %}
+<div class="c b">{{ cp.nombre_impreso }}<br><span class="grande">{{ cp.numero_str }}</span></div>
+<div>Fecha: {{ v.fecha|date:"d/m/Y H:i" }}</div>
+{% if cp.cliente_doc or cp.cliente_nombre %}
+<div>{% if cp.cliente_tipo_doc == "6" %}RUC{% elif cp.cliente_tipo_doc == "1" %}DNI{% else %}Doc.{% endif %}: {{ cp.cliente_doc|default:"-" }}</div>
+<div>{% if cp.tipo == "01" %}Razón social{% else %}Cliente{% endif %}: {{ cp.cliente_nombre }}</div>
+{% if cp.cliente_direccion %}<div>Dirección: {{ cp.cliente_direccion }}</div>{% endif %}
+{% else %}<div>Cliente: clientes varios</div>{% endif %}
+<div class="small">Nota de venta interna N° {{ v.numero_str }}</div>
+{% else %}
 <div class="c b">NOTA DE VENTA N° {{ v.numero_str }}</div>
 <div>Fecha: {{ v.fecha|date:"d/m/Y H:i" }}</div>
 {% if v.cliente_nombre or v.cliente_documento %}<div>Cliente: {{ v.cliente_nombre }}{% if v.cliente_documento %} ({{ v.cliente_documento }}){% endif %}</div>{% endif %}
+{% endif %}
 <div>{% if v.atendio %}Mozo: {{ v.atendio.first_name|default:v.atendio.username }} · Caja: {% else %}Atendió: {% endif %}{{ v.usuario.first_name|default:v.usuario.username }}</div>
 {% if v.nota %}<div>{{ v.nota }}</div>{% endif %}
 <div class="linea"></div>
@@ -26,12 +38,26 @@
 <div class="linea"></div>
 <table>
   {% if v.descuento %}<tr><td>Subtotal</td><td class="r">{{ v.subtotal }}</td></tr><tr><td>Descuento{% if v.descuento_motivo %} ({{ v.descuento_motivo|truncatechars:18 }}){% endif %}</td><td class="r">-{{ v.descuento }}</td></tr>{% endif %}
+  {% if cp %}
+  {% if cp.gravada %}<tr><td>Op. gravada</td><td class="r">{{ cp.gravada }}</td></tr>{% endif %}
+  {% if cp.exonerada %}<tr><td>Op. exonerada</td><td class="r">{{ cp.exonerada }}</td></tr>{% endif %}
+  {% if cp.inafecta %}<tr><td>Op. inafecta</td><td class="r">{{ cp.inafecta }}</td></tr>{% endif %}
+  <tr><td>IGV {{ cp.igv_pct|floatformat:0 }}%</td><td class="r">{{ cp.igv }}</td></tr>
+  {% endif %}
   <tr class="grande"><td>TOTAL S/</td><td class="r">{{ v.total }}</td></tr>
   {% if v.propina %}<tr><td>Propina</td><td class="r">{{ v.propina }}</td></tr>{% endif %}
   {% for p in v.pagos.all %}<tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="r">{{ p.monto }}</td></tr>{% endfor %}
   {% if v.vuelto %}<tr><td>Vuelto</td><td class="r">{{ v.vuelto }}</td></tr>{% endif %}
 </table>
 {% if deuda is not None %}<div class="linea"></div><table><tr class="b"><td>DEUDA TOTAL S/</td><td class="r">{{ deuda }}</td></tr></table>{% endif %}
+{% if cp %}
+<div class="linea"></div>
+<div class="c">{{ cp.qr|qr_svg }}</div>
+<div class="c small">Representación impresa de la {{ cp.get_tipo_display|lower }}.{% if not cp.prueba %} Consulte en www.sunat.gob.pe{% endif %}</div>
+{% if cp.hash %}<div class="c small">Hash: {{ cp.hash }}</div>{% endif %}
+{% if cp.estado == "PEN" %}<div class="c small">Pendiente de envío a SUNAT</div>{% endif %}
+{% for n in cp.notas.all %}<div class="c b">ANULADA CON NOTA DE CRÉDITO {{ n.numero_str }}</div>{% endfor %}
+{% endif %}
 <div class="linea"></div>
 <div class="c">{{ NEGOCIO.nota_ticket|default:"¡Gracias por su compra!" }}</div>
 {% endblock %}

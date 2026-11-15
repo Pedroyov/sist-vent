@@ -37,7 +37,9 @@ def _mozos():
     if nuevo:
         jorge.set_password("demo1234")
         jorge.save()
-    jorge.groups.add(Group.objects.get(name="Vendedor"))
+    from core.permisos import MOZO
+
+    jorge.groups.add(Group.objects.get(name=MOZO))
     return mozos + [jorge]
 
 

@@ -81,17 +81,25 @@ def registrar(request):
             raise ValueError
     except ValueError:
         return JsonResponse({"error": "Datos no válidos."}, status=400)
+    from django.db import transaction
+
+    from facturacion.servicios import ComprobanteError, crear, enviar_seguro, preparar
+
     try:
-        venta = registrar_venta(
-            request.user, datos.get("items") or [], datos.get("pagos") or [], datos.get("descuento") or 0,
-            datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""), datos.get("nota", ""),
-            token=str(datos.get("token") or "")[:40] or None,
-            puede_cambiar_precio=puede(request.user, "ventas.precio"), propina=datos.get("propina") or 0,
-            cliente_id=entero(datos.get("cliente_id")), puede_fiar=puede(request.user, "clientes.fiar"),
-            puede_exceder_limite=puede(request.user, "clientes.limite"),
-        )
-    except VentaInvalida as e:
+        sol = preparar(datos)
+        with transaction.atomic():  # si el comprobante no se puede armar, la venta tampoco se guarda
+            venta = registrar_venta(
+                request.user, datos.get("items") or [], datos.get("pagos") or [], datos.get("descuento") or 0,
+                datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""), datos.get("nota", ""),
+                token=str(datos.get("token") or "")[:40] or None,
+                puede_cambiar_precio=puede(request.user, "ventas.precio"), propina=datos.get("propina") or 0,
+                cliente_id=entero(datos.get("cliente_id")), puede_fiar=puede(request.user, "clientes.fiar"),
+                puede_exceder_limite=puede(request.user, "clientes.limite"),
+            )
+            comprobante = crear(venta, sol, request.user)
+    except (VentaInvalida, ComprobanteError) as e:
         return JsonResponse({"error": str(e)}, status=400)
+    enviar_seguro(comprobante)
     return JsonResponse({"ok": True, "numero": venta.numero_str, "url": reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1",
                          "vuelto": str(venta.vuelto)})
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load sis %}
+{% load sis fe %}
 
 {% block title %}Venta {{ v.numero_str }}{% endblock %}
 {% block page_title %}Venta N° {{ v.numero_str }}{% if v.anulada %} <span class="badge text-bg-danger fs-6 align-middle">Anulada</span>{% endif %}{% endblock %}
@@ -16,7 +16,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block content %}{% comprobante_de v as cp %}{% config_fe as FE %}
 <div class="row g-3 zona-ticket">
   <div class="col-lg-5 col-xl-4 order-lg-2 col-acciones">
     {% if nueva %}
@@ -51,6 +51,43 @@
         {% endif %}{% endfor %}
       </ul>
     </div>
+
+    {% if FE or cp %}
+    {# ---------- Comprobante electrónico ---------- #}
+    <div class="card mb-3 {% if cp.estado == 'REC' %}card-outline card-danger{% elif cp.estado == 'PEN' or cp.estado == 'ENV' %}card-outline card-warning{% endif %}">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt-cutoff me-1"></i> Comprobante electrónico</h3></div>
+      {% if cp %}
+      <div class="card-body small">
+        <div class="fw-semibold">{{ cp.get_tipo_display }} {{ cp.numero_str }}</div>
+        <div><span class="badge {% if cp.estado == 'ACE' %}text-bg-success{% elif cp.estado == 'REC' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ cp.get_estado_display }}</span>
+          {% if cp.prueba %}<span class="badge text-bg-secondary">modo prueba</span>{% endif %}</div>
+        {% if cp.mensaje %}<div class="text-body-secondary mt-1">{{ cp.mensaje }}</div>{% endif %}
+        {% for n in cp.notas.all %}<div class="mt-1 text-danger"><i class="bi bi-arrow-return-left"></i> Anulada con {{ n.get_tipo_display|lower }} {{ n.numero_str }} ({{ n.get_estado_display|lower }})</div>{% endfor %}
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          {% if cp.enlace_pdf %}<a href="{{ cp.enlace_pdf }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">PDF</a>{% endif %}
+          {% if cp.enlace_xml %}<a href="{{ cp.enlace_xml }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">XML</a>{% endif %}
+          {% if cp.estado == "PEN" or cp.estado == "ENV" %}{% if P.facturacion_ver %}
+          <form method="post" action="{% url 'facturacion:reenviar' %}">{% csrf_token %}<input type="hidden" name="id" value="{{ cp.pk }}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat me-1"></i>Reenviar</button></form>{% endif %}{% endif %}
+        </div>
+      </div>
+      {% elif not v.anulada %}
+      <form method="post" action="{% url 'facturacion:emitir_venta' v.pk %}" class="card-body small">{% csrf_token %}
+        <p class="mb-2 text-body-secondary">Se cobró con nota de venta. Si el cliente pide comprobante:</p>
+        <div class="btn-group w-100 mb-2" role="group">
+          <input type="radio" class="btn-check" name="tipo" id="em-B" value="B" checked><label class="btn btn-sm btn-outline-primary" for="em-B">Boleta</label>
+          <input type="radio" class="btn-check" name="tipo" id="em-F" value="F"><label class="btn btn-sm btn-outline-primary" for="em-F">Factura</label>
+        </div>
+        <div class="row g-1">
+          <div class="col-5"><input type="text" name="doc" class="form-control form-control-sm" placeholder="DNI / RUC" maxlength="11" inputmode="numeric" value="{{ v.cliente.numero_documento|default:'' }}"></div>
+          <div class="col-7"><input type="text" name="nombre" class="form-control form-control-sm" placeholder="Nombre o razón social" maxlength="150" value="{{ v.cliente.nombre|default:v.cliente_nombre }}"></div>
+          <div class="col-12"><input type="text" name="direccion" class="form-control form-control-sm" placeholder="Dirección (para factura)" maxlength="200" value="{{ v.cliente.direccion|default:'' }}"></div>
+          <div class="col-12"><button class="btn btn-sm btn-primary w-100 mt-1">Emitir</button></div>
+        </div>
+      </form>
+      {% else %}<div class="card-body small text-body-secondary">Venta anulada sin comprobante.</div>{% endif %}
+    </div>
+    {% endif %}
 
     {% if v.anulada %}
     <div class="alert alert-danger small">
@@ -90,7 +127,9 @@
             {% if NEGOCIO.linea_contacto %}{{ NEGOCIO.linea_contacto }}<br>{% endif %}
           </div>
           <div class="linea"></div>
-          <div class="text-center"><strong>NOTA DE VENTA N° {{ v.numero_str }}</strong></div>
+          {% if cp %}<div class="text-center"><strong>{{ cp.nombre_impreso }}<br>{{ cp.numero_str }}</strong>{% if cp.prueba %}<br><span class="small">(PRUEBA - SIN VALOR TRIBUTARIO)</span>{% endif %}</div>
+          {% if cp.cliente_doc %}<div>{% if cp.cliente_tipo_doc == "6" %}RUC{% else %}DNI{% endif %} {{ cp.cliente_doc }} · {{ cp.cliente_nombre }}</div>{% endif %}
+          {% else %}<div class="text-center"><strong>NOTA DE VENTA N° {{ v.numero_str }}</strong></div>{% endif %}
           <div>Fecha: {{ v.fecha|date:"d/m/Y H:i" }}</div>
           {% if v.cliente_nombre or v.cliente_documento %}<div>Cliente: {{ v.cliente_nombre }}{% if v.cliente_documento %} ({{ v.cliente_documento }}){% endif %}</div>{% endif %}
           <div>{% if v.atendio %}Mozo: {{ v.atendio.first_name|default:v.atendio.username }} · Caja: {% else %}Atendió: {% endif %}{{ v.usuario.first_name|default:v.usuario.username }}</div>

@@ -11,7 +11,10 @@ django-htmx>=1.21
 # Excel (importar / exportar)
 openpyxl>=3.1
 
-# Imágenes (fotos de alumnos, vouchers)
+# Código QR de boletas y facturas electrónicas
+qrcode>=7.4
+
+# Imágenes (logo, fotos de productos)
 Pillow>=10.4
 
 # Servidor para producción / Render

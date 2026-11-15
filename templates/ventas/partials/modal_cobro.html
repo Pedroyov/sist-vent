@@ -1,7 +1,7 @@
 {% comment %}
 Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro.js:
   Cobro.abrir({total: centimos, titulo: "...", onConfirmar: function (datos, terminar) {...}})
-{% endcomment %}
+{% endcomment %}{% load fe %}{% config_fe as FE %}
 <div class="modal fade" id="m-cobro" tabindex="-1" aria-hidden="true"
      data-metodos='[{% for k, v in METODOS_PAGO %}{"id": "{{ k }}", "n": "{{ v }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
      data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}">
@@ -13,6 +13,21 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
       </div>
       <div class="modal-body">
         <div class="text-center mb-3"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
+        {% if FE %}
+        <div class="mb-3" id="c-comp" data-defecto="{{ FE.por_defecto }}">
+          <div class="btn-group w-100" role="group" aria-label="Comprobante">
+            <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-N" value="N"><label class="btn btn-outline-secondary" for="c-comp-N">Nota de venta</label>
+            <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-B" value="B"><label class="btn btn-outline-primary" for="c-comp-B">Boleta</label>
+            <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-F" value="F"><label class="btn btn-outline-primary" for="c-comp-F">Factura</label>
+          </div>
+          <div class="row g-2 mt-1 d-none" id="c-comp-datos">
+            <div class="col-5"><input type="text" class="form-control" id="c-comp-doc" inputmode="numeric" maxlength="11" autocomplete="off" aria-label="Documento"></div>
+            <div class="col-7"><input type="text" class="form-control" id="c-comp-nombre" maxlength="150" aria-label="Nombre o razón social"></div>
+            <div class="col-12 d-none" id="c-comp-dir-fila"><input type="text" class="form-control" id="c-comp-dir" maxlength="200" placeholder="Dirección fiscal" aria-label="Dirección fiscal"></div>
+          </div>
+          {% if FE.proveedor == "PRU" %}<div class="small text-warning-emphasis mt-1"><i class="bi bi-exclamation-triangle"></i> Facturación en modo prueba: no se envía a SUNAT.</div>{% endif %}
+        </div>
+        {% endif %}
         <div class="mb-3 d-none" id="c-desc-fila">
           <div class="input-group">
             <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-tag me-1"></i>Descuento</span>

@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from core.models import Ajustes, Rubro
-from core.permisos import ADMINISTRACION, CAJERO, COCINA, VENDEDOR
+from core.permisos import ADMINISTRACION, CAJERO, COCINA, MOZO, VENDEDOR
 
 CLAVE = "demo1234"
 USUARIOS = [
@@ -46,6 +46,8 @@ class Command(BaseCommand):
         restaurante = ("mesas", "cocina", "delivery")
         inactivos = [m for m in (a.modulos_inactivos or []) if m not in restaurante]
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + list(restaurante)
+        a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "facturacion"]  # la demo la trae en modo prueba
+        a.razon_social = a.razon_social or f"{nombre.upper()} S.A.C."
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
         if rubro == Rubro.RESTAURANTE and not a.delivery_costo:
@@ -68,6 +70,8 @@ class Command(BaseCommand):
             u.set_password(CLAVE)
             u.save()
             if rol:
+                if rol == VENDEDOR and rubro == Rubro.RESTAURANTE:  # en restaurante, el vendedor es mozo
+                    rol = MOZO
                 u.groups.add(Group.objects.get(name=rol))
         n = cargar_catalogo(rubro, User.objects.get(username="admin"))
         from ventas.demo import cargar_ventas
@@ -86,6 +90,9 @@ class Command(BaseCommand):
 
             marcar_agotados_demo()
             nv = Venta.objects.count()
+        from facturacion.demo import cargar_comprobantes
+
+        cargar_comprobantes()
         self.stdout.write(self.style.SUCCESS(
             f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)}"
             f"{', mozo' if rubro == Rubro.RESTAURANTE else ''} (clave {CLAVE})."))

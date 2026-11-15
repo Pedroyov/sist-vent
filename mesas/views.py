@@ -280,15 +280,23 @@ def cobrar_vista(request, pk):
             descuento_por = autorizar(request, "ventas.precio", datos.get("sup_usuario"), datos.get("sup_clave"))
         except AutorizacionError as e:
             return JsonResponse({"error": str(e)}, status=400)
+    from django.db import transaction
+
+    from facturacion.servicios import ComprobanteError, crear, enviar_seguro, preparar
+
     try:
-        venta = cobrar(c, request.user, datos.get("pagos") or [], [entero(i) for i in datos.get("items") or [] if entero(i)],
-                       datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
-                       _nota_cobro(c, datos), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
-                       puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"),
-                       descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por,
-                       liberar=datos.get("liberar", True) is not False)
-    except MesaError as e:
+        sol = preparar(datos)
+        with transaction.atomic():  # si el comprobante no se puede armar, el cobro tampoco se guarda
+            venta = cobrar(c, request.user, datos.get("pagos") or [], [entero(i) for i in datos.get("items") or [] if entero(i)],
+                           datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
+                           _nota_cobro(c, datos), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
+                           puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"),
+                           descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por,
+                           liberar=datos.get("liberar", True) is not False)
+            comprobante = crear(venta, sol, request.user)
+    except (MesaError, ComprobanteError) as e:
         return JsonResponse({"error": str(e)}, status=400)
+    enviar_seguro(comprobante)
     c.refresh_from_db()
     if c.es_delivery and not c.abierta and c.estado_envio != Cuenta.Envio.ENTREGADO:  # se cobró y se cerró: ya se entregó
         Cuenta.objects.filter(pk=c.pk).update(estado_envio=Cuenta.Envio.ENTREGADO, entregado_en=timezone.now())

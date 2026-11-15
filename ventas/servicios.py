@@ -199,6 +199,9 @@ def anular_venta(venta, usuario, motivo):
         v.anulada_por = usuario
         v.motivo_anulacion = motivo
         v.save(update_fields=["estado", "anulada_en", "anulada_por", "motivo_anulacion"])
+        from .senales import venta_anulada
+
+        venta_anulada.send(sender=Venta, venta=v, usuario=usuario, motivo=motivo)
     return v
 
 

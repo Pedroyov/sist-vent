@@ -149,5 +149,6 @@ def buscar(request):
         qs = qs.filter(Q(nombre__icontains=palabra) | Q(numero_documento__startswith=palabra))
     clientes = con_saldo(qs).order_by("nombre")[:10]
     return JsonResponse({"resultados": [
-        {"id": c.pk, "n": c.nombre, "doc": c.documento, "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}"}
+        {"id": c.pk, "n": c.nombre, "doc": c.documento, "num": c.numero_documento, "dir": c.direccion,
+         "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}"}
         for c in clientes]})

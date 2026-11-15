@@ -83,6 +83,8 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Menú del día** – Entrada y segundo que cambian cada día, con los platos de otros días a un toque, segundos con precio extra, agotados y texto listo para WhatsApp
 - [x] **Partes iguales** – Dividir la cuenta entre N personas; cada una paga con su método (Yape, tarjeta, efectivo con su vuelto)
 - [x] **Cortesías y descuentos** – Platos de la casa (todo o parte) y descuento en soles o % al cobrar, siempre con motivo; si el usuario no tiene permiso, un supervisor autoriza con su usuario y clave; todo queda en Reportes → Control
+- [x] **Facturación electrónica** – Boleta o factura al cobrar (o después desde la venta), IGV por línea, QR, reenvío si no hay internet, nota de crédito al anular; modo prueba y conector Nubefact
+- [x] **Rol Mozo** – En restaurantes: toma pedidos y entrega la precuenta; el cobro se hace en caja
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo

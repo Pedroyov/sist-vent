@@ -31,7 +31,7 @@ window.Cobro = (function () {
         parseFloat(cliente.limite) > 0 ? "límite " + soloSoles(cliente.limite) : ""].filter(Boolean).join(" · ");
     }
   }
-  function elegir(c) { cliente = c; $("c-cli-q").value = ""; $("c-cli-res").innerHTML = ""; mostrarCliente(); estado(); }
+  function elegir(c) { cliente = c; $("c-cli-q").value = ""; $("c-cli-res").innerHTML = ""; mostrarCliente(); compDesdeCliente(c); estado(); }
   if ($("c-cli-q")) {
     $("c-cli-q").addEventListener("input", function () {
       var q = this.value.trim(), url = this.dataset.url;
@@ -121,6 +121,50 @@ window.Cobro = (function () {
     estado();
   }
 
+  // ---------- comprobante (boleta / factura) ----------
+  var COMP = $("c-comp");
+  function tipoComp() { var r = modal.querySelector("[name=c-comp-tipo]:checked"); return r ? r.value : "N"; }
+  function pintarComp() {
+    if (!COMP) return;
+    var t = tipoComp();
+    $("c-comp-datos").classList.toggle("d-none", t === "N");
+    $("c-comp-dir-fila").classList.toggle("d-none", t !== "F");
+    $("c-comp-doc").placeholder = t === "F" ? "RUC" : "DNI (opcional)";
+    $("c-comp-nombre").placeholder = t === "F" ? "Razón social" : "Nombre";
+  }
+  function datosComp() {
+    if (!COMP || tipoComp() === "N") return null;
+    return {tipo: tipoComp(), doc: $("c-comp-doc").value.trim(), nombre: $("c-comp-nombre").value.trim(), direccion: $("c-comp-dir").value.trim()};
+  }
+  function rucValido(r) {  // dígito verificador (módulo 11), igual que en el servidor
+    if (!/^(10|15|16|17|20)\d{9}$/.test(r)) return false;
+    var pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2], s = 0;
+    for (var i = 0; i < 10; i++) s += parseInt(r[i], 10) * pesos[i];
+    var d = 11 - (s % 11);
+    return (d === 10 ? 0 : d === 11 ? 1 : d) === parseInt(r[10], 10);
+  }
+  function faltaComp(totalCent, hayFiado) {
+    var d = datosComp();
+    if (!d) return "";
+    if (d.tipo === "F") {
+      if (!rucValido(d.doc)) return "Para la factura escribe un RUC válido (11 dígitos).";
+      if (!d.nombre) return "Escribe la razón social.";
+      if (!d.direccion) return "Escribe la dirección fiscal.";
+      if (hayFiado) return "La factura al fiado aún no está disponible: elige boleta.";
+    } else {
+      if (totalCent > 70000 && !d.doc) return "Boleta de más de S/ 700: escribe el DNI del cliente.";
+      if (d.doc && !d.nombre) return "Escribe el nombre del cliente.";
+    }
+    return "";
+  }
+  function compDesdeCliente(c) {
+    if (!COMP || !c) return;
+    if (c.num && !$("c-comp-doc").value) $("c-comp-doc").value = c.num;
+    if (c.n && !$("c-comp-nombre").value) $("c-comp-nombre").value = c.n;
+    if (c.dir && !$("c-comp-dir").value) $("c-comp-dir").value = c.dir;
+    if (c.num && rucValido(c.num)) { $("c-comp-F").checked = true; pintarComp(); }
+  }
+
   function pagos() {
     if (partes.n) return pagosPartes();
     return Array.prototype.map.call(modal.querySelectorAll("[data-metodo]"), function (i) { return {metodo: i.dataset.metodo, c: cent(i.value)}; });
@@ -153,6 +197,8 @@ window.Cobro = (function () {
       e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-shield-lock"></i> El descuento lo autoriza un supervisor con su clave.'; $("c-confirmar").disabled = true; return false;
     }
     var fiado = ps.filter(function (p) { return p.metodo === "CRE"; }).reduce(function (a, p) { return a + p.c; }, 0);
+    var fc = faltaComp(neto(), fiado > 0);
+    if (fc) { e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-receipt"></i> ' + esc(fc); $("c-confirmar").disabled = true; return false; }
     var ok = false;
     if (fiado && !cliente && !$("c-nombre").value.trim()) { e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-person-exclamation"></i> Para fiar, elige o escribe el cliente.'; $("c-confirmar").disabled = true; return false; }
     if (fiado && cliente && parseFloat(cliente.limite) > 0 && (parseFloat(cliente.saldo) * 100 + fiado) > parseFloat(cliente.limite) * 100) {
@@ -200,6 +246,13 @@ window.Cobro = (function () {
     $("c-error").classList.add("d-none");
     partes = {n: 0, filas: []};
     modoPartes(0);
+    if (COMP) {
+      var def = $("c-comp-" + (opciones.comprobante || COMP.dataset.defecto || "N"));
+      if (def) def.checked = true;
+      $("c-comp-doc").value = ""; $("c-comp-nombre").value = ""; $("c-comp-dir").value = "";
+      pintarComp();
+      if (cliente) compDesdeCliente(cliente);
+    }
     boton(false);
     billetes();
     estado();
@@ -222,6 +275,7 @@ window.Cobro = (function () {
       cliente_id: cliente ? cliente.id : null,
       cliente_nombre: cliente ? "" : $("c-nombre").value, cliente_documento: cliente ? "" : $("c-doc").value, nota: $("c-nota").value,
       liberar: actual.liberar ? $("c-liberar").checked : true,
+      comprobante: datosComp(),
       partes: partes.n
     }, function (error) {
       boton(false);
@@ -231,6 +285,10 @@ window.Cobro = (function () {
 
   modal.addEventListener("shown.bs.modal", function () { var i = modal.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("c-metodos").addEventListener("input", estado);
+  if (COMP) {
+    COMP.addEventListener("change", function () { pintarComp(); estado(); });
+    COMP.addEventListener("input", estado);
+  }
   $("c-partes-btn").addEventListener("click", function () { modoPartes(Math.max(2, (actual.partes && actual.partes.n) || 2)); });
   $("c-partes-salir").addEventListener("click", function () { modoPartes(0); });
   $("c-partes").addEventListener("click", function (e) {

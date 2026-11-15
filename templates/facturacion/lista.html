@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Comprobantes electrónicos{% endblock %}
+{% block page_title %}Comprobantes electrónicos{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Comprobantes</li>{% endblock %}
+{% block content %}
+{% if config.proveedor == "PRU" %}
+<div class="alert alert-warning d-flex align-items-center gap-2"><i class="bi bi-exclamation-triangle fs-4"></i>
+  <div class="flex-grow-1"><strong>Modo prueba:</strong> los comprobantes se simulan y no se envían a SUNAT (no tienen valor tributario).</div>
+  {% if P.facturacion_configurar %}<a href="{% url 'facturacion:configurar' %}" class="btn btn-sm btn-warning">Configurar proveedor</a>{% endif %}</div>
+{% endif %}
+{% if pendientes %}
+<div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-cloud-arrow-up fs-4"></i>
+  <div class="flex-grow-1"><strong>{{ pendientes }}</strong> comprobante{{ pendientes|pluralize }} sin confirmar por SUNAT (sin internet o SUNAT aún no responde). Hay 3 días para enviarlos.</div>
+  <form method="post" action="{% url 'facturacion:reenviar' %}">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-arrow-repeat me-1"></i>Reenviar ahora</button></form></div>
+{% endif %}
+{% if rechazados %}<div class="alert alert-danger py-2"><i class="bi bi-x-octagon me-1"></i>{{ rechazados }} rechazado{{ rechazados|pluralize }} en los últimos 7 días: revisa el motivo y, si hace falta, vuelve a emitirlo desde la venta.</div>{% endif %}
+
+<form class="d-flex flex-wrap gap-2 mb-3" method="get">
+  <input type="search" name="q" value="{{ q }}" class="form-control" style="max-width: 18rem" placeholder="B001-12, DNI, RUC o nombre">
+  <select name="tipo" class="form-select w-auto" onchange="this.form.submit()"><option value="">Todos los tipos</option>
+    {% for k, n in tipos %}<option value="{{ k }}" {% if tipo == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  <select name="estado" class="form-select w-auto" onchange="this.form.submit()"><option value="">Todos los estados</option>
+    <option value="falta" {% if estado == "falta" %}selected{% endif %}>Sin confirmar</option>
+    {% for k, n in estados %}<option value="{{ k }}" {% if estado == k %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+  <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+  {% if P.facturacion_configurar %}<a href="{% url 'facturacion:configurar' %}" class="btn btn-outline-secondary ms-auto"><i class="bi bi-gear me-1"></i>Configuración</a>{% endif %}
+</form>
+
+<div class="card">
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <thead><tr><th class="ps-3">Comprobante</th><th>Fecha</th><th>Cliente</th><th class="text-end">Total</th><th>Estado</th><th class="pe-3"></th></tr></thead>
+    <tbody>
+    {% for c in pagina %}
+    <tr>
+      <td class="ps-3"><a href="{% url 'ventas:ticket' c.venta_id %}" class="fw-semibold">{{ c.numero_str }}</a>
+        <div class="small text-body-secondary">{{ c.get_tipo_display }}{% if c.modifica %} de {{ c.modifica.numero_str }}{% endif %}</div></td>
+      <td class="small text-nowrap">{{ c.fecha|date:"d/m/Y" }}</td>
+      <td class="small">{% if c.cliente_doc %}{{ c.cliente_doc }} · {% endif %}{{ c.cliente_nombre|default:"Clientes varios" }}</td>
+      <td class="text-end text-nowrap {% if c.es_nota %}text-danger{% endif %}">{% if c.es_nota %}-{% endif %}{{ c.total|soles }}</td>
+      <td><span class="badge {% if c.estado == 'ACE' %}text-bg-success{% elif c.estado == 'REC' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ c.get_estado_display }}</span>
+        {% if c.prueba %}<span class="badge text-bg-secondary">prueba</span>{% endif %}
+        {% if c.mensaje and c.estado != 'ACE' %}<div class="small text-body-secondary text-truncate" style="max-width: 18rem" title="{{ c.mensaje }}">{{ c.mensaje }}</div>{% endif %}</td>
+      <td class="pe-3 text-end text-nowrap">
+        {% if c.enlace_pdf %}<a href="{{ c.enlace_pdf }}" target="_blank" rel="noopener" class="btn btn-sm btn-link">PDF</a>{% endif %}
+        {% if c.estado == "PEN" or c.estado == "ENV" %}<form method="post" action="{% url 'facturacion:reenviar' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="id" value="{{ c.pk }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-outline-warning" title="Reenviar"><i class="bi bi-arrow-repeat"></i></button></form>{% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-center text-body-secondary py-5">Todavía no hay comprobantes. Se emiten al cobrar eligiendo <strong>Boleta</strong> o <strong>Factura</strong>.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if pagina.has_other_pages %}<div class="card-footer d-flex gap-2 justify-content-center">
+    {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{% if q %}q={{ q|urlencode }}&{% endif %}tipo={{ tipo }}&estado={{ estado }}&page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+    <span class="small align-self-center">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{% if q %}q={{ q|urlencode }}&{% endif %}tipo={{ tipo }}&estado={{ estado }}&page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+  </div>{% endif %}
+</div>
+{% endblock %}

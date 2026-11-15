@@ -78,7 +78,7 @@
         {% endif %}
 
         {# ---------- Gestión ---------- #}
-        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.clientes_ver or P.productos_ver or P.reportes_ver %}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver %}
         <li class="nav-header">GESTIÓN</li>
         {% endif %}
         {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar %}
@@ -86,6 +86,14 @@
           <a href="{% url 'ventas:lista' %}" class="nav-link {% if ns == 'ventas' and url != 'pos' %}active{% endif %}">
             <i class="nav-icon bi bi-receipt"></i>
             <p>{% if P.ventas_ver %}Ventas{% else %}Mis ventas{% endif %}</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.facturacion_ver %}
+        <li class="nav-item">
+          <a href="{% url 'facturacion:lista' %}" class="nav-link {% if ns == 'facturacion' and url != 'configurar' %}active{% endif %}">
+            <i class="nav-icon bi bi-receipt-cutoff"></i>
+            <p>Comprobantes</p>
           </a>
         </li>
         {% endif %}
@@ -140,7 +148,7 @@
         </li>
         {% endif %}
 
-        {% if P.config_negocio or P.config_usuarios or P.acceso_total %}
+        {% if P.config_negocio or P.config_usuarios or P.acceso_total or P.facturacion_configurar %}
         <li class="nav-header">CONFIGURACIÓN</li>
         {% endif %}
         {% if P.config_negocio %}
@@ -148,6 +156,14 @@
           <a href="{% url 'core:datos_negocio' %}" class="nav-link {% if '/configuracion/negocio/' in path %}active{% endif %}">
             <i class="nav-icon bi bi-shop"></i>
             <p>Datos del negocio</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.facturacion_configurar %}
+        <li class="nav-item">
+          <a href="{% url 'facturacion:configurar' %}" class="nav-link {% if ns == 'facturacion' and url == 'configurar' %}active{% endif %}">
+            <i class="nav-icon bi bi-receipt-cutoff"></i>
+            <p>Facturación</p>
           </a>
         </li>
         {% endif %}
