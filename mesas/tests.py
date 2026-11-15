@@ -458,3 +458,32 @@ class PagarAntesOAlFinalTests(TestCase):
         anular_cuenta(self.c, jefe, "Cliente se fue", puede_anular=True)
         self.c.refresh_from_db()
         self.assertEqual(self.c.estado, Cuenta.Estado.ANULADA)
+
+
+class PartesIgualesTests(TestCase):
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        abrir(self.cajero, D("0"))
+        self.mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        v = asegurar_variante_unica(Producto.objects.create(nombre="Lomo", precio=D("50"), maneja_stock=False))
+        self.c = abrir_cuenta(self.cajero, self.mesa, 3)
+        agregar(self.c, [{"variante": v.pk, "cantidad": 2}], self.cajero)
+
+    def test_tres_personas_pagan_cada_una_a_su_manera(self):
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("mesas:precuenta", args=[self.c.pk]))
+        self.assertContains(r, "Entre 3 personas")
+        self.assertContains(r, "33.33 c/u")
+        # 100 entre 3: 33.30 + 33.30 + 33.40; una paga con Yape, una con tarjeta y otra en efectivo con 50
+        datos = {"pagos": [{"metodo": "YAP", "monto": "33.30"}, {"metodo": "TAR", "monto": "33.30"}, {"metodo": "EFE", "monto": "50.00"}],
+                 "partes": 3}
+        r = self.client.post(reverse("mesas:cobrar", args=[self.c.pk]), json.dumps(datos), content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        from ventas.models import Venta
+
+        v = Venta.objects.get()
+        self.assertEqual((v.total, v.vuelto), (D("100"), D("16.60")))
+        self.assertEqual(sorted((p.metodo, p.monto) for p in v.pagos.all()), [("EFE", D("33.40")), ("TAR", D("33.30")), ("YAP", D("33.30"))])
+        self.assertEqual(v.nota, "Mesa 1 · pagado en 3 partes iguales")

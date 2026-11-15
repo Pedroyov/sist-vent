@@ -7,7 +7,8 @@
 <table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}{% if i.opciones %} ({{ i.texto_opciones }}){% endif %}{% if i.cortesia %} - CORTESÍA{% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>
 <div class="linea"></div>
 <table><tr class="grande"><td>TOTAL S/</td><td class="r">{{ total }}</td></tr>
-{% if NEGOCIO.propina_activa %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}</table>
+{% if NEGOCIO.propina_activa %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}
+{% if por_persona %}<tr><td>Entre {{ c.personas }} personas</td><td class="r">{{ por_persona }} c/u</td></tr>{% endif %}</table>
 <div class="linea"></div>
 <div class="c">No es comprobante de pago</div>
 {% endblock %}

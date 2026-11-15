@@ -219,7 +219,8 @@ def precuenta(request, pk):
     c = _cuenta(pk)
     total = c.total_por_cobrar
     return render(request, "mesas/precuenta.html", {"c": c, "items": c.por_cobrar().order_by("creado"), "total": total,
-                                                    "propina_sugerida": (total / 10).quantize(total.__class__("0.10"))})
+                                                    "propina_sugerida": (total / 10).quantize(total.__class__("0.10")),
+                                                    "por_persona": (total / c.personas).quantize(total.__class__("0.01")) if c.personas > 1 and total else None})
 
 
 @permiso_requerido("mesas.atender")
@@ -276,7 +277,7 @@ def cobrar_vista(request, pk):
     try:
         venta = cobrar(c, request.user, datos.get("pagos") or [], [entero(i) for i in datos.get("items") or [] if entero(i)],
                        datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
-                       datos.get("nota", ""), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
+                       _nota_cobro(c, datos), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
                        puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"),
                        descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por,
                        liberar=datos.get("liberar", True) is not False)
@@ -288,6 +289,15 @@ def cobrar_vista(request, pk):
     else:
         siguiente = reverse("mesas:mapa") if not c.abierta else reverse("mesas:cuenta", args=[c.pk])
     return JsonResponse({"ok": True, "url": reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=" + quote(siguiente, safe="/")})
+
+
+def _nota_cobro(c, datos):
+    """La nota de la venta: la que se escribió o el nombre de la mesa; si se pagó en partes iguales, se anota."""
+    nota = str(datos.get("nota") or "").strip() or c.titulo
+    partes = entero(datos.get("partes")) or 0
+    if 2 <= partes <= 30:
+        nota += f" · pagado en {partes} partes iguales"
+    return nota[:200]
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")

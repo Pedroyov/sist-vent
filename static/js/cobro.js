@@ -69,10 +69,64 @@ window.Cobro = (function () {
   function neto() { return actual.total - descuento(); }
   function propina() { return CON_PROPINA ? cent($("c-propina").value) : 0; }
   function aCobrar() { return neto() + propina(); }
+  // ---------- partes iguales (mesas): cada persona paga su parte con su método ----------
+  var partes = {n: 0, filas: []};
+  var CON_PARTES = METODOS.filter(function (m) { return m.id !== "CRE"; });
+  function cuotas() {  // en céntimos; se redondea a 10 céntimos y la última parte cuadra la diferencia
+    var t = aCobrar(), n = partes.n, base = Math.floor(t / n / 10) * 10, r = [];
+    for (var i = 0; i < n; i++) r.push(i === n - 1 ? t - base * (n - 1) : base);
+    return r;
+  }
+  function pagosPartes() {
+    var q = cuotas();
+    return partes.filas.slice(0, partes.n).map(function (f, i) { return {metodo: f.metodo, c: f.metodo === "EFE" && f.con ? f.con : q[i]}; });
+  }
+  function pintarPartes() {
+    if (!partes.n) return;
+    while (partes.filas.length < partes.n) partes.filas.push({metodo: "EFE", con: 0});
+    $("c-np").value = partes.n;
+    var q = cuotas();
+    $("c-partes-lista").innerHTML = q.map(function (c, i) {
+      var f = partes.filas[i];
+      return '<div class="border-top py-2" data-parte="' + i + '">' +
+        '<div class="d-flex align-items-center"><span class="fw-semibold">Persona ' + (i + 1) + '</span><span class="ms-auto fs-5 fw-bold">' + soles(c) + "</span></div>" +
+        '<div class="d-flex flex-wrap gap-1 mt-1">' + CON_PARTES.map(function (m) {
+          return '<button type="button" class="btn btn-sm ' + (f.metodo === m.id ? "btn-primary" : "btn-outline-secondary") + '" data-pmetodo="' + m.id + '">' + esc(m.n) + "</button>";
+        }).join("") + "</div>" +
+        (f.metodo === "EFE" ? '<div class="d-flex align-items-center gap-2 mt-1"><div class="input-group input-group-sm" style="max-width: 11rem"><span class="input-group-text">Paga con</span>' +
+          '<input type="number" class="form-control text-end" data-pcon min="0" step="0.10" inputmode="decimal" placeholder="' + (c / 100).toFixed(2) + '" value="' + (f.con ? (f.con / 100).toFixed(2) : "") + '"></div>' +
+          '<span class="small" data-pvuelto></span></div>' : "") +
+        "</div>";
+    }).join("");
+    vueltosPartes();
+  }
+  function vueltosPartes() {
+    var q = cuotas();
+    $("c-partes-lista").querySelectorAll("[data-parte]").forEach(function (el) {
+      var i = parseInt(el.dataset.parte, 10), f = partes.filas[i], v = el.querySelector("[data-pvuelto]");
+      if (!v) return;
+      if (!f.con) v.textContent = "";
+      else if (f.con < q[i]) { v.className = "small text-danger"; v.textContent = "falta " + soles(q[i] - f.con); }
+      else { v.className = "small text-success fw-semibold"; v.textContent = "vuelto " + soles(f.con - q[i]); }
+    });
+  }
+  function modoPartes(n) {
+    partes.n = n;
+    if (!n) partes.filas = [];
+    $("c-partes").classList.toggle("d-none", !n);
+    $("c-partes-btn-fila").classList.toggle("d-none", !!n || !(actual && actual.partes));
+    $("c-metodos").classList.toggle("d-none", !!n);
+    $("c-billetes").classList.toggle("d-none", !!n);
+    pintarPartes();
+    estado();
+  }
+
   function pagos() {
+    if (partes.n) return pagosPartes();
     return Array.prototype.map.call(modal.querySelectorAll("[data-metodo]"), function (i) { return {metodo: i.dataset.metodo, c: cent(i.value)}; });
   }
   function billetes() {
+    if (partes.n) pintarPartes();
     var t = aCobrar();
     var sugeridos = BILLETES.filter(function (b) { return b * 100 > t; }).slice(0, 3);
     $("c-billetes").innerHTML = '<span class="small text-body-secondary me-1 align-self-center">Efectivo:</span>' +
@@ -144,6 +198,8 @@ window.Cobro = (function () {
         '<button type="button" class="btn btn-outline-secondary" data-todo="' + m.id + '">Todo</button></div>';
     }).join("");
     $("c-error").classList.add("d-none");
+    partes = {n: 0, filas: []};
+    modoPartes(0);
     boton(false);
     billetes();
     estado();
@@ -165,7 +221,8 @@ window.Cobro = (function () {
       sup_usuario: $("c-sup-usuario").value, sup_clave: $("c-sup-clave").value,
       cliente_id: cliente ? cliente.id : null,
       cliente_nombre: cliente ? "" : $("c-nombre").value, cliente_documento: cliente ? "" : $("c-doc").value, nota: $("c-nota").value,
-      liberar: actual.liberar ? $("c-liberar").checked : true
+      liberar: actual.liberar ? $("c-liberar").checked : true,
+      partes: partes.n
     }, function (error) {
       boton(false);
       if (error) { $("c-error").textContent = error; $("c-error").classList.remove("d-none"); }
@@ -174,6 +231,23 @@ window.Cobro = (function () {
 
   modal.addEventListener("shown.bs.modal", function () { var i = modal.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("c-metodos").addEventListener("input", estado);
+  $("c-partes-btn").addEventListener("click", function () { modoPartes(Math.max(2, (actual.partes && actual.partes.n) || 2)); });
+  $("c-partes-salir").addEventListener("click", function () { modoPartes(0); });
+  $("c-partes").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-np]");
+    if (b) { modoPartes(Math.min(30, Math.max(2, partes.n + parseInt(b.dataset.np, 10)))); return; }
+    b = e.target.closest("[data-pmetodo]");
+    if (b) {
+      var f = partes.filas[parseInt(b.closest("[data-parte]").dataset.parte, 10)];
+      f.metodo = b.dataset.pmetodo; f.con = 0;
+      pintarPartes(); estado();
+    }
+  });
+  $("c-partes").addEventListener("input", function (e) {
+    if (!e.target.hasAttribute("data-pcon")) return;
+    partes.filas[parseInt(e.target.closest("[data-parte]").dataset.parte, 10)].con = cent(e.target.value);
+    vueltosPartes(); estado();
+  });
   $("c-liberar").addEventListener("change", ayudaLiberar);
   $("c-propina").addEventListener("input", function () { billetes(); estado(); });
   ["c-desc", "c-desc-tipo", "c-desc-motivo", "c-sup-usuario", "c-sup-clave"].forEach(function (id) {

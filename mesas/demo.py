@@ -99,10 +99,10 @@ def _historial(mozos, por_categoria, dias=14):
                 _reponer(items)
                 agregar(c, [{k: v for k, v in i.items() if k != "_v"} for i in items], mozo)
                 enviar_cocina(c)
-                if azar.random() < .06:
+                if azar.random() < .06 and c.items.filter(anulado=False).count() > 1:
                     quitar(c.items.first(), jefe, azar.choice(["El cliente cambió de pedido", "Demoró mucho", "Se equivocó el mozo"]),
                            puede_anular=True)
-                if azar.random() < .07:
+                if azar.random() < .07 and c.items.filter(anulado=False).count() > 1:
                     regalo = c.items.filter(anulado=False).last()
                     cortesia(regalo, jefe, azar.choice(["Plato salió mal", "Demora", "Cumpleaños", "Cliente frecuente"]), cantidad=1)
                 total = c.total_por_cobrar

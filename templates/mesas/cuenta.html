@@ -251,6 +251,7 @@
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
     Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
       descuento: {puede: {{ P.ventas_precio|yesno:"true,false" }}},
+      partes: parcial ? null : {n: {{ c.personas }}},
       liberar: parcial ? null : {valor: {{ liberar_al_cobrar|yesno:"true,false" }},
         texto: "{% if c.mesa %}Liberar la mesa al cobrar{% else %}Ya se entregó el pedido{% endif %}",
         si: "{% if c.mesa %}Los clientes se van: la mesa queda libre.{% else %}El pedido se cierra.{% endif %}",
