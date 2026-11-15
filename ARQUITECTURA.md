@@ -28,6 +28,16 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 
 Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nuevas de Django, una por módulo.
 
+## Módulos y menú
+
+- **Base, siempre activa:** configuración (`core`), `productos` y el registro de `ventas`.
+- **Módulos** (`core/permisos.MODULOS`: código, nombre, ícono, texto, módulo que necesita) = lo que el negocio **contrató**. Los enciende el superusuario en Configuración → Módulos: `mostrador` (pantalla Vender), `caja`, `mesas`, `cocina` y `delivery` (necesitan mesas), `clientes`, `reportes`. `modulos_activos()` apaga solos los que necesitan uno apagado.
+- **Datos del negocio** = **cómo lo usa** el dueño dentro de lo contratado: propina, nivel de detalle de los pedidos, costo de envío, ancho del ticket, impresión automática.
+- Un permiso pertenece a un módulo (`PERMISOS`); con el módulo apagado nadie lo tiene. `ventas.vender` es del módulo `mostrador` y `mesas.cocina` del módulo `cocina`. Sin mostrador, el cajero igual ve sus ventas (la lista acepta `mesas.cobrar`).
+- `NEGOCIO.cocina_pantalla` y `NEGOCIO.delivery_activo` siguen existiendo, pero ahora se leen de los módulos (migración `core/0008`).
+- **Menú lateral** por grupos: *Atención* (mesas y delivery, cocina, vender, caja), *Hoy* (menú del día, agotados), *Gestión* (ventas, clientes, productos, reportes), *Configuración*. Cada encabezado aparece solo si el usuario ve algo debajo.
+- Las dependencias van en un solo sentido (mesas → ventas → productos). Para saber si algo está en uso, productos no pregunta a los demás módulos: `productos.servicios.en_uso()` revisa cualquier registro que apunte al objeto.
+
 ## Productos (cómo está pensado)
 
 - **Producto** guarda lo común: tipo (producto o servicio), categoría, unidad, precio, costo, si controla stock y el stock mínimo. Un servicio nunca controla stock.
@@ -164,8 +174,8 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 ## Cómo agregar un módulo nuevo (por ejemplo, ventas)
 
 1. `python manage.py startapp ventas` y agregarla a `LOCAL_APPS` en `config/settings.py` y a `config/urls.py`.
-2. En `core/permisos.py`: agregar el módulo a `MODULOS` y sus permisos a `PERMISOS` (con los roles que los tienen por defecto). Si un rol base debe tenerlos ya creados, hacer una migración de datos que actualice su `PermisosRol`.
-3. En `templates/partials/sidebar.html`: su entrada en el menú, con `{% if P.ventas_ver %}`.
+2. En `core/permisos.py`: agregar el módulo a `MODULOS` (con el módulo que necesita, si aplica) y sus permisos a `PERMISOS` (con los roles que los tienen por defecto). Si un rol base debe tenerlos ya creados, hacer una migración de datos que actualice su `PermisosRol`.
+3. En `templates/partials/sidebar.html`: su entrada en el grupo que corresponda (Atención, Hoy, Gestión), con `{% if P.ventas_ver %}`, y agregar el permiso a la condición del encabezado.
 4. En `core/tablero.py`: sus atajos, pendientes y tarjetas.
 5. Datos de ejemplo en `datos_demo`.
 

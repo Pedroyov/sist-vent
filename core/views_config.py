@@ -94,13 +94,16 @@ def roles(request):
             messages.success(request, "Permisos guardados. Se aplican desde la siguiente pantalla que abra cada usuario.")
         return redirect("core:roles")
 
+    from .permisos import modulos_activos
+
     inactivos = set(ajustes.modulos_inactivos)
+    activos = modulos_activos(ajustes)
     secciones = []
-    for mod in [*[m[0] for m in MODULOS], "config"]:
-        if mod in inactivos:
+    for mod in ["ventas", "productos", *[m[0] for m in MODULOS], "config"]:
+        if mod not in activos:
             continue  # los módulos que el administrador desactivó no se muestran
         secciones.append({
-            "codigo": mod, "nombre": NOMBRE_MODULO[mod], "inactivo": mod in inactivos,
+            "codigo": mod, "nombre": NOMBRE_MODULO[mod], "inactivo": False,
             "permisos": [{"codigo": p[0], "texto": p[2]} for p in PERMISOS if p[1] == mod],
         })
     return render(request, "core/config/roles.html", {
@@ -247,5 +250,6 @@ def modulos(request):
         return redirect("core:modulos")
     inactivos = set(ajustes.modulos_inactivos)
     return render(request, "core/config/modulos.html", {
-        "modulos": [{"codigo": m[0], "nombre": m[1], "icono": m[2], "texto": m[3], "activo": m[0] not in inactivos} for m in MODULOS],
+        "modulos": [{"codigo": m[0], "nombre": m[1], "icono": m[2], "texto": m[3], "activo": m[0] not in inactivos,
+                     "necesita": m[4], "necesita_nombre": NOMBRE_MODULO.get(m[4], "")} for m in MODULOS],
     })

@@ -65,7 +65,7 @@
       <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-ui-checks me-1"></i> Pedidos</h3></div>
         <div class="card-body">{{ form.nivel_pedido|as_crispy_field }}
-          {% if P.mod_mesas %}<div class="row"><div class="col-sm-7 pt-sm-4">{{ form.delivery_activo|as_crispy_field }}</div><div class="col-sm-5">{{ form.delivery_costo|as_crispy_field }}</div></div>{% endif %}</div>
+          {% if P.mod_delivery %}<div class="row"><div class="col-sm-6">{{ form.delivery_costo|as_crispy_field }}</div></div>{% endif %}</div>
       </div>
 
       <div class="card mb-4">
@@ -73,7 +73,6 @@
         <div class="card-body">
           {{ form.ticket_ancho|as_crispy_field }}
           {{ form.imprimir_auto|as_crispy_field }}
-          {% if P.mod_mesas %}{{ form.cocina_pantalla|as_crispy_field }}{% endif %}
           <p class="small text-body-secondary mb-0"><i class="bi bi-info-circle me-1"></i>El tamaño del papel lo decide la impresora que elijas al imprimir: escoge tu ticketera.
             En una impresora normal saldrá una tira angosta arriba de la hoja.</p>
         </div>

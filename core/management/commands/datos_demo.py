@@ -43,12 +43,11 @@ class Command(BaseCommand):
         a.nombre = nombre
         a.nombre_corto = nombre
         a.lema = lema
-        inactivos = [m for m in (a.modulos_inactivos or []) if m != "mesas"]
-        a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + ["mesas"]
-        a.cocina_pantalla = rubro == Rubro.RESTAURANTE
+        restaurante = ("mesas", "cocina", "delivery")
+        inactivos = [m for m in (a.modulos_inactivos or []) if m not in restaurante]
+        a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + list(restaurante)
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
-        a.delivery_activo = rubro == Rubro.RESTAURANTE
         if rubro == Rubro.RESTAURANTE and not a.delivery_costo:
             from decimal import Decimal
 

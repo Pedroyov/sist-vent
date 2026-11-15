@@ -18,7 +18,7 @@ D = Decimal
 
 class MesasTests(TestCase):
     def setUp(self):
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "propina_activa": True})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": ["cocina"], "propina_activa": True})  # sin pantalla de cocina: se dicta
         self.mozo = User.objects.create_user("mozo", password="x-clave-123")
         self.mozo.groups.add(Group.objects.get(name="Vendedor"))
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
@@ -127,7 +127,7 @@ class MesasTests(TestCase):
 
 class CocinaEImpresionTests(TestCase):
     def setUp(self):
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True, "ticket_ancho": 58})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "ticket_ancho": 58})
         self.mozo = User.objects.create_user("mozo", password="x-clave-123")
         self.mozo.groups.add(Group.objects.get(name="Vendedor"))
         self.chef = User.objects.create_user("chef", password="x-clave-123")
@@ -367,7 +367,7 @@ class PagarAntesOAlFinalTests(TestCase):
     """Se puede pagar antes, al final, o pagar y seguir pidiendo; la mesa se libera cuando se van."""
 
     def setUp(self):
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
         self.mozo = User.objects.create_user("mozo", password="x-clave-123")
         self.mozo.groups.add(Group.objects.get(name="Vendedor"))
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
@@ -491,7 +491,7 @@ class PartesIgualesTests(TestCase):
 
 class DeliveryTests(TestCase):
     def setUp(self):
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True, "delivery_activo": True,
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [],
                                                         "delivery_costo": D("5")})
         self.mozo = User.objects.create_user("mozo", password="x-clave-123")
         self.mozo.groups.add(Group.objects.get(name="Vendedor"))
@@ -575,6 +575,6 @@ class DeliveryTests(TestCase):
         n = Cuenta.objects.count()
         self._nuevo(direccion="")
         self.assertEqual(Cuenta.objects.count(), n)  # sin dirección no se abre
-        Ajustes.objects.filter(pk=1).update(delivery_activo=False)
+        Ajustes.objects.filter(pk=1).update(modulos_inactivos=["delivery"])
         self._nuevo()
         self.assertEqual(Cuenta.objects.count(), n)  # apagado: no se puede

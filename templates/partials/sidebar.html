@@ -19,20 +19,23 @@
           </a>
         </li>
 
-        {# ---------- Módulos del negocio ---------- #}
-        {% if P.mesas_cocina %}
-        <li class="nav-item">
-          <a href="{% url 'mesas:cocina' %}" class="nav-link {% if ns == 'mesas' and url == 'cocina' %}active{% endif %}">
-            <i class="nav-icon bi bi-fire"></i>
-            <p>Pantalla de cocina</p>
-          </a>
-        </li>
+        {# ---------- Atención: lo del día a día ---------- #}
+        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.ventas_vender or P.caja_usar or P.caja_ver %}
+        <li class="nav-header">ATENCIÓN</li>
         {% endif %}
         {% if P.mesas_atender or P.mesas_cobrar %}
         <li class="nav-item">
           <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' and url != 'cocina' %}active{% endif %}">
             <i class="nav-icon bi bi-grid-3x3-gap"></i>
-            <p>Mesas</p>
+            <p>Mesas{% if NEGOCIO.delivery_activo %} y delivery{% endif %}</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.mesas_cocina %}
+        <li class="nav-item">
+          <a href="{% url 'mesas:cocina' %}" class="nav-link {% if ns == 'mesas' and url == 'cocina' %}active{% endif %}">
+            <i class="nav-icon bi bi-fire"></i>
+            <p>Pantalla de cocina</p>
           </a>
         </li>
         {% endif %}
@@ -44,7 +47,41 @@
           </a>
         </li>
         {% endif %}
-        {% if P.ventas_vender or P.ventas_ver %}
+        {% if P.caja_usar or P.caja_ver %}
+        <li class="nav-item">
+          <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' %}active{% endif %}">
+            <i class="nav-icon bi bi-safe2"></i>
+            <p>Caja</p>
+          </a>
+        </li>
+        {% endif %}
+
+        {# ---------- Hoy: lo que cambia cada día ---------- #}
+        {% if P.productos_agotar or P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
+        <li class="nav-header">HOY</li>
+        {% endif %}
+        {% if P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
+        <li class="nav-item">
+          <a href="{% url 'productos:menu' %}" class="nav-link {% if ns == 'productos' and url == 'menu' %}active{% endif %}">
+            <i class="nav-icon bi bi-journal-text"></i>
+            <p>Menú del día</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.productos_agotar %}
+        <li class="nav-item">
+          <a href="{% url 'productos:agotados' %}" class="nav-link {% if ns == 'productos' and url == 'agotados' %}active{% endif %}">
+            <i class="nav-icon bi bi-slash-circle"></i>
+            <p>Agotados</p>
+          </a>
+        </li>
+        {% endif %}
+
+        {# ---------- Gestión ---------- #}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.clientes_ver or P.productos_ver or P.reportes_ver %}
+        <li class="nav-header">GESTIÓN</li>
+        {% endif %}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar %}
         <li class="nav-item">
           <a href="{% url 'ventas:lista' %}" class="nav-link {% if ns == 'ventas' and url != 'pos' %}active{% endif %}">
             <i class="nav-icon bi bi-receipt"></i>
@@ -60,30 +97,6 @@
           </a>
         </li>
         {% endif %}
-        {% if P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
-        <li class="nav-item">
-          <a href="{% url 'productos:menu' %}" class="nav-link {% if ns == 'productos' and url == 'menu' %}active{% endif %}">
-            <i class="nav-icon bi bi-journal-text"></i>
-            <p>Menú del día</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.productos_agotar %}
-        <li class="nav-item">
-          <a href="{% url 'productos:agotados' %}" class="nav-link {% if ns == 'productos' and url == 'agotados' %}active{% endif %}">
-            <i class="nav-icon bi bi-slash-circle"></i>
-            <p>Agotados hoy</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.caja_usar or P.caja_ver %}
-        <li class="nav-item">
-          <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' %}active{% endif %}">
-            <i class="nav-icon bi bi-safe2"></i>
-            <p>Caja</p>
-          </a>
-        </li>
-        {% endif %}
         {% if P.productos_ver %}
         <li class="nav-item {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}active{% endif %}">
@@ -96,13 +109,6 @@
                 <i class="nav-icon bi bi-circle"></i><p>Catálogo</p>
               </a>
             </li>
-            {% if P.productos_stock %}
-            <li class="nav-item">
-              <a href="{% url 'productos:kardex' %}" class="nav-link {% if ns == 'productos' and url == 'kardex' %}active{% endif %}">
-                <i class="nav-icon bi bi-circle"></i><p>Movimientos de stock</p>
-              </a>
-            </li>
-            {% endif %}
             {% if P.productos_editar %}
             {% if NEGOCIO.usa_opciones %}<li class="nav-item">
               <a href="{% url 'productos:opciones' %}" class="nav-link {% if ns == 'productos' and 'grupo' in url or ns == 'productos' and url == 'opciones' %}active{% endif %}">
@@ -115,10 +121,16 @@
               </a>
             </li>
             {% endif %}
+            {% if P.productos_stock %}
+            <li class="nav-item">
+              <a href="{% url 'productos:kardex' %}" class="nav-link {% if ns == 'productos' and url == 'kardex' %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Movimientos de stock</p>
+              </a>
+            </li>
+            {% endif %}
           </ul>
         </li>
         {% endif %}
-
         {% if P.reportes_ver %}
         <li class="nav-item">
           <a href="{% url 'reportes:inicio' %}" class="nav-link {% if ns == 'reportes' %}active{% endif %}">

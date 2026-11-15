@@ -18,8 +18,8 @@ class Rubro(models.TextChoices):
 
 
 def modulos_inactivos_iniciales():
-    """Mesas solo se usa en restaurantes: empieza apagado (se activa al elegir ese rubro)."""
-    return ["mesas"]
+    """Lo de restaurante empieza apagado (Mesas se activa al elegir ese rubro)."""
+    return ["mesas", "cocina", "delivery"]
 
 
 class Ajustes(models.Model):
@@ -60,11 +60,6 @@ class Ajustes(models.Model):
     imprimir_auto = models.BooleanField(
         "imprimir el ticket al terminar cada venta", default=False,
         help_text="Abre la impresión sola. Con Chrome en modo «kiosk-printing» imprime sin preguntar.")
-    cocina_pantalla = models.BooleanField(
-        "la cocina usa la pantalla de cocina", default=False,
-        help_text="Una tablet, celular o PC en cocina recibe los pedidos al instante y marca qué está listo.")
-    delivery_activo = models.BooleanField("hacemos delivery", default=False,
-                                          help_text="Pedidos por teléfono o WhatsApp con dirección, costo de envío y repartidor.")
     delivery_costo = models.DecimalField("costo de envío habitual", max_digits=8, decimal_places=2, default=Decimal("0"),
                                          help_text="Se propone en cada delivery; se puede cambiar en cada pedido.")
     nivel_pedido = models.PositiveSmallIntegerField(
@@ -88,6 +83,20 @@ class Ajustes(models.Model):
     def cargar(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    # --- módulos que antes eran ajustes: se leen igual (NEGOCIO.cocina_pantalla, NEGOCIO.delivery_activo) ---
+    def tiene_modulo(self, codigo):
+        from .permisos import modulos_activos
+
+        return codigo in modulos_activos(self)
+
+    @property
+    def cocina_pantalla(self):
+        return self.tiene_modulo("cocina")
+
+    @property
+    def delivery_activo(self):
+        return self.tiene_modulo("delivery")
 
     @property
     def usa_opciones(self):

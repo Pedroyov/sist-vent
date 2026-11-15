@@ -11,15 +11,17 @@
   <form method="post">
     {% csrf_token %}
     <div class="card-body">
-      <p class="small text-body-secondary mb-3">Elige qué módulos usa el negocio. Uno apagado desaparece del menú para todos, incluida Administración, y sus permisos no se muestran en Roles y permisos. Los datos no se borran: si lo vuelves a activar, todo sigue ahí. <strong>Configuración</strong> siempre está activa.
+      <p class="small text-body-secondary mb-3">Elige qué módulos usa el negocio. Uno apagado desaparece del menú para todos, incluida Administración, y sus permisos no se muestran en Roles y permisos. Los datos no se borran: si lo vuelves a activar, todo sigue ahí. <strong>Configuración, Productos y el registro de Ventas</strong> siempre están activos.
+        <br>Aquí va lo que el negocio <strong>contrató</strong>. Cómo lo usa (propina, nivel de detalle de los pedidos, ancho del ticket…) lo decide el dueño en <a href="{% url 'core:datos_negocio' %}">Datos del negocio</a>.
         <br><i class="bi bi-shield-lock me-1"></i>Solo tú, como administrador principal, puedes cambiar esto.</p>
       <div class="row g-3">
         {% for m in modulos %}
         <div class="col-md-6 col-xl-4">
           <label class="d-flex gap-3 border rounded p-3 h-100" for="mod-{{ m.codigo }}" style="cursor: pointer">
             <i class="bi {{ m.icono }} fs-3 text-primary"></i>
-            <span class="flex-grow-1"><strong>{{ m.nombre }}</strong><br><span class="small text-body-secondary">{{ m.texto }}</span></span>
-            <span class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" name="modulo" value="{{ m.codigo }}" id="mod-{{ m.codigo }}" {% if m.activo %}checked{% endif %} style="width: 2.5em; height: 1.3em"></span>
+            <span class="flex-grow-1"><strong>{{ m.nombre }}</strong><br><span class="small text-body-secondary">{{ m.texto }}</span>
+              {% if m.necesita %}<br><span class="small text-warning-emphasis" data-necesita="{{ m.necesita }}"><i class="bi bi-link-45deg"></i> Necesita {{ m.necesita_nombre }}</span>{% endif %}</span>
+            <span class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" name="modulo" value="{{ m.codigo }}" id="mod-{{ m.codigo }}" {% if m.necesita %}data-de="{{ m.necesita }}"{% endif %} {% if m.activo %}checked{% endif %} style="width: 2.5em; height: 1.3em"></span>
           </label>
         </div>
         {% empty %}
@@ -31,4 +33,20 @@
   </form>
 </div>
 
+{% endblock %}
+{% block extra_js %}
+<script>
+  // Lo que necesita otro módulo se apaga (y no se puede encender) si ese está apagado
+  function revisar() {
+    document.querySelectorAll("[data-de]").forEach(function (c) {
+      var base = document.getElementById("mod-" + c.dataset.de);
+      if (!base.checked && !c.disabled) { c.dataset.antes = c.checked ? "1" : ""; c.checked = false; }
+      if (base.checked && c.disabled) c.checked = c.dataset.antes === "1";
+      c.disabled = !base.checked;
+      c.closest("label").classList.toggle("opacity-50", !base.checked);
+    });
+  }
+  document.querySelectorAll("[name=modulo]").forEach(function (c) { c.addEventListener("change", revisar); });
+  revisar();
+</script>
 {% endblock %}

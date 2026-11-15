@@ -182,7 +182,7 @@ def _filtrar(request):
     return ventas, f
 
 
-@permiso_requerido("ventas.vender", "ventas.ver")
+@permiso_requerido("ventas.vender", "ventas.ver", "mesas.cobrar")
 def lista(request):
     ventas, f = _filtrar(request)
     if request.GET.get("excel"):

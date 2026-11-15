@@ -81,3 +81,42 @@ class SeguridadTests(TestCase):
         self.client.force_login(User.objects.get(username="gerente"))
         r = self.client.get("/ventas/1/imprimir/")
         self.assertEqual(r.headers.get("X-Frame-Options"), "SAMEORIGIN")
+
+
+class ModulosTests(TestCase):
+    """Lo contratado se enciende en Módulos; cocina y delivery necesitan Mesas; productos y ventas son la base."""
+
+    def test_dependencias_y_base(self):
+        from .models import Ajustes
+        from .permisos import modulos_activos
+
+        a = Ajustes.cargar()
+        a.modulos_inactivos = ["mesas"]
+        a.save()
+        activos = modulos_activos()
+        self.assertNotIn("cocina", activos)  # sin mesas no hay cocina ni delivery, aunque estén "encendidos"
+        self.assertNotIn("delivery", activos)
+        self.assertFalse(a.cocina_pantalla or a.delivery_activo)
+        self.assertTrue({"productos", "ventas", "config"} <= activos)
+        a.modulos_inactivos = ["productos", "ventas"]  # no se pueden apagar
+        a.save()
+        self.assertTrue({"productos", "ventas"} <= modulos_activos())
+        a.modulos_inactivos = []
+        a.save()
+        self.assertTrue(a.cocina_pantalla and a.delivery_activo)
+
+    def test_sin_mostrador_el_cajero_cobra_mesas_y_ve_sus_ventas(self):
+        from django.contrib.auth.models import Group, User
+        from django.urls import reverse
+
+        from .models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": ["mostrador"]})
+        u = User.objects.create_user("caja", password="x-clave-123")
+        u.groups.add(Group.objects.get(name="Cajero"))
+        self.client.force_login(u)
+        self.assertEqual(self.client.get(reverse("ventas:pos")).status_code, 403)
+        r = self.client.get(reverse("ventas:lista"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "GESTIÓN")
+        self.assertNotContains(r, reverse("ventas:pos") + '"')

@@ -17,21 +17,25 @@ VENDEDOR = "Vendedor"
 COCINA = "Cocina"
 ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, COCINA]
 
-# Módulos que se pueden desactivar. Configuración es la base y siempre está activa.
-# Al crear una app nueva se agrega aquí, por ejemplo:
-#   ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets y anulaciones."),
-#   ("productos", "Productos", "bi-box-seam", "Catálogo, precios, variantes (talla/color) y stock."),
-#   ("caja", "Caja", "bi-cash-stack", "Apertura, cierre, ingresos y egresos."),
-#   ("clientes", "Clientes", "bi-people", "Clientes, historial y deudas."),
+# Módulos = lo que el negocio contrató. Los activa o apaga el superusuario (el proveedor del sistema) en
+# Configuración → Módulos. Cómo usa el dueño lo contratado (propina, nivel de pedidos, ancho del ticket…) va en
+# Datos del negocio. La base (configuración, productos y el registro de ventas) siempre está activa.
+# (código, nombre, ícono, descripción, módulo que necesita)
 MODULOS = [
-    ("caja", "Caja", "bi-safe2", "Apertura y cierre de caja por turno, ingresos y egresos, arqueo del efectivo."),
-    ("mesas", "Mesas", "bi-grid-3x3-gap", "Para restaurantes: mapa de mesas, pedidos con notas, envío a cocina, precuenta y cobro por mesa."),
-    ("clientes", "Clientes y fiado", "bi-people", "Clientes con DNI/RUC, ventas al fiado con límite, pagos de deudas y recordatorios por WhatsApp."),
-    ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control."),
-    ("ventas", "Ventas", "bi-cart3", "Punto de venta, tickets, ventas del día y anulaciones."),
-    ("productos", "Productos", "bi-box-seam", "Catálogo de productos y servicios, variantes (talla, color, tamaño), precios y stock."),
+    ("mostrador", "Vender en mostrador", "bi-cart3",
+     "Pantalla de venta rápida con lectora de códigos y ticket. Un restaurante que cobra solo por mesas puede no usarla.", None),
+    ("caja", "Caja", "bi-safe2", "Apertura y cierre de caja por turno, ingresos y egresos, arqueo del efectivo.", None),
+    ("mesas", "Mesas", "bi-grid-3x3-gap",
+     "Para restaurantes: mapa de mesas, pedidos desde el celular, precuenta, cobro por mesa y pedidos para llevar.", None),
+    ("cocina", "Pantalla de cocina", "bi-fire",
+     "La cocina recibe los pedidos al instante en una tablet o PC y marca lo que está listo; el mozo recibe el aviso.", "mesas"),
+    ("delivery", "Delivery", "bi-scooter",
+     "Pedidos por teléfono o WhatsApp con dirección, costo de envío, repartidor, estados y hoja para el repartidor.", "mesas"),
+    ("clientes", "Clientes y fiado", "bi-people", "Clientes con DNI/RUC, ventas al fiado con límite, pagos de deudas y recordatorios por WhatsApp.", None),
+    ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control.", None),
 ]
-MODULOS_BASE = ("config",)
+MODULOS_BASE = ("config", "productos", "ventas")
+NECESITA = {m[0]: m[4] for m in MODULOS}
 
 # (código, módulo, descripción, roles que lo tienen por defecto)
 # Administración y el superusuario siempre tienen todos.
@@ -43,7 +47,7 @@ PERMISOS = [
     ("mesas.cobrar", "mesas", "Cobrar mesas (todo o dividiendo la cuenta)", [CAJERO]),
     ("mesas.cortesia", "mesas", "Dar cortesías (platos sin cobrar) o autorizarlas con su clave", []),
     ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
-    ("mesas.cocina", "mesas", "Usar la pantalla de cocina: ver pedidos y marcarlos como listos", [COCINA]),
+    ("mesas.cocina", "cocina", "Usar la pantalla de cocina: ver pedidos y marcarlos como listos", [COCINA]),
     ("mesas.configurar", "mesas", "Crear y editar zonas y mesas", []),
 
     ("clientes.ver", "clientes", "Ver clientes, lo que deben y su estado de cuenta", [CAJERO, VENDEDOR]),
@@ -54,7 +58,7 @@ PERMISOS = [
 
     ("reportes.ver", "reportes", "Ver los reportes del negocio", []),
 
-    ("ventas.vender", "ventas", "Vender en el punto de venta y ver sus propias ventas", [CAJERO, VENDEDOR]),
+    ("ventas.vender", "mostrador", "Vender en el mostrador y ver sus propias ventas", [CAJERO, VENDEDOR]),
     ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),
     ("ventas.precio", "ventas", "Cambiar precios y dar descuentos (o autorizarlos con su clave)", []),
     ("ventas.anular", "ventas", "Anular ventas (devuelve el stock)", []),
@@ -71,7 +75,7 @@ PERMISOS = [
 ]
 CODIGOS = [p[0] for p in PERMISOS]
 MODULO_DE = {p[0]: p[1] for p in PERMISOS}
-NOMBRE_MODULO = {"config": "Configuración", **{m[0]: m[1] for m in MODULOS}}
+NOMBRE_MODULO = {"config": "Configuración", "productos": "Productos", "ventas": "Ventas", **{m[0]: m[1] for m in MODULOS}}
 
 
 def permisos_por_defecto(rol):
@@ -80,11 +84,16 @@ def permisos_por_defecto(rol):
     return [p[0] for p in PERMISOS if rol in p[3]]
 
 
-def modulos_activos():
-    from .models import Ajustes
+def modulos_activos(ajustes=None):
+    """Los módulos encendidos. Uno que necesita a otro (cocina y delivery necesitan mesas) se apaga con él."""
+    if ajustes is None:
+        from .models import Ajustes
 
-    inactivos = set(Ajustes.cargar().modulos_inactivos)
-    return {m[0] for m in MODULOS if m[0] not in inactivos} | set(MODULOS_BASE)
+        ajustes = Ajustes.cargar()
+    inactivos = set(ajustes.modulos_inactivos or [])
+    activos = {m[0] for m in MODULOS if m[0] not in inactivos}
+    activos = {m for m in activos if not NECESITA.get(m) or NECESITA[m] in activos}
+    return activos | set(MODULOS_BASE)
 
 
 def permisos_de(user):

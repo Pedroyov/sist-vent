@@ -63,9 +63,7 @@ def generar_variantes(producto, opciones1, opciones2=None):
         if unica:
             if unica.stock != CERO:
                 raise ValueError("El producto todavía tiene stock sin talla/opción. Ajusta ese stock a 0 antes de crear variantes.")
-            from mesas.models import ItemCuenta
-
-            if unica.movimientos.exists() or unica.ventas.exists() or ItemCuenta.objects.filter(variante=unica).exists():
+            if en_uso(unica):
                 unica.activa = False
                 unica.codigo = ""
                 unica.save(update_fields=["activa", "codigo"])
@@ -153,6 +151,16 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
                 raise OpcionInvalida(f"{producto.nombre}: eso no se puede quitar. Recarga la página.")
             foto.append({"id": f"s{c.pk}", "g": "Sin", "n": f"SIN {c.nombre.upper()}", "p": "0", "sin": True})
     return foto, sum((o.precio for o in elegidas), Decimal("0")), texto_opciones(foto)
+
+
+def en_uso(objeto):
+    """¿Algún registro del sistema (venta, movimiento, pedido de mesa, comprobante…) apunta a este objeto?
+    Se revisa de forma genérica para que productos no dependa de los módulos que lo usan."""
+    for rel in objeto._meta.get_fields(include_hidden=True):
+        if (rel.one_to_many or rel.one_to_one) and rel.auto_created and not rel.concrete:
+            if rel.related_model._base_manager.filter(**{rel.field.name: objeto}).exists():
+                return True
+    return False
 
 
 def leer_linea_opcion(linea):
