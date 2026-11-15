@@ -44,7 +44,7 @@ def _catalogo():
                    "st": f"{v.stock.normalize():f}" if p.maneja_stock else None} for v in p.vars],
             "ag": p.agotado,
             "g": [{"id": g.pk, "n": g.nombre, "min": minimo_disponible(g), "max": g.maximo, "r": g.regla,
-                   "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada} for o in g.opciones.all()]}
+                   "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada, "d": o.por_defecto} for o in g.opciones.all()]}
                   for g in ordenar_grupos(p.grs)],
         })
     return datos

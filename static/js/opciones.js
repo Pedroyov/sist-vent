@@ -36,9 +36,9 @@ window.Opciones = (function () {
         '<div class="fw-semibold mb-1">' + esc(g.n) + ' <span class="badge ' + (g.min ? "text-bg-danger" : "text-bg-light border") + '">' + esc(g.r) + "</span></div>" +
         '<div class="d-flex flex-wrap gap-2">';
       g.o.forEach(function (o) {
-        html += '<input type="' + (unico ? "radio" : "checkbox") + '" class="btn-check" name="op-g' + g.id + '" id="op-o' + o.id + '" value="' + o.id + '"' + (o.ag ? " disabled" : "") + ">" +
+        html += '<input type="' + (unico ? "radio" : "checkbox") + '" class="btn-check" name="op-g' + g.id + '" id="op-o' + o.id + '" value="' + o.id + '"' + (o.ag ? " disabled" : (o.d ? " checked" : "")) + ">" +
           '<label class="btn btn-outline-secondary' + (o.ag ? " text-decoration-line-through" : "") + '" for="op-o' + o.id + '">' + esc(o.n) +
-          (cent(o.p) ? ' <span class="small opacity-75">+' + soles(cent(o.p)) + "</span>" : "") + (o.ag ? ' <span class="small">(agotado)</span>' : "") + "</label>";
+          (cent(o.p) ? ' <span class="small opacity-75">+' + soles(cent(o.p)) + "</span>" : "") + (o.ag ? ' <span class="small">(agotado)</span>' : "") + (o.d && !o.ag ? ' <span class="small opacity-75">(incluido)</span>' : "") + "</label>";
       });
       html += "</div></div>";
     });

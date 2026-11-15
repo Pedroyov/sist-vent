@@ -124,6 +124,10 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
         elegidas.append(o)
     for g in grupos:
         n = sum(1 for o in elegidas if o.grupo_id == g.pk)
+        if not n and g.minimo:  # obligatorio sin elegir: va lo que viene incluido, si hay
+            incluidas = [o for o in g.opciones.all() if o.activa and o.por_defecto and not (revisar_disponible and o.agotada)]
+            elegidas += incluidas[:g.minimo]
+            n = len(incluidas[:g.minimo])
         if n < minimo_disponible(g, revisar_disponible):
             raise OpcionInvalida(f"{producto.nombre}: elige {g.nombre.lower()}.")
         if g.maximo and n > g.maximo:
@@ -132,6 +136,26 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     elegidas.sort(key=lambda o: (orden[o.grupo_id], o.orden, o.pk))
     foto = [{"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)} for o in elegidas]
     return foto, sum((o.precio for o in elegidas), Decimal("0")), texto_opciones(foto)
+
+
+def leer_linea_opcion(linea):
+    """«Papas fritas *» o «Huevo frito | 2.00» -> (nombre, precio, viene_incluida). Lanza ValueError si el precio no sirve."""
+    import re
+
+    nombre, _, precio = str(linea).partition("|")
+    nombre = nombre.strip()
+    defecto = nombre.startswith("*") or nombre.endswith("*")
+    nombre = " ".join(nombre.strip("* ").split())[:60]
+    precio = re.sub(r"[^\d.,*]", "", precio)
+    defecto = defecto or "*" in precio
+    precio = precio.replace("*", "").replace(",", ".")
+    try:
+        precio = Decimal(precio) if precio else Decimal("0")
+    except ArithmeticError:
+        raise ValueError("el precio no es un número")
+    if not precio.is_finite() or precio < 0:
+        raise ValueError("el precio no es válido")
+    return nombre, precio.quantize(Decimal("0.01")), defecto
 
 
 def minimo_disponible(grupo, revisar_disponible=True):

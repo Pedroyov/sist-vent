@@ -187,8 +187,9 @@ def decimal_o_none(valor):
 
 class GrupoOpcionesForm(forms.ModelForm):
     opciones_texto = forms.CharField(
-        label="Opciones", widget=forms.Textarea(attrs={"rows": 7, "placeholder": "Término medio\nBien cocido\nHuevo frito | 2.00"}),
-        help_text="Una por línea. Si se cobra aparte, ponle el precio después de una barra: «Huevo frito | 2.00».")
+        label="Opciones", widget=forms.Textarea(attrs={"rows": 7, "placeholder": "Papas fritas *\nArroz\nEnsalada\nHuevo frito | 2.00"}),
+        help_text="Una por línea. Si se cobra aparte, ponle el precio después de una barra: «Huevo frito | 2.00». "
+                  "Si viene incluida (ya aparece elegida al pedir), ponle un asterisco: «Papas fritas *».")
     productos = forms.ModelMultipleChoiceField(queryset=Producto.objects.none(), required=False, widget=forms.CheckboxSelectMultiple,
                                                label="Usar en estos productos")
 
@@ -202,7 +203,7 @@ class GrupoOpcionesForm(forms.ModelForm):
         if self.instance.pk:
             self.initial["productos"] = list(self.instance.productos.values_list("pk", flat=True))
             self.initial["opciones_texto"] = "\n".join(
-                o.nombre + (f" | {o.precio:.2f}" if o.precio else "") for o in self.instance.opciones.filter(activa=True))
+                o.nombre + (" *" if o.por_defecto else "") + (f" | {o.precio:.2f}" if o.precio else "") for o in self.instance.opciones.filter(activa=True))
 
     def clean_nombre(self):
         nombre = " ".join(self.cleaned_data["nombre"].split())
@@ -216,19 +217,18 @@ class GrupoOpcionesForm(forms.ModelForm):
             linea = linea.strip()
             if not linea:
                 continue
-            nombre, _, precio = linea.partition("|")
-            nombre = " ".join(nombre.split())[:60]
-            precio = re.sub(r"[^\d.,]", "", precio).replace(",", ".")
+            from .servicios import leer_linea_opcion
+
             try:
-                precio = Decimal(precio) if precio else CERO
-            except Exception:  # noqa: BLE001
-                raise forms.ValidationError(f"Línea {n}: el precio no es un número.")
+                nombre, precio, defecto = leer_linea_opcion(linea)
+            except ValueError as e:
+                raise forms.ValidationError(f"Línea {n}: {e}.")
             if not nombre:
                 raise forms.ValidationError(f"Línea {n}: falta el nombre.")
             if nombre.lower() in vistos:
                 raise forms.ValidationError(f"«{nombre}» está repetido.")
             vistos.add(nombre.lower())
-            filas.append((nombre, precio))
+            filas.append((nombre, precio, defecto))
         if not filas:
             raise forms.ValidationError("Escribe al menos una opción.")
         return filas
@@ -236,6 +236,10 @@ class GrupoOpcionesForm(forms.ModelForm):
     def clean(self):
         d = super().clean()
         mn, mx, ops = d.get("minimo"), d.get("maximo"), d.get("opciones_texto") or []
+        incluidas = sum(1 for o in ops if o[2])
+        if mx and incluidas > mx:
+            self.add_error("opciones_texto", "Marcaste con * más opciones incluidas de las que se pueden elegir."
+                           + (" En un grupo de «elegir 1» solo una puede venir incluida." if mx == 1 else ""))
         if mn is not None and mx and mn > mx:
             self.add_error("minimo", "El mínimo no puede ser mayor que el máximo.")
         if mn and ops and mn > len(ops):
@@ -251,13 +255,13 @@ class GrupoOpcionesForm(forms.ModelForm):
             g = super().save()
             actuales = {o.nombre.lower(): o for o in g.opciones.all()}
             usados = set()
-            for i, (nombre, precio) in enumerate(self.cleaned_data["opciones_texto"]):
+            for i, (nombre, precio, defecto) in enumerate(self.cleaned_data["opciones_texto"]):
                 o = actuales.get(nombre.lower())
                 if o:
-                    o.nombre, o.precio, o.orden, o.activa = nombre, precio, i, True
+                    o.nombre, o.precio, o.orden, o.activa, o.por_defecto = nombre, precio, i, True, defecto
                     o.save()
                 else:
-                    o = Opcion.objects.create(grupo=g, nombre=nombre, precio=precio, orden=i)
+                    o = Opcion.objects.create(grupo=g, nombre=nombre, precio=precio, orden=i, por_defecto=defecto)
                 usados.add(o.pk)
             g.opciones.exclude(pk__in=usados).update(activa=False)  # no se borran: ya pueden estar en pedidos
             g.productos.set(self.cleaned_data["productos"])

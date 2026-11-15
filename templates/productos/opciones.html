@@ -21,7 +21,7 @@
                 data-mensaje="¿Eliminar el grupo «{{ g.nombre }}»? Se quitará de {{ g.productos.all|length }} producto(s). Las ventas pasadas no cambian."><i class="bi bi-trash"></i></button>
       </div>
       <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-1 mb-2">{% for o in g.opciones.all %}<span class="badge text-bg-light border fw-normal fs-6">{{ o.nombre }}{% if o.precio %} <strong>+{{ o.precio|soles }}</strong>{% endif %}{% if o.agotada %} <span class="text-danger">· agotado</span>{% endif %}</span>{% endfor %}</div>
+        <div class="d-flex flex-wrap gap-1 mb-2">{% for o in g.opciones.all %}<span class="badge text-bg-light border fw-normal fs-6">{% if o.por_defecto %}<i class="bi bi-check2-circle text-success" title="Viene incluida"></i> {% endif %}{{ o.nombre }}{% if o.precio %} <strong>+{{ o.precio|soles }}</strong>{% endif %}{% if o.agotada %} <span class="text-danger">· agotado</span>{% endif %}</span>{% endfor %}</div>
         <div class="small text-body-secondary">{% with ps=g.productos.all %}{% if ps %}En: {% for p in ps|slice:":8" %}{{ p.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if ps|length > 8 %} y {{ ps|length|add:"-8" }} más{% endif %}{% else %}<span class="text-warning-emphasis"><i class="bi bi-exclamation-circle"></i> Aún no se usa en ningún producto: pulsa Editar y márcalos.</span>{% endif %}{% endwith %}</div>
       </div>
     </div>
@@ -49,6 +49,8 @@
       <ul class="ps-3 mb-0">
         <li><strong>Mínimo 1, máximo 1:</strong> se elige uno sí o sí (término, acompañamiento).</li>
         <li><strong>Mínimo 0, máximo 0:</strong> opcional y varios (adicionales, cremas).</li>
+        <li><strong>Viene incluida</strong> <i class="bi bi-check2-circle text-success"></i> (asterisco: «Papas fritas *»): ya aparece elegida al pedir, el mozo no tiene que tocar nada; si el cliente quiere otra, la cambia.</li>
+        <li>¿El cliente quiere <strong>más</strong> papas? Eso va en <strong>Adicionales</strong> con su precio («Porción de papas | 5»).</li>
         <li>Lo que tiene precio se suma solo al plato.</li>
         <li>Si un día no hay algo, márcalo en <a href="{% url 'productos:agotados' %}">Agotados hoy</a>.</li>
       </ul>

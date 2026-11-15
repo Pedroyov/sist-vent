@@ -50,6 +50,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - El menú es un **producto normal** de precio fijo ("Menú ejecutivo S/ 15") con grupos de opciones marcados **"cambia cada día"** (`GrupoOpciones.diario`): por defecto "Entrada" y "Segundo", obligatorios.
 - **Productos → Menú del día** (`productos:menu`, permiso `productos.menu`, Cajero y Cocina): cada mañana se ponen los platos de hoy. Sacar un plato lo desactiva (`Opcion.activa=False`) sin borrarlo: queda en "platos de otros días" para ponerlo con un toque. Un segundo puede costar más ("Pescado frito +S/ 3"). "Agotado" es el mismo de siempre (vuelve solo mañana).
 - "Copiar para WhatsApp" arma el texto del menú (`menu_texto`).
+- **Opciones que vienen incluidas** (`Opcion.por_defecto`; en el formulario, un asterisco: «Papas fritas *»): ya aparecen elegidas al pedir y el mozo solo las cambia si el cliente quiere otra cosa. Si un grupo obligatorio llega sin elegir, el servidor pone lo incluido (`resolver_opciones`). Pedir **más** de algo va en Adicionales con precio. `leer_linea_opcion` lee el formato de las líneas (nombre, `| precio`, `*`).
 - **Lo obligatorio no traba el pedido** (`minimo_disponible`): si hoy un grupo tiene menos opciones disponibles que su mínimo (no hay entradas, o todas agotadas), se pide solo lo que hay. Vale para todos los grupos, no solo el menú.
 
 ## Ventas (cómo está pensado)

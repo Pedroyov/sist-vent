@@ -70,6 +70,8 @@ class Opcion(models.Model):
     orden = models.PositiveSmallIntegerField(default=0)
     activa = models.BooleanField(default=True)
     agotada_en = models.DateTimeField(null=True, blank=True)
+    por_defecto = models.BooleanField("viene incluida", default=False,
+                                      help_text="Ya aparece elegida al pedir (ej.: las alitas vienen con papas); se puede cambiar.")
 
     class Meta:
         verbose_name = "opción"

@@ -4,7 +4,7 @@ from decimal import Decimal
 from core.models import Rubro
 
 from .models import Categoria, MovimientoStock, Producto, Variante
-from .servicios import asegurar_variante_unica, generar_variantes, mover_stock
+from .servicios import asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock
 
 NEGOCIOS = {
     Rubro.TIENDA: ("Bodega Doña Rosa", "Todo lo que necesitas, cerca de ti"),
@@ -114,7 +114,11 @@ def opciones_demo(producto, azar=None):
         if not ops:
             continue
         if g.minimo:
-            ids += [o.pk for o in (azar.sample(ops, g.minimo) if azar else ops[:g.minimo])]
+            incluidas = [o for o in ops if o.por_defecto]
+            if incluidas and (not azar or azar.random() < .75):  # casi siempre se deja lo que viene con el plato
+                ids += [o.pk for o in incluidas[:g.minimo]]
+            else:
+                ids += [o.pk for o in (azar.sample(ops, g.minimo) if azar else ops[:g.minimo])]
         elif azar and azar.random() < .35:
             ids.append(azar.choice(ops).pk)
     return ids
@@ -128,14 +132,14 @@ def _opciones_restaurante():
     for i, (nombre, mn, mx, ops) in enumerate(GRUPOS[Rubro.RESTAURANTE]):
         g = GrupoOpciones.objects.create(nombre=nombre, minimo=mn, maximo=mx, orden=i * 10)
         for j, linea in enumerate(ops):
-            n, _, pr = linea.partition("|")
-            Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(pr or "0"), orden=j)
+            n, pr, defecto = leer_linea_opcion(linea)
+            Opcion.objects.create(grupo=g, nombre=n, precio=pr, orden=j, por_defecto=defecto)
         grupos[nombre] = g
     frias = ["Inca Kola 500 ml", "Coca-Cola 500 ml", "Inca Kola 1.5 L", "Agua San Luis 625 ml", "Cerveza Cusqueña 620 ml", "Cerveza Pilsen 630 ml"]
     usos = {"Lomo saltado": ["Término de la carne", "Adicionales"], "Bistec a lo pobre": ["Término de la carne", "Adicionales"],
             "Parrilla personal": ["Término de la carne", "Acompañamiento", "Cremas"],
             "Pollo a la brasa": ["Acompañamiento", "Cremas", "Adicionales"], "Combo familiar": ["Cremas"],
-            "Alitas BBQ": ["Acompañamiento", "Cremas"], "Salchipapa": ["Cremas", "Adicionales"],
+            "Alitas BBQ": ["Acompañamiento", "Cremas", "Adicionales"], "Salchipapa": ["Cremas", "Adicionales"],
             "Ceviche": ["Picante"], "Leche de tigre": ["Picante"], "Jalea mixta": ["Picante", "Cremas"],
             "Arroz chaufa": ["Adicionales"], "Tallarines verdes con bistec": ["Adicionales"],
             "Menú ejecutivo": ["Adicionales"], "Menú económico": ["Adicionales"], **{n: ["Temperatura"] for n in frias}}

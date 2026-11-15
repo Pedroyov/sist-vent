@@ -351,3 +351,50 @@ class MenuDelDiaTests(TestCase):
         self.assertFalse(Opcion.objects.exists())
         otro = GrupoOpciones.objects.create(nombre="Término", minimo=1, maximo=1)  # no es del menú: no se toca desde aquí
         self.assertEqual(self.client.post(self.url, {"accion": "agregar", "grupo": otro.pk, "nombre": "Y"}).status_code, 404)
+
+
+class OpcionesIncluidasTests(TestCase):
+    """Lo que viene con el plato (alitas con papas) ya va elegido; si el cliente quiere otra cosa, se cambia."""
+
+    def setUp(self):
+        from .models import GrupoOpciones, Opcion
+
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.alitas = Producto.objects.create(nombre="Alitas", precio=Decimal("18"), maneja_stock=False)
+        asegurar_variante_unica(self.alitas)
+
+    def test_linea(self):
+        from .servicios import leer_linea_opcion
+
+        self.assertEqual(leer_linea_opcion("Papas fritas *"), ("Papas fritas", Decimal("0.00"), True))
+        self.assertEqual(leer_linea_opcion("* Arroz"), ("Arroz", Decimal("0.00"), True))
+        self.assertEqual(leer_linea_opcion("Huevo frito | 2,50"), ("Huevo frito", Decimal("2.50"), False))
+        self.assertEqual(leer_linea_opcion("Queso | 3 *"), ("Queso", Decimal("3.00"), True))
+        with self.assertRaises(ValueError):
+            leer_linea_opcion("X | 1.2.3")
+
+    def test_formulario_y_pedido(self):
+        from .models import GrupoOpciones, Opcion
+        from .servicios import resolver_opciones
+
+        self.client.force_login(self.jefe)
+        datos = {"nombre": "Acompañamiento", "minimo": 1, "maximo": 1, "orden": 1, "activo": "on",
+                 "opciones_texto": "Papas fritas *\nArroz *\nEnsalada", "productos": [self.alitas.pk]}
+        r = self.client.post(reverse("productos:grupo_nuevo"), datos)
+        self.assertContains(r, "solo una puede venir incluida")
+        datos["opciones_texto"] = "Papas fritas *\nArroz\nEnsalada"
+        self.assertEqual(self.client.post(reverse("productos:grupo_nuevo"), datos).status_code, 302)
+        g = GrupoOpciones.objects.get()
+        papas = Opcion.objects.get(nombre="Papas fritas")
+        self.assertTrue(papas.por_defecto)
+        r = self.client.get(reverse("productos:grupo_editar", args=[g.pk]))
+        self.assertContains(r, "Papas fritas *")
+        # el mozo no eligió nada: van las papas; si eligió ensalada, va ensalada
+        _, _, texto = resolver_opciones(self.alitas, [])
+        self.assertEqual(texto, "Papas fritas")
+        _, _, texto = resolver_opciones(self.alitas, [Opcion.objects.get(nombre="Ensalada").pk])
+        self.assertEqual(texto, "Ensalada")
+        # en el catálogo del punto de venta y de las mesas sale marcada
+        r = self.client.get(reverse("ventas:pos"))
+        self.assertContains(r, '"d": true')

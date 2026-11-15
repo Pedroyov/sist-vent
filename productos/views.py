@@ -18,7 +18,7 @@ from . import excel
 from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
 from .models import CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
 from .rubros import CATEGORIAS, GRUPOS, etiquetas_variantes, rubro_actual, valores_iniciales
-from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, mover_stock
+from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -462,8 +462,8 @@ def grupos_sugeridos(request):
                 continue
             g = GrupoOpciones.objects.create(nombre=nombre, minimo=mn, maximo=mx, orden=(GrupoOpciones.objects.count() + 1) * 10)
             for i, linea in enumerate(ops):
-                n, _, p = linea.partition("|")
-                Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(p or "0"), orden=i)
+                n, p, defecto = leer_linea_opcion(linea)
+                Opcion.objects.create(grupo=g, nombre=n, precio=p, orden=i, por_defecto=defecto)
             creados += 1
     messages.success(request, f"Se crearon {creados} grupos. Ahora elige en qué productos se usa cada uno (botón Editar).")
     return redirect("productos:opciones")
