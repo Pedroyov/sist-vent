@@ -143,6 +143,19 @@ def _opciones_restaurante():
         p = Producto.objects.filter(nombre=nombre).first()
         if p:
             p.grupos.set([grupos[g] for g in gs])
+    # menú del día: lo de hoy activo y lo de otros días guardado
+    menu = {"Entrada": (["Sopa de casa", "Causa de atún", "Ensalada fresca"], ["Papa rellena", "Crema de zapallo", "Ocopa"]),
+            "Segundo": (["Arroz con pollo", "Seco de res con frejoles", "Pescado frito|3", "Tallarines rojos con pollo"],
+                        ["Estofado de pollo", "Cau cau", "Lentejas con pescado|2"])}
+    diarios = []
+    for i, (nombre, (hoy, otros)) in enumerate(menu.items()):
+        g = GrupoOpciones.objects.create(nombre=nombre, minimo=1, maximo=1, orden=i, diario=True)
+        for j, linea in enumerate(hoy + otros):
+            n, _, pr = linea.partition("|")
+            Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(pr or "0"), orden=j, activa=linea in hoy)
+        diarios.append(g)
+    for p in Producto.objects.filter(nombre__startswith="Menú"):
+        p.grupos.add(*diarios)
 
 
 def cargar_catalogo(rubro, usuario=None):

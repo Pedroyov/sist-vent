@@ -124,7 +124,7 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
         elegidas.append(o)
     for g in grupos:
         n = sum(1 for o in elegidas if o.grupo_id == g.pk)
-        if n < g.minimo:
+        if n < minimo_disponible(g, revisar_disponible):
             raise OpcionInvalida(f"{producto.nombre}: elige {g.nombre.lower()}.")
         if g.maximo and n > g.maximo:
             raise OpcionInvalida(f"{producto.nombre}: en {g.nombre.lower()} se puede elegir hasta {g.maximo}.")
@@ -132,6 +132,13 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     elegidas.sort(key=lambda o: (orden[o.grupo_id], o.orden, o.pk))
     foto = [{"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)} for o in elegidas]
     return foto, sum((o.precio for o in elegidas), Decimal("0")), texto_opciones(foto)
+
+
+def minimo_disponible(grupo, revisar_disponible=True):
+    """Lo obligatorio no puede trabar el pedido: si hoy hay menos opciones que el mínimo (todas agotadas, o el menú
+    no trae entradas), se pide solo lo que hay."""
+    hay = sum(1 for o in grupo.opciones.all() if o.activa and not (revisar_disponible and o.agotada))
+    return min(grupo.minimo, hay)
 
 
 def ordenar_grupos(grupos):
@@ -155,3 +162,79 @@ def marcar_agotado(objeto, agotado=True):
     campo = "agotado_en" if hasattr(objeto, "agotado_en") else "agotada_en"
     setattr(objeto, campo, timezone.now() if agotado else None)
     objeto.save(update_fields=[campo])
+
+
+# --- Menú del día ------------------------------------------------------------------
+# El menú es un producto normal ("Menú ejecutivo", precio fijo) con grupos de opciones marcados "cambia cada día"
+# ("Entrada", "Segundo"). Cada mañana se activan las opciones de hoy; las de otros días quedan guardadas (inactivas)
+# para volver a ponerlas con un toque.
+
+def menu_crear():
+    """Crea los grupos Entrada y Segundo (si no hay ninguno diario) y los pone en los productos de la categoría del menú."""
+    from .models import GrupoOpciones, Producto
+
+    if GrupoOpciones.objects.filter(diario=True).exists():
+        return list(GrupoOpciones.objects.filter(diario=True))
+    base = (GrupoOpciones.objects.order_by("-orden").values_list("orden", flat=True).first() or 0) + 10
+    grupos = []
+    for i, nombre in enumerate(["Entrada", "Segundo"]):
+        g, _ = GrupoOpciones.objects.get_or_create(nombre=nombre, defaults={"minimo": 1, "maximo": 1, "orden": base + i})
+        g.diario, g.activo = True, True
+        g.save(update_fields=["diario", "activo"])
+        grupos.append(g)
+    for p in Producto.objects.filter(activo=True, categoria__nombre__iregex=r"men[uú]"):
+        p.grupos.add(*grupos)
+    return grupos
+
+
+def menu_agregar(grupo, nombre, precio=None):
+    """Pone un plato en el menú de hoy: si ya se sirvió otro día, lo vuelve a activar."""
+    from .models import Opcion
+
+    nombre = " ".join(str(nombre or "").split())[:60]
+    if not nombre:
+        raise ValueError("Escribe el nombre del plato.")
+    try:
+        precio = Decimal(str(precio).replace(",", ".")) if str(precio or "").strip() else None
+    except ArithmeticError:
+        raise ValueError("Precio no válido.")
+    if precio is not None and (not precio.is_finite() or precio < 0 or precio > 9999):
+        raise ValueError("Precio no válido.")
+    o = Opcion.objects.filter(grupo=grupo, nombre__iexact=nombre).first()
+    if o is None:
+        orden = (grupo.opciones.order_by("-orden").values_list("orden", flat=True).first() or 0) + 1
+        o = Opcion(grupo=grupo, nombre=nombre, orden=orden)
+    o.activa, o.agotada_en = True, None
+    if precio is not None or o.pk is None:
+        o.precio = (precio or Decimal("0")).quantize(Decimal("0.01"))
+    o.save()
+    return o
+
+
+def menu_limpiar():
+    """Empieza el menú de cero (los platos quedan guardados para volver a usarlos)."""
+    from .models import Opcion
+
+    return Opcion.objects.filter(grupo__diario=True, activa=True).update(activa=False, agotada_en=None)
+
+
+def menu_texto(nombre_negocio=""):
+    """El menú de hoy listo para pegar en WhatsApp."""
+    from django.utils import timezone
+    from django.utils.formats import date_format
+
+    from .models import GrupoOpciones, Producto
+
+    grupos = list(GrupoOpciones.objects.filter(diario=True, activo=True).prefetch_related("opciones"))
+    hoy = date_format(timezone.localdate(), "l j \\d\\e F")
+    lineas = [f"*Menú de hoy* · {hoy}" + (f"\n{nombre_negocio}" if nombre_negocio else "")]
+    for g in grupos:
+        ops = [o for o in g.opciones.all() if o.activa and not o.agotada]
+        if ops:
+            plural = g.nombre if g.nombre.endswith("s") else g.nombre + ("es" if g.nombre[-1] not in "aeiou" else "s")
+            lineas.append("\n*" + plural + "*\n" + "\n".join(f"• {o.nombre}" + (f" (+S/ {o.precio:.2f})" if o.precio else "") for o in ops))
+    productos = Producto.objects.filter(activo=True, grupos__in=grupos).distinct().prefetch_related("variantes")
+    precios = [f"{p.nombre}: S/ {p.precio:.2f}" for p in productos]
+    if precios:
+        lineas.append("\n" + "\n".join(precios))
+    return "\n".join(lineas)

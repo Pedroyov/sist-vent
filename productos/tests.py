@@ -277,3 +277,77 @@ class OpcionesYAgotadosTests(TestCase):
         self.client.force_login(self.mozo)
         r = self.client.get(reverse("ventas:pos"))
         self.assertContains(r, '"ag": true')
+
+
+class MenuDelDiaTests(TestCase):
+    """El menú: un producto de precio fijo con entrada y segundo que cambian cada día."""
+
+    def setUp(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES", "nombre": "El Buen Sabor"})
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.vendedor = User.objects.create_user("vendedor", password="x-clave-123")
+        self.vendedor.groups.add(Group.objects.get(name="Vendedor"))
+        cat = Categoria.objects.create(nombre="Menú del día")
+        self.menu = Producto.objects.create(nombre="Menú ejecutivo", precio=Decimal("15"), categoria=cat, maneja_stock=False)
+        asegurar_variante_unica(self.menu)
+        self.url = reverse("productos:menu")
+
+    def test_armar_el_menu_y_pedirlo(self):
+        from .models import GrupoOpciones, Opcion
+        from .servicios import OpcionInvalida, resolver_opciones
+
+        self.client.force_login(self.vendedor)
+        self.assertEqual(self.client.get(self.url).status_code, 403)  # el mozo no arma el menú
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("core:inicio"))
+        self.assertContains(r, self.url)  # aparece en el menú lateral
+        self.client.post(self.url, {"accion": "crear"})
+        entrada, segundo = GrupoOpciones.objects.filter(diario=True).order_by("orden")
+        self.assertEqual(set(self.menu.grupos.all()), {entrada, segundo})
+        for g, nombre, precio in [(entrada, "Sopa de casa", ""), (entrada, "Causa", ""), (segundo, "Arroz con pollo", ""),
+                                  (segundo, "Pescado frito", "3")]:
+            self.client.post(self.url, {"accion": "agregar", "grupo": g.pk, "nombre": nombre, "precio": precio})
+        sopa = Opcion.objects.get(nombre="Sopa de casa")
+        pescado = Opcion.objects.get(nombre="Pescado frito")
+        self.assertEqual(pescado.precio, Decimal("3.00"))
+        _, extra, texto = resolver_opciones(self.menu, [sopa.pk, pescado.pk])
+        self.assertEqual((extra, texto), (Decimal("3.00"), "Sopa de casa, Pescado frito +3.00"))
+        with self.assertRaises(OpcionInvalida):  # hay que elegir segundo
+            resolver_opciones(self.menu, [sopa.pk])
+        # texto para WhatsApp
+        r = self.client.get(self.url)
+        self.assertContains(r, "*Entradas*")
+        self.assertContains(r, "• Pescado frito (+S/ 3.00)")
+        self.assertContains(r, "Menú ejecutivo: S/ 15.00")
+        # al día siguiente: se vacía, el pescado queda guardado y se vuelve a poner con un toque
+        self.client.post(self.url, {"accion": "limpiar"})
+        self.assertFalse(Opcion.objects.filter(grupo__diario=True, activa=True).exists())
+        self.client.post(self.url, {"accion": "poner", "opcion": pescado.pk})
+        self.client.post(self.url, {"accion": "agregar", "grupo": segundo.pk, "nombre": "  arroz CON pollo "})  # ya existía: no se duplica
+        self.assertEqual(Opcion.objects.filter(grupo=segundo).count(), 2)
+        self.assertEqual(Opcion.objects.filter(grupo=segundo, activa=True).count(), 2)
+        # hoy no hay entradas: el menú se puede pedir igual (solo con segundo)
+        foto, _, _ = resolver_opciones(self.menu, [pescado.pk])
+        self.assertEqual(len(foto), 1)
+        # se acabó el pescado
+        self.client.post(self.url, {"accion": "agotar", "opcion": pescado.pk})
+        pescado.refresh_from_db()
+        self.assertTrue(pescado.agotada)
+        with self.assertRaises(OpcionInvalida):
+            resolver_opciones(self.menu, [pescado.pk])
+
+    def test_datos_no_validos(self):
+        self.client.force_login(self.cajero)
+        self.client.post(self.url, {"accion": "crear"})
+        from .models import GrupoOpciones, Opcion
+
+        g = GrupoOpciones.objects.filter(diario=True).first()
+        for precio in ["abc", "-1", "nan", "99999"]:
+            self.client.post(self.url, {"accion": "agregar", "grupo": g.pk, "nombre": "X", "precio": precio})
+        self.client.post(self.url, {"accion": "agregar", "grupo": g.pk, "nombre": "   "})
+        self.assertFalse(Opcion.objects.exists())
+        otro = GrupoOpciones.objects.create(nombre="Término", minimo=1, maximo=1)  # no es del menú: no se toca desde aquí
+        self.assertEqual(self.client.post(self.url, {"accion": "agregar", "grupo": otro.pk, "nombre": "Y"}).status_code, 404)

@@ -27,5 +27,6 @@ urlpatterns = [
     path("opciones/<int:pk>/", views.grupo_form, name="grupo_editar"),
     path("opciones/<int:pk>/eliminar/", views.grupo_eliminar, name="grupo_eliminar"),
     path("agotados/", views.agotados, name="agotados"),
+    path("menu-del-dia/", views.menu_dia, name="menu"),
     path("importar/plantilla/", views.plantilla, name="plantilla"),
 ]

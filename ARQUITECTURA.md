@@ -45,6 +45,13 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Agotados**: `Producto.agotado_en` y `Opcion.agotada_en` valen solo por el día (`agotado_hoy`): al día siguiente vuelven solos. Pantalla `productos:agotados` (permiso `productos.agotar`: Cajero, Vendedor y Cocina). Lo agotado no se puede vender ni pedir, pero lo que ya estaba pedido en una mesa se cobra igual.
 - Reportes: "Opciones y adicionales más pedidos", con lo cobrado aparte.
 
+## Menú del día
+
+- El menú es un **producto normal** de precio fijo ("Menú ejecutivo S/ 15") con grupos de opciones marcados **"cambia cada día"** (`GrupoOpciones.diario`): por defecto "Entrada" y "Segundo", obligatorios.
+- **Productos → Menú del día** (`productos:menu`, permiso `productos.menu`, Cajero y Cocina): cada mañana se ponen los platos de hoy. Sacar un plato lo desactiva (`Opcion.activa=False`) sin borrarlo: queda en "platos de otros días" para ponerlo con un toque. Un segundo puede costar más ("Pescado frito +S/ 3"). "Agotado" es el mismo de siempre (vuelve solo mañana).
+- "Copiar para WhatsApp" arma el texto del menú (`menu_texto`).
+- **Lo obligatorio no traba el pedido** (`minimo_disponible`): si hoy un grupo tiene menos opciones disponibles que su mínimo (no hay entradas, o todas agotadas), se pide solo lo que hay. Vale para todos los grupos, no solo el menú.
+
 ## Ventas (cómo está pensado)
 
 - **Venta** (numerada con `Correlativo`, sin saltos), **VentaItem** (guarda nombre, precio de lista, precio cobrado y costo de ese momento) y **Pago** (uno por método; el de efectivo guarda lo que se queda el negocio, y la venta guarda `recibido` y `vuelto`).

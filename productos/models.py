@@ -40,6 +40,8 @@ class GrupoOpciones(models.Model):
     maximo = models.PositiveSmallIntegerField("máximo a elegir", default=1, help_text="0 = sin límite (ej.: adicionales).")
     orden = models.PositiveSmallIntegerField(default=0)
     activo = models.BooleanField(default=True)
+    diario = models.BooleanField("cambia cada día", default=False,
+                                 help_text="Para el menú del día (entradas, segundos): sus opciones se arman cada mañana en «Menú del día».")
 
     class Meta:
         verbose_name = "grupo de opciones"

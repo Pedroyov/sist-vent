@@ -194,7 +194,7 @@ class GrupoOpcionesForm(forms.ModelForm):
 
     class Meta:
         model = GrupoOpciones
-        fields = ["nombre", "minimo", "maximo", "orden", "activo"]
+        fields = ["nombre", "minimo", "maximo", "orden", "activo", "diario"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

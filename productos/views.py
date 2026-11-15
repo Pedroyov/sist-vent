@@ -497,3 +497,54 @@ def agotados(request):
     if request.htmx:
         return render(request, "productos/partials/agotados.html", contexto)
     return render(request, "productos/agotados.html", contexto)
+
+
+# --- Menú del día ------------------------------------------------------------------
+
+def _datos_menu():
+    from .servicios import menu_texto
+    from core.models import Ajustes
+
+    grupos = list(GrupoOpciones.objects.filter(diario=True).order_by("orden", "nombre").prefetch_related("opciones", "productos"))
+    for g in grupos:
+        ops = list(g.opciones.all())
+        g.hoy = [o for o in ops if o.activa]
+        g.otros = sorted([o for o in ops if not o.activa], key=lambda o: o.nombre.lower())
+    productos = Producto.objects.filter(activo=True, grupos__diario=True).distinct().order_by("nombre")
+    return {"grupos": grupos, "productos_menu": productos, "texto": menu_texto(Ajustes.cargar().nombre or "") if grupos else ""}
+
+
+@permiso_requerido("productos.menu")
+def menu_dia(request):
+    from .servicios import menu_agregar, menu_crear, menu_limpiar
+
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        try:
+            if accion == "crear":
+                menu_crear()
+            elif accion == "agregar":
+                g = get_object_or_404(GrupoOpciones, pk=entero(request.POST.get("grupo")), diario=True)
+                menu_agregar(g, request.POST.get("nombre"), request.POST.get("precio"))
+            elif accion in ("poner", "sacar", "agotar"):
+                o = get_object_or_404(Opcion, pk=entero(request.POST.get("opcion")), grupo__diario=True)
+                if accion == "poner":
+                    menu_agregar(o.grupo, o.nombre)
+                elif accion == "sacar":
+                    o.activa, o.agotada_en = False, None
+                    o.save(update_fields=["activa", "agotada_en"])
+                else:
+                    from .servicios import marcar_agotado
+
+                    marcar_agotado(o, not o.agotada)
+            elif accion == "limpiar":
+                n = menu_limpiar()
+                messages.info(request, f"Menú vacío ({n} platos guardados para otro día). Elige los de hoy.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        if not request.htmx:
+            return redirect("productos:menu")
+    datos = _datos_menu()
+    if request.htmx:
+        return render(request, "productos/partials/menu.html", datos)
+    return render(request, "productos/menu.html", datos)

@@ -64,6 +64,7 @@ PERMISOS = [
     ("productos.stock", "productos", "Registrar ingresos, salidas y conteos de stock; ver movimientos", []),
     ("productos.costos", "productos", "Ver costos y ganancia", []),
     ("productos.agotar", "productos", "Marcar productos y opciones como agotados por hoy", [CAJERO, VENDEDOR, COCINA]),
+    ("productos.menu", "productos", "Armar el menú del día (entradas y segundos de hoy)", [CAJERO, COCINA]),
 
     ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
     ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),

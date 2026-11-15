@@ -60,6 +60,14 @@
           </a>
         </li>
         {% endif %}
+        {% if P.productos_menu and NEGOCIO.rubro == "RES" %}
+        <li class="nav-item">
+          <a href="{% url 'productos:menu' %}" class="nav-link {% if ns == 'productos' and url == 'menu' %}active{% endif %}">
+            <i class="nav-icon bi bi-journal-text"></i>
+            <p>Menú del día</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.productos_agotar %}
         <li class="nav-item">
           <a href="{% url 'productos:agotados' %}" class="nav-link {% if ns == 'productos' and url == 'agotados' %}active{% endif %}">
@@ -77,14 +85,14 @@
         </li>
         {% endif %}
         {% if P.productos_ver %}
-        <li class="nav-item {% if ns == 'productos' %}menu-open{% endif %}">
-          <a href="#" class="nav-link {% if ns == 'productos' %}active{% endif %}">
+        <li class="nav-item {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}menu-open{% endif %}">
+          <a href="#" class="nav-link {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}active{% endif %}">
             <i class="nav-icon bi bi-box-seam"></i>
             <p>Productos <i class="nav-arrow bi bi-chevron-right"></i></p>
           </a>
           <ul class="nav nav-treeview">
             <li class="nav-item">
-              <a href="{% url 'productos:lista' %}" class="nav-link {% if ns == 'productos' and url != 'kardex' and 'categoria' not in url and 'grupo' not in url and url != 'opciones' and url != 'agotados' %}active{% endif %}">
+              <a href="{% url 'productos:lista' %}" class="nav-link {% if ns == 'productos' and url != 'kardex' and 'categoria' not in url and 'grupo' not in url and url != 'opciones' and url != 'agotados' and url != 'menu' %}active{% endif %}">
                 <i class="nav-icon bi bi-circle"></i><p>Catálogo</p>
               </a>
             </li>

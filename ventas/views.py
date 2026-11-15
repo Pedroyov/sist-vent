@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from core.permisos import permiso_requerido, puede
 from core.utils import entero, url_segura
 from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variante
-from productos.servicios import ordenar_grupos
+from productos.servicios import minimo_disponible, ordenar_grupos
 
 from .models import MetodoPago, Venta
 from .servicios import VentaInvalida, anular_venta, registrar_venta, resumen
@@ -43,7 +43,7 @@ def _catalogo():
             "v": [{"id": v.pk, "n": v.nombre, "cod": v.codigo, "p": str(v.precio_venta),
                    "st": f"{v.stock.normalize():f}" if p.maneja_stock else None} for v in p.vars],
             "ag": p.agotado,
-            "g": [{"id": g.pk, "n": g.nombre, "min": g.minimo, "max": g.maximo, "r": g.regla,
+            "g": [{"id": g.pk, "n": g.nombre, "min": minimo_disponible(g), "max": g.maximo, "r": g.regla,
                    "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada} for o in g.opciones.all()]}
                   for g in ordenar_grupos(p.grs)],
         })
