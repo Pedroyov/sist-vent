@@ -48,6 +48,11 @@ class Command(BaseCommand):
         a.cocina_pantalla = rubro == Rubro.RESTAURANTE
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
+        a.delivery_activo = rubro == Rubro.RESTAURANTE
+        if rubro == Rubro.RESTAURANTE and not a.delivery_costo:
+            from decimal import Decimal
+
+            a.delivery_costo = Decimal("5")
         a.ruc = a.ruc or "20123456789"
         a.direccion = a.direccion or "Av. Principal 123"
         a.distrito = a.distrito or "Lima"

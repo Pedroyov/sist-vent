@@ -184,6 +184,22 @@
       <td class="text-end pe-3 text-danger text-nowrap">{{ i.subtotal|soles }}</td></tr>{% endfor %}</tbody></table></div>
   </div></div>{% endif %}
 </div>
+{% if mesas.delivery.n or NEGOCIO.delivery_activo %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-5"><div class="card h-100 mb-0"><div class="card-body">
+    <div class="small text-body-secondary"><i class="bi bi-scooter me-1"></i>Delivery</div>
+    <div class="fs-3 fw-bold">{{ mesas.delivery.n }} pedido{{ mesas.delivery.n|pluralize }}</div>
+    <div class="small">{{ mesas.delivery.consumo|soles }} en comida · <strong>{{ mesas.delivery.envios|soles }}</strong> en envíos</div>
+    {% if mesas.delivery.minutos_promedio is not None %}<div class="small text-body-secondary">{{ mesas.delivery.minutos_promedio }} min en promedio desde el pedido hasta la entrega</div>{% endif %}
+  </div></div></div>
+  <div class="col-lg-7"><div class="card h-100 mb-0">
+    <div class="card-header"><h3 class="card-title mb-0">Por repartidor</h3></div>
+    <ul class="list-group list-group-flush">{% for f in mesas.delivery.repartidores %}<li class="list-group-item py-2"><div class="d-flex small"><span>{{ f.etiqueta }}</span>
+      <span class="ms-auto">{% if f.minutos is not None %}<span class="text-body-secondary me-2">{{ f.minutos }} min</span>{% endif %}<strong>{{ f.total }}</strong> entrega{{ f.total|pluralize }}</span></div>
+      <div class="hbarra mt-1"><div style="width: {{ f.pct|stringformat:'.1f' }}%"></div></div></li>{% empty %}<li class="list-group-item small text-body-secondary">Sin deliverys en el periodo.</li>{% endfor %}</ul>
+  </div></div>
+</div>
+{% endif %}
 </section>
 {% endif %}
 

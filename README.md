@@ -77,6 +77,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Clientes y fiado** – Clientes con DNI/RUC validado, venta al fiado con límite, pagos de deudas que entran a la caja, estado de cuenta, recordatorio por WhatsApp
 - [x] **Reportes** – Ventas comparadas con el periodo anterior, por día/hora/día de la semana, lo más y lo menos vendido, categorías, personal y mozos, mesas y platos quitados, inventario y mermas, deudores, diferencias de caja y anulaciones; Excel
 - [x] **Pagar antes o al final** – Al cobrar se envía a cocina lo que faltaba; la mesa puede quedar "Pagada" mientras siguen comiendo o esperan su plato, se puede seguir pidiendo y se libera cuando se van
+- [x] **Delivery** – Pedidos por teléfono o WhatsApp: el cliente se reconoce por su celular, costo de envío, "paga con" y vuelto, repartidor, estados (preparando, en camino, entregado), hoja para el repartidor y reporte por repartidor
 - [x] **Nivel de detalle de los pedidos** – Simple, con opciones o detallado: cada negocio usa solo lo que necesita
 - [x] **Qué lleva cada plato** – Lo que lleva (pollo, papas, ensalada): quitar algo («SIN ENSALADA» en la comanda) o cambiarlo (papas por arroz); las opciones que vienen incluidas ya aparecen elegidas
 - [x] **Menú del día** – Entrada y segundo que cambian cada día, con los platos de otros días a un toque, segundos con precio extra, agotados y texto listo para WhatsApp

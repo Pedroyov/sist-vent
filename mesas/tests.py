@@ -487,3 +487,94 @@ class PartesIgualesTests(TestCase):
         self.assertEqual((v.total, v.vuelto), (D("100"), D("16.60")))
         self.assertEqual(sorted((p.metodo, p.monto) for p in v.pagos.all()), [("EFE", D("33.40")), ("TAR", D("33.30")), ("YAP", D("33.30"))])
         self.assertEqual(v.nota, "Mesa 1 · pagado en 3 partes iguales")
+
+
+class DeliveryTests(TestCase):
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True, "delivery_activo": True,
+                                                        "delivery_costo": D("5")})
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        abrir(self.cajero, D("0"))
+        self.v = asegurar_variante_unica(Producto.objects.create(nombre="Pollo entero", precio=D("60"), maneja_stock=False))
+
+    def _nuevo(self, **extra):
+        self.client.force_login(self.mozo)
+        datos = {"telefono": "987 111 222", "nombre": "Rosa", "direccion": "Av. Grau 120", "referencia": "puerta verde", "paga_con": "100", **extra}
+        self.client.post(reverse("mesas:delivery_nuevo"), datos)
+        return Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY).latest("pk")
+
+    def test_flujo_pago_contra_entrega(self):
+        from clientes.models import Cliente
+
+        c = self._nuevo()
+        self.assertEqual((c.telefono, c.costo_envio, c.estado_envio, c.titulo), ("987111222", D("5.00"), "PRE", f"Delivery #{c.pk} · Rosa"))
+        self.assertEqual(Cliente.objects.get().telefono, "987111222")  # se recuerda para la próxima
+        agregar(c, [{"variante": self.v.pk}], self.mozo)
+        enviar_cocina(c)
+        self.assertEqual(c.total_por_cobrar, D("65"))  # pollo + envío
+        self.assertEqual(c.vuelto_para, D("35"))
+        # la cocina no ve el envío
+        from .views import _comandas
+
+        self.assertEqual([i.descripcion for comanda in _comandas()["pendientes"] for i in comanda["items"]], ["Pollo entero"])
+        # mapa, cuenta y hoja del repartidor
+        self.assertContains(self.client.get(reverse("mesas:mapa")), "Av. Grau 120")
+        r = self.client.get(reverse("mesas:precuenta", args=[c.pk]))
+        self.assertContains(r, "DELIVERY #")
+        self.assertContains(r, "vuelto 35.00")
+        self.assertContains(r, "COBRAR AL ENTREGAR: S/ 65.00")
+        # salió y se entregó; aún falta cobrar: sigue abierta
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "salio", "repartidor": "Carlos"})
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "entregado"})
+        c.refresh_from_db()
+        self.assertEqual((c.estado_envio, c.repartidor, c.abierta), ("ENT", "Carlos", True))
+        # el cajero cobra lo que trajo el repartidor: se cierra
+        self.client.force_login(self.cajero)
+        self.assertTrue(self.client.get(reverse("mesas:cuenta", args=[c.pk])).context["liberar_al_cobrar"])
+        r = self.client.post(reverse("mesas:cobrar", args=[c.pk]), json.dumps({"pagos": [{"metodo": "EFE", "monto": "100"}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        c.refresh_from_db()
+        self.assertEqual(c.estado, Cuenta.Estado.COBRADA)
+        from ventas.models import Venta
+
+        v = Venta.objects.get()
+        self.assertEqual((v.total, v.vuelto), (D("65"), D("35")))
+        self.assertTrue(v.items.filter(descripcion__startswith="Costo de envío").exists())
+
+    def test_pagado_antes_se_cierra_al_entregar_y_recuerda_la_direccion(self):
+        c = self._nuevo(paga_con="Yape", costo_envio="0")
+        self.assertFalse(c.items.exists())  # envío gratis: no hay línea
+        agregar(c, [{"variante": self.v.pk}], self.mozo)
+        cobrar(c, self.cajero, [{"metodo": "YAP", "monto": "60"}], liberar=False)
+        c.refresh_from_db()
+        self.assertTrue(c.abierta)
+        self.client.force_login(self.mozo)
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "entregado"})
+        c.refresh_from_db()
+        self.assertEqual((c.estado, c.estado_envio), (Cuenta.Estado.COBRADA, "ENT"))
+        # la próxima vez, por el celular aparecen el nombre y la dirección
+        r = self.client.get(reverse("mesas:delivery_buscar"), {"tel": "987111222"})
+        self.assertEqual((r.json()["nombre"], r.json()["direccion"]), ("Rosa", "Av. Grau 120"))
+
+    def test_cambiar_envio_y_validaciones(self):
+        c = self._nuevo()
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "datos", "nombre": "Rosa", "direccion": "Av. Grau 130", "costo_envio": "7"})
+        c.refresh_from_db()
+        self.assertEqual((c.direccion, c.costo_envio, c.items.get(es_envio=True).precio), ("Av. Grau 130", D("7.00"), D("7.00")))
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "datos", "direccion": "", "costo_envio": "7"})
+        c.refresh_from_db()
+        self.assertEqual(c.direccion, "Av. Grau 130")  # sin dirección no se guarda
+        for malo in ["abc", "-1", "5000"]:
+            self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "datos", "direccion": "X", "costo_envio": malo})
+        c.refresh_from_db()
+        self.assertEqual(c.costo_envio, D("7.00"))
+        n = Cuenta.objects.count()
+        self._nuevo(direccion="")
+        self.assertEqual(Cuenta.objects.count(), n)  # sin dirección no se abre
+        Ajustes.objects.filter(pk=1).update(delivery_activo=False)
+        self._nuevo()
+        self.assertEqual(Cuenta.objects.count(), n)  # apagado: no se puede

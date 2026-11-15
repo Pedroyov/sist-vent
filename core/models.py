@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 
@@ -61,6 +63,10 @@ class Ajustes(models.Model):
     cocina_pantalla = models.BooleanField(
         "la cocina usa la pantalla de cocina", default=False,
         help_text="Una tablet, celular o PC en cocina recibe los pedidos al instante y marca qué está listo.")
+    delivery_activo = models.BooleanField("hacemos delivery", default=False,
+                                          help_text="Pedidos por teléfono o WhatsApp con dirección, costo de envío y repartidor.")
+    delivery_costo = models.DecimalField("costo de envío habitual", max_digits=8, decimal_places=2, default=Decimal("0"),
+                                         help_text="Se propone en cada delivery; se puede cambiar en cada pedido.")
     nivel_pedido = models.PositiveSmallIntegerField(
         "cómo se toman los pedidos", default=2,
         choices=[(1, "Simple: el producto y una nota escrita (ej.: «sin cebolla»)"),

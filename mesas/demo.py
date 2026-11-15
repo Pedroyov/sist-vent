@@ -17,7 +17,12 @@ from productos.models import MovimientoStock, Variante
 from productos.servicios import mover_stock
 
 from .models import Cuenta, ItemCuenta, Mesa, Zona
-from .servicios import abrir_cuenta, agregar, cobrar, cortesia, enviar_cocina, quitar
+from .servicios import abrir_cuenta, abrir_delivery, agregar, cobrar, cortesia, enviar_cocina, quitar, salio_delivery
+
+CLIENTES_DELIVERY = [("Rosa", "987111222", "Av. Los Próceres 455", "Frente a la farmacia"), ("Miguel", "986333444", "Jr. Huáscar 210, dpto 3", ""),
+                     ("Lucía", "985222111", "Calle Las Begonias 88", "Casa de rejas negras"), ("Pedro", "984555666", "Av. Grau 1203", "Edificio azul, 5to piso"),
+                     ("Carmen", "983777888", "Psje. San Martín 14", "")]
+REPARTIDORES = ["Carlos (moto)", "Jhon (bici)"]
 
 # Cómo pide una mesa típica: (categoría, probabilidad, unidades por persona)
 PEDIDO = [("Entradas", .45, .4), ("Marinos", .35, .5), ("Platos de fondo", .7, .6), ("Pollos y parrillas", .5, .4),
@@ -91,7 +96,12 @@ def _historial(mozos, por_categoria, dias=14):
                 menu = desde == 12 and dia.weekday() < 5 and azar.random() < .45
                 mozo = azar.choice(mozos)
                 llevar = azar.random() < .08
-                c = abrir_cuenta(mozo, None if llevar else azar.choice(mesas), personas, nombre="Para llevar" if llevar else "")
+                delivery = not llevar and desde == 19 and azar.random() < .18
+                if delivery:
+                    n, tel, dire, ref = azar.choice(CLIENTES_DELIVERY)
+                    c = abrir_delivery(mozo, n, tel, dire, ref, azar.choice(["Yape", "50", "100", "Exacto"]), "5")
+                else:
+                    c = abrir_cuenta(mozo, None if llevar else azar.choice(mesas), personas, nombre="Para llevar" if llevar else "")
                 items = _elegir(por_categoria, MENU if menu else PEDIDO, personas, azar)
                 if not items:
                     c.delete()
@@ -121,6 +131,9 @@ def _historial(mozos, por_categoria, dias=14):
                 ItemCuenta.objects.filter(cuenta=c).update(
                     creado=inicio + timedelta(minutes=3), enviado_en=inicio + timedelta(minutes=4),
                     listo_en=inicio + timedelta(minutes=azar.randint(12, 30)), servido_en=inicio + timedelta(minutes=azar.randint(31, 35)))
+                if delivery:
+                    Cuenta.objects.filter(pk=c.pk).update(estado_envio=Cuenta.Envio.ENTREGADO, repartidor=azar.choice(REPARTIDORES),
+                                                          salio_en=fin - timedelta(minutes=25), entregado_en=fin)
                 cambios = {"fecha": fin}
                 if d:  # las cajas de días pasados ya se cerraron: esas ventas no entran a ninguna
                     cambios["sesion_caja"] = None
@@ -195,6 +208,24 @@ def cargar_mesas():
     if cajero:
         cobrar(c, cajero, [{"metodo": "YAP", "monto": str(c.total_por_cobrar)}], liberar=False)
         c.items.filter(descripcion__startswith="Maracuyá").update(listo_en=ahora - timedelta(minutes=8), servido_en=ahora - timedelta(minutes=7))
+    # delivery: uno preparándose (paga con 100 al recibir) y otro en camino (ya pagó con Yape)
+    from core.models import Ajustes
+
+    if Ajustes.cargar().delivery_activo:
+        c = abrir_delivery(jorge, "Rosa", "987111222", "Av. Los Próceres 455", "Frente a la farmacia", "100", "5")
+        agregar(c, [{"variante": variantes["Pollo a la brasa · Entero"].pk, "cantidad": 1, "opciones": opciones_demo(variantes["Pollo a la brasa · Entero"].producto)},
+                    {"variante": variantes["Inca Kola 1.5 L"].pk, "cantidad": 1}], jorge)
+        enviar_cocina(c)
+        Cuenta.objects.filter(pk=c.pk).update(abierta_en=ahora - timedelta(minutes=12))
+        c = abrir_delivery(ana, "Miguel", "986333444", "Jr. Huáscar 210, dpto 3", "", "Yape", "5")
+        agregar(c, [{"variante": variantes["Lomo saltado"].pk, "cantidad": 2, "opciones": opciones_demo(variantes["Lomo saltado"].producto)},
+                    {"variante": variantes["Chicha morada · Jarra 1 L"].pk, "cantidad": 1}], ana)
+        enviar_cocina(c)
+        c.items.update(listo_en=ahora - timedelta(minutes=10), servido_en=ahora - timedelta(minutes=9))
+        if cajero:
+            cobrar(c, cajero, [{"metodo": "YAP", "monto": str(c.total_por_cobrar)}], liberar=False)
+        salio_delivery(c, "Carlos (moto)")
+        Cuenta.objects.filter(pk=c.pk).update(abierta_en=ahora - timedelta(minutes=35), salio_en=ahora - timedelta(minutes=8))
     # recién se sentaron, aún no piden
     mesa("4", ana, 2, [], 2, enviar=False)
     # menú del día anotado, falta mandarlo a cocina

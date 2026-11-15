@@ -222,8 +222,26 @@ def mesas(desde, hasta):
         m = por_mesa[x.mesa.nombre if x.mesa else "—"]
         m["cuentas"] += 1
         m["total"] += sum((i.subtotal for i in x.items.all() if not i.anulado), CERO)
+    deliverys = [x for x in cuentas if x.tipo == Cuenta.Tipo.DELIVERY]
+    por_repartidor = defaultdict(lambda: {"total": 0, "minutos": []})
+    for x in deliverys:
+        r = por_repartidor[x.repartidor or "Sin indicar"]
+        r["total"] += 1
+        if x.entregado_en:
+            r["minutos"].append(int((x.entregado_en - x.abierta_en).total_seconds() // 60))
+    entregas = [m for r in por_repartidor.values() for m in r["minutos"]]
+    delivery = {
+        "n": len(deliverys),
+        "envios": c(sum((i.subtotal for x in deliverys for i in x.items.all() if i.es_envio and not i.anulado), CERO)),
+        "consumo": c(sum((i.subtotal for x in deliverys for i in x.items.all() if not i.es_envio and not i.anulado), CERO)),
+        "minutos_promedio": round(sum(entregas) / len(entregas)) if entregas else None,
+        "repartidores": _con_barras(sorted([{"etiqueta": k, "total": v["total"],
+                                             "minutos": round(sum(v["minutos"]) / len(v["minutos"])) if v["minutos"] else None}
+                                            for k, v in por_repartidor.items()], key=lambda f: -f["total"])),
+    }
     return {
-        "atenciones": len(con_mesa), "para_llevar": len(cuentas) - len(con_mesa), "personas": personas,
+        "delivery": delivery,
+        "atenciones": len(con_mesa), "para_llevar": len(cuentas) - len(con_mesa) - len(deliverys), "personas": personas,
         "por_persona": c(consumo / personas) if personas else CERO, "consumo": c(consumo),
         "minutos_promedio": round(sum(minutos) / len(minutos)) if minutos else None,
         "quitados": quitados, "quitados_valor": c(sum((i.subtotal for i in quitados), CERO)),

@@ -49,3 +49,11 @@ def hace(fecha):
     if minutos < 60:
         return f"{minutos} min"
     return f"{minutos // 60} h {minutos % 60:02d}"
+
+
+@register.filter
+def whatsapp(telefono):
+    """Número para enlaces wa.me (agrega el 51 a los celulares peruanos)."""
+    from core.utils import numero_whatsapp
+
+    return numero_whatsapp(telefono)

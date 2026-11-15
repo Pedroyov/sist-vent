@@ -45,9 +45,31 @@ class Cuenta(models.Model):
         COBRADA = "COB", "Cobrada"
         ANULADA = "ANU", "Anulada"
 
+    class Tipo(models.TextChoices):
+        MESA = "MES", "Mesa"
+        LLEVAR = "LLE", "Para llevar"
+        DELIVERY = "DEL", "Delivery"
+
+    class Envio(models.TextChoices):
+        PREPARANDO = "PRE", "Preparando"
+        EN_CAMINO = "CAM", "En camino"
+        ENTREGADO = "ENT", "Entregado"
+
     mesa = models.ForeignKey(Mesa, on_delete=models.PROTECT, null=True, blank=True, related_name="cuentas",
                              help_text="Vacío = para llevar / delivery.")
     nombre = models.CharField("cliente o referencia", max_length=60, blank=True, help_text='Para llevar: "Juan", "Delivery Av. Grau".')
+    tipo = models.CharField(max_length=3, choices=Tipo.choices, default=Tipo.MESA)
+    # --- delivery ---
+    cliente = models.ForeignKey("clientes.Cliente", on_delete=models.SET_NULL, null=True, blank=True, related_name="pedidos")
+    telefono = models.CharField("celular", max_length=20, blank=True)
+    direccion = models.CharField("dirección", max_length=200, blank=True)
+    referencia = models.CharField(max_length=200, blank=True, help_text='Ej.: "Frente al parque, puerta verde".')
+    paga_con = models.CharField("paga con", max_length=40, blank=True, help_text='Ej.: "100", "Yape", "ya pagó".')
+    costo_envio = models.DecimalField("costo de envío", max_digits=8, decimal_places=2, default=CERO)
+    estado_envio = models.CharField(max_length=3, choices=Envio.choices, blank=True)
+    repartidor = models.CharField(max_length=60, blank=True)
+    salio_en = models.DateTimeField(null=True, blank=True)
+    entregado_en = models.DateTimeField(null=True, blank=True)
     personas = models.PositiveSmallIntegerField(default=1)
     mozo = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cuentas_atendidas")
     estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.ABIERTA)
@@ -69,7 +91,36 @@ class Cuenta(models.Model):
     def titulo(self):
         if self.mesa_id:
             return f"Mesa {self.mesa.nombre}"
-        return f"Para llevar #{self.pk}" + (f" · {self.nombre}" if self.nombre else "")
+        tipo = "Delivery" if self.es_delivery else "Para llevar"
+        return f"{tipo} #{self.pk}" + (f" · {self.nombre}" if self.nombre else "")
+
+    @property
+    def es_delivery(self):
+        return self.tipo == self.Tipo.DELIVERY
+
+    @property
+    def mapa_url(self):
+        from urllib.parse import quote
+
+        if not self.direccion:
+            return ""
+        from core.models import Ajustes
+
+        a = Ajustes.cargar()
+        return "https://www.google.com/maps/search/?api=1&query=" + quote(", ".join(x for x in [self.direccion, a.distrito] if x))
+
+    @property
+    def vuelto_para(self):
+        """Si "paga con" es un monto, el vuelto que debe llevar el repartidor."""
+        from decimal import InvalidOperation
+
+        texto = self.paga_con.replace("S/", "").replace(",", ".").strip()
+        try:
+            monto = Decimal(texto)
+        except (InvalidOperation, ValueError):
+            return None
+        falta = self.total_por_cobrar
+        return monto - falta if monto.is_finite() and monto >= falta else None
 
     @property
     def abierta(self):
@@ -119,6 +170,7 @@ class ItemCuenta(models.Model):
     cortesia_motivo = models.CharField(max_length=120, blank=True)
     cortesia_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
                                      verbose_name="autorizó la cortesía")
+    es_envio = models.BooleanField("costo de envío", default=False, help_text="La línea del delivery: no va a cocina.")
     anulado = models.BooleanField(default=False)
     motivo_anulacion = models.CharField(max_length=200, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")

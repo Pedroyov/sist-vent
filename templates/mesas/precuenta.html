@@ -2,14 +2,25 @@
 {% load sis %}
 {% block titulo %}Precuenta {{ c.titulo }}{% endblock %}
 {% block contenido %}
+{% if c.es_delivery %}
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="enorme">DELIVERY #{{ c.pk }}</span><br>{% now "d/m/Y H:i" %}</div>
+<div class="linea"></div>
+<div class="b">{{ c.nombre }}</div>
+{% if c.telefono %}<div>Cel: {{ c.telefono }}</div>{% endif %}
+<div class="grande">{{ c.direccion }}</div>
+{% if c.referencia %}<div>Ref.: {{ c.referencia }}</div>{% endif %}
+{% else %}
 <div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }} · {{ c.personas }} pers.<br>{% now "d/m/Y H:i" %}</div>
+{% endif %}
 <div class="linea"></div>
 <table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}{% if i.opciones %} ({{ i.texto_opciones }}){% endif %}{% if i.cortesia %} - CORTESÍA{% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>
 <div class="linea"></div>
 <table><tr class="grande"><td>TOTAL S/</td><td class="r">{{ total }}</td></tr>
-{% if NEGOCIO.propina_activa %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}
+{% if NEGOCIO.propina_activa and not c.es_delivery %}<tr><td>Propina sugerida 10%</td><td class="r">{{ propina_sugerida }}</td></tr>{% endif %}
+{% if c.es_delivery %}{% if pagado %}<tr><td>Ya pagado</td><td class="r">{{ pagado }}</td></tr>{% endif %}
+{% if c.paga_con %}<tr class="b"><td>Paga con: {{ c.paga_con }}</td><td class="r">{% if c.vuelto_para is not None %}vuelto {{ c.vuelto_para }}{% endif %}</td></tr>{% endif %}{% endif %}
 {% if por_persona %}<tr><td>Entre {{ c.personas }} personas</td><td class="r">{{ por_persona }} c/u</td></tr>{% endif %}</table>
 <div class="linea"></div>
-<div class="c">No es comprobante de pago</div>
+<div class="c">{% if c.es_delivery %}{% if total %}COBRAR AL ENTREGAR: S/ {{ total }}{% else %}YA PAGADO: NO COBRAR{% endif %}{% else %}No es comprobante de pago{% endif %}</div>
 {% endblock %}
 {% block volver %}<a href="{% url 'mesas:cuenta' c.pk %}">Volver</a>{% endblock %}

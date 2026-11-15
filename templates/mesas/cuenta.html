@@ -21,10 +21,56 @@
 {% block content %}
 {% csrf_token %}
 <div class="d-flex flex-wrap gap-3 small text-body-secondary mb-3">
-  <span><i class="bi bi-people me-1"></i>{{ c.personas }} persona{{ c.personas|pluralize }}</span>
+  {% if c.mesa %}<span><i class="bi bi-people me-1"></i>{{ c.personas }} persona{{ c.personas|pluralize }}</span>{% endif %}
   <span><i class="bi bi-person-badge me-1"></i>{{ c.mozo|nombre }}</span>
   <span><i class="bi bi-clock me-1"></i>{{ c.abierta_en|date:"H:i" }}{% if c.abierta %} · hace {{ c.abierta_en|hace }}{% endif %}</span>
 </div>
+
+{% if c.es_delivery %}
+{# ---------- Delivery ---------- #}
+<div class="card card-outline {% if c.estado_envio == 'CAM' %}card-primary{% elif c.estado_envio == 'ENT' %}card-success{% else %}card-secondary{% endif %} mb-3">
+  <div class="card-header d-flex align-items-center gap-2">
+    <h3 class="card-title mb-0"><i class="bi bi-scooter me-1"></i> {{ c.get_estado_envio_display|default:"Preparando" }}</h3>
+    {% if c.estado_envio == "CAM" %}<span class="small text-body-secondary">salió {{ c.salio_en|date:"H:i" }}{% if c.repartidor %} con {{ c.repartidor }}{% endif %}</span>{% endif %}
+    {% if c.estado_envio == "ENT" %}<span class="small text-body-secondary">{{ c.entregado_en|date:"H:i" }}</span>{% endif %}
+    <a href="{% url 'mesas:precuenta' c.pk %}" data-imprimir="{% url 'mesas:precuenta' c.pk %}" class="btn btn-sm btn-outline-secondary ms-auto" title="Hoja para el repartidor"><i class="bi bi-printer"></i></a>
+  </div>
+  <div class="card-body py-2">
+    <div class="fw-semibold">{{ c.nombre|default:"(sin nombre)" }}{% if c.cliente %} <a href="{% url 'clientes:detalle' c.cliente_id %}" class="small fw-normal">ficha</a>{% endif %}</div>
+    {% if c.telefono %}<div><i class="bi bi-phone me-1"></i><a href="tel:{{ c.telefono }}">{{ c.telefono }}</a>
+      <a href="https://wa.me/{{ c.telefono|whatsapp }}" target="_blank" rel="noopener" class="ms-2 text-success"><i class="bi bi-whatsapp"></i> WhatsApp</a></div>{% endif %}
+    <div><i class="bi bi-geo-alt me-1"></i>{{ c.direccion }} {% if c.mapa_url %}<a href="{{ c.mapa_url }}" target="_blank" rel="noopener" class="small">mapa</a>{% endif %}</div>
+    {% if c.referencia %}<div class="small text-body-secondary ms-3">{{ c.referencia }}</div>{% endif %}
+    <div class="small mt-1">Envío <strong>{{ c.costo_envio|soles }}</strong>{% if c.paga_con %} · Paga con <strong>{{ c.paga_con }}</strong>{% if c.vuelto_para %} → llevar vuelto <strong>{{ c.vuelto_para|soles }}</strong>{% endif %}{% endif %}</div>
+  </div>
+  {% if c.abierta %}
+  <div class="card-footer d-flex flex-wrap gap-2 align-items-center">
+    {% if c.estado_envio != "CAM" and c.estado_envio != "ENT" %}
+    <form method="post" action="{% url 'mesas:delivery' c.pk %}" class="d-flex gap-1 flex-grow-1">{% csrf_token %}<input type="hidden" name="accion" value="salio">
+      <input type="text" name="repartidor" class="form-control form-control-sm" placeholder="Repartidor" list="repartidores" maxlength="60" value="{{ c.repartidor }}">
+      <datalist id="repartidores">{% for r in repartidores %}<option value="{{ r }}">{% endfor %}</datalist>
+      <button class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-scooter me-1"></i>Salió</button></form>
+    {% endif %}
+    {% if c.estado_envio != "ENT" %}
+    <form method="post" action="{% url 'mesas:delivery' c.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="entregado">
+      <button class="btn btn-sm btn-success text-nowrap"><i class="bi bi-check2-circle me-1"></i>Entregado</button></form>
+    {% endif %}
+    <button type="button" class="btn btn-sm btn-link ms-auto" data-bs-toggle="collapse" data-bs-target="#dl-editar">Editar datos</button>
+  </div>
+  <form method="post" action="{% url 'mesas:delivery' c.pk %}" class="collapse card-body border-top" id="dl-editar">{% csrf_token %}<input type="hidden" name="accion" value="datos">
+    <div class="row g-2">
+      <div class="col-6"><input type="text" name="nombre" class="form-control form-control-sm" value="{{ c.nombre }}" placeholder="Nombre" maxlength="60"></div>
+      <div class="col-6"><input type="tel" name="telefono" class="form-control form-control-sm" value="{{ c.telefono }}" placeholder="Celular" maxlength="20"></div>
+      <div class="col-12"><input type="text" name="direccion" class="form-control form-control-sm" value="{{ c.direccion }}" placeholder="Dirección" maxlength="200" required></div>
+      <div class="col-12"><input type="text" name="referencia" class="form-control form-control-sm" value="{{ c.referencia }}" placeholder="Referencia" maxlength="200"></div>
+      <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">Envío S/</span><input type="number" name="costo_envio" class="form-control" value="{{ c.costo_envio|stringformat:'.2f' }}" min="0" step="0.50"></div></div>
+      <div class="col-6"><input type="text" name="paga_con" class="form-control form-control-sm" value="{{ c.paga_con }}" placeholder="Paga con" maxlength="40"></div>
+      <div class="col-12"><button class="btn btn-sm btn-primary">Guardar</button></div>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 
 {% if recien %}
 <div class="alert alert-info">
@@ -86,7 +132,7 @@
       {% if c.abierta %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
                 data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
                 title="{% if i.cortesia %}Quitar cortesía{% else %}Cortesía de la casa{% endif %}" aria-label="Cortesía"><i class="bi bi-gift{% if i.cortesia %}-fill{% endif %}"></i></button>{% endif %}
-      {% if c.abierta and puede_anular %}
+      {% if c.abierta and puede_anular and not i.es_envio %}
       <button type="button" class="btn btn-sm btn-link text-danger px-1" data-bs-toggle="modal" data-bs-target="#m-quitar"
               data-url="{% url 'mesas:item' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
       {% endif %}

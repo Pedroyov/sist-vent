@@ -19,9 +19,114 @@ def abrir_cuenta(mozo, mesa=None, personas=1, nombre=""):
         raise MesaError("Esa mesa está desactivada.")
     try:
         with transaction.atomic():
-            return Cuenta.objects.create(mesa=mesa, mozo=mozo, personas=max(1, min(int(personas or 1), 99)), nombre=nombre[:60])
+            return Cuenta.objects.create(mesa=mesa, mozo=mozo, personas=max(1, min(int(personas or 1), 99)), nombre=" ".join(str(nombre or "").split())[:60],
+                                         tipo=Cuenta.Tipo.MESA if mesa else Cuenta.Tipo.LLEVAR)
     except IntegrityError:
         raise MesaError(f"La mesa {mesa.nombre} ya está ocupada.")
+
+
+# --- Delivery ------------------------------------------------------------------------
+
+def _limpio(texto, largo):
+    return " ".join(str(texto or "").split())[:largo]
+
+
+def _monto(texto):
+    try:
+        m = Decimal(str(texto or "0").replace(",", ".").strip() or "0")
+    except ArithmeticError:
+        raise MesaError("El costo de envío no es un número.")
+    if not m.is_finite() or m < 0 or m > 999:
+        raise MesaError("El costo de envío no es válido.")
+    return m.quantize(Decimal("0.01"))
+
+
+def datos_delivery(cuenta, nombre="", telefono="", direccion="", referencia="", paga_con=""):
+    """Guarda los datos del pedido y los recuerda en el cliente (con el módulo Clientes activo)."""
+    cuenta.nombre = _limpio(nombre, 60)
+    cuenta.telefono = "".join(c for c in str(telefono or "") if c.isdigit() or c == "+")[:20]
+    cuenta.direccion = _limpio(direccion, 200)
+    cuenta.referencia = _limpio(referencia, 200)
+    cuenta.paga_con = _limpio(paga_con, 40)
+    if not cuenta.direccion:
+        raise MesaError("Escribe la dirección de entrega.")
+    from core.permisos import modulos_activos
+
+    if cuenta.telefono and "clientes" in modulos_activos():
+        from clientes.models import Cliente
+
+        cli = cuenta.cliente or Cliente.objects.filter(telefono=cuenta.telefono, activo=True).first()
+        if cli is None and cuenta.nombre:
+            cli = Cliente.objects.create(tipo_documento=Cliente.TipoDocumento.SIN, nombre=cuenta.nombre, telefono=cuenta.telefono,
+                                         direccion=cuenta.direccion, nota="Cliente de delivery")
+        elif cli is not None and (cli.direccion != cuenta.direccion or not cli.telefono):
+            cli.direccion, cli.telefono = cuenta.direccion, cli.telefono or cuenta.telefono  # la última dirección queda para la próxima
+            cli.save(update_fields=["direccion", "telefono"])
+        cuenta.cliente = cli
+    cuenta.save()
+    return cuenta
+
+
+def abrir_delivery(mozo, nombre="", telefono="", direccion="", referencia="", paga_con="", costo_envio=None):
+    from core.models import Ajustes
+
+    c = Cuenta(mozo=mozo, tipo=Cuenta.Tipo.DELIVERY, estado_envio=Cuenta.Envio.PREPARANDO)
+    with transaction.atomic():
+        datos_delivery(c, nombre, telefono, direccion, referencia, paga_con)
+        poner_envio(c, Ajustes.cargar().delivery_costo if costo_envio in (None, "") else costo_envio, mozo)
+    return c
+
+
+def _producto_envio():
+    """Producto interno para cobrar el envío (no sale en el catálogo)."""
+    from productos.models import Categoria, Producto
+
+    p = Producto.objects.filter(nombre="Costo de envío (delivery)", tipo="S").first()
+    if p is None:
+        p = Producto.objects.create(nombre="Costo de envío (delivery)", tipo="S", unidad="SRV", precio=Decimal("0"), maneja_stock=False,
+                                    activo=False, descripcion="Lo usa el delivery para cobrar el envío. No borrar.")
+    from productos.servicios import asegurar_variante_unica
+
+    return asegurar_variante_unica(p)
+
+
+def poner_envio(cuenta, monto, usuario):
+    """Pone (o cambia) la línea del costo de envío. Ya cobrada, no se toca."""
+    _abierta(cuenta)
+    monto = _monto(monto)
+    with transaction.atomic():
+        actual = cuenta.items.filter(es_envio=True, anulado=False).first()
+        if actual and actual.venta_id:
+            if actual.precio != monto:
+                raise MesaError("El envío ya se cobró: no se puede cambiar.")
+            return actual
+        if actual:
+            actual.delete()
+        cuenta.costo_envio = monto
+        cuenta.save(update_fields=["costo_envio"])
+        if not monto:
+            return None
+        ahora = timezone.now()
+        return ItemCuenta.objects.create(cuenta=cuenta, variante=_producto_envio(), descripcion="Costo de envío", cantidad=1, precio=monto,
+                                         agregado_por=usuario, es_envio=True, enviado_en=ahora, listo_en=ahora, servido_en=ahora)
+
+
+def salio_delivery(cuenta, repartidor=""):
+    _abierta(cuenta)
+    cuenta.estado_envio, cuenta.repartidor, cuenta.salio_en = Cuenta.Envio.EN_CAMINO, _limpio(repartidor, 60), timezone.now()
+    cuenta.save(update_fields=["estado_envio", "repartidor", "salio_en"])
+
+
+def entregar_delivery(cuenta):
+    """Marca entregado. Si ya está todo cobrado, el pedido se cierra."""
+    _abierta(cuenta)
+    ahora = timezone.now()
+    cuenta.estado_envio, cuenta.entregado_en = Cuenta.Envio.ENTREGADO, ahora
+    campos = ["estado_envio", "entregado_en"]
+    if cuenta.pagada():
+        cuenta.estado, cuenta.cerrada_en = Cuenta.Estado.COBRADA, ahora
+        campos += ["estado", "cerrada_en"]
+    cuenta.save(update_fields=campos)
 
 
 def _abierta(cuenta):
