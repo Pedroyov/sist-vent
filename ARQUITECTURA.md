@@ -45,6 +45,11 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Agotados**: `Producto.agotado_en` y `Opcion.agotada_en` valen solo por el día (`agotado_hoy`): al día siguiente vuelven solos. Pantalla `productos:agotados` (permiso `productos.agotar`: Cajero, Vendedor y Cocina). Lo agotado no se puede vender ni pedir, pero lo que ya estaba pedido en una mesa se cobra igual.
 - Reportes: "Opciones y adicionales más pedidos", con lo cobrado aparte.
 
+## Nivel de detalle de los pedidos
+
+- `Ajustes.nivel_pedido` (Datos del negocio → Pedidos): **1 Simple** (producto + nota), **2 Con opciones** (grupos de opciones, incluidas, menú del día), **3 Detallado** (además "qué lleva"). Propiedades `usa_opciones` y `usa_lleva`; en plantillas `NEGOCIO.usa_opciones`.
+- Se aplica en el servidor (`resolver_opciones` no pide ni guarda opciones en 1, ni quita componentes en 2) y en el catálogo (`_catalogo` no manda `g`/`k`). Las pantallas lo esconden; en el formulario del producto la tarjeta de opciones solo se oculta (sigue enviándose) para no borrar lo que ya estaba configurado.
+
 ## Menú del día
 
 - El menú es un **producto normal** de precio fijo ("Menú ejecutivo S/ 15") con grupos de opciones marcados **"cambia cada día"** (`GrupoOpciones.diario`): por defecto "Entrada" y "Segundo", obligatorios.

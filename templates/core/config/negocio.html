@@ -63,6 +63,11 @@
       </div>
 
       <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-ui-checks me-1"></i> Pedidos</h3></div>
+        <div class="card-body">{{ form.nivel_pedido|as_crispy_field }}</div>
+      </div>
+
+      <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-printer me-1"></i> Impresión y cocina</h3></div>
         <div class="card-body">
           {{ form.ticket_ancho|as_crispy_field }}

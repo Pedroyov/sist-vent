@@ -15,7 +15,7 @@
   {% empty %}<div class="col-12 text-body-secondary">No hay productos con ese nombre.</div>
   {% endfor %}
 </div>
-{% if opciones %}
+{% if opciones and NEGOCIO.usa_opciones %}
 <h5 class="mb-2">Opciones y adicionales</h5>
 <div class="row g-2">
   {% for o in opciones %}

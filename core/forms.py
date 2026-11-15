@@ -133,8 +133,9 @@ class DatosNegocioForm(forms.ModelForm):
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
                   "vender_sin_caja", "propina_activa",
-                  "ticket_ancho", "imprimir_auto", "cocina_pantalla"]
+                  "ticket_ancho", "imprimir_auto", "cocina_pantalla", "nivel_pedido"]
         widgets = {
+            "nivel_pedido": forms.RadioSelect,
             "logo": forms.ClearableFileInput(attrs={"accept": "image/png,image/jpeg,image/webp"}),
             "color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
             "ruc": forms.TextInput(attrs={"inputmode": "numeric", "maxlength": 11}),

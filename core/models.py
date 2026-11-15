@@ -61,6 +61,12 @@ class Ajustes(models.Model):
     cocina_pantalla = models.BooleanField(
         "la cocina usa la pantalla de cocina", default=False,
         help_text="Una tablet, celular o PC en cocina recibe los pedidos al instante y marca qué está listo.")
+    nivel_pedido = models.PositiveSmallIntegerField(
+        "cómo se toman los pedidos", default=2,
+        choices=[(1, "Simple: el producto y una nota escrita (ej.: «sin cebolla»)"),
+                 (2, "Con opciones: término, acompañamiento, cremas, adicionales con precio y menú del día"),
+                 (3, "Detallado: además, qué lleva cada plato para quitar o cambiar cosas")],
+        help_text="Lo que no uses no aparece ni se configura. Puedes cambiarlo cuando quieras.")
     color = models.CharField("color principal", max_length=7, default="#0d6efd",
                              help_text="Color de la barra del celular cuando el sistema está instalado como app.")
     version_logo = models.PositiveIntegerField(default=0, editable=False)
@@ -76,6 +82,14 @@ class Ajustes(models.Model):
     def cargar(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @property
+    def usa_opciones(self):
+        return self.nivel_pedido >= 2
+
+    @property
+    def usa_lleva(self):
+        return self.nivel_pedido >= 3
 
     # --- valores a mostrar (con respaldo en el .env si aún no se llenan) ---
     @property

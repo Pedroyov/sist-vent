@@ -3,7 +3,12 @@
 {% block page_title %}Menú del día{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active">Menú del día</li>{% endblock %}
 {% block content %}
+{% if NEGOCIO.usa_opciones %}
 <div id="menu">{% include "productos/partials/menu.html" %}</div>
+{% else %}
+<div class="alert alert-info">El menú del día se usa con pedidos <strong>«Con opciones»</strong> (para elegir la entrada y el segundo).
+  {% if P.config_negocio %}Puedes cambiarlo en <a href="{% url 'core:datos_negocio' %}">Datos del negocio → Pedidos</a>.{% else %}Pídeselo al administrador.{% endif %}</div>
+{% endif %}
 {% endblock %}
 {% block extra_js %}
 <script>

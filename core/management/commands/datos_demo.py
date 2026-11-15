@@ -47,6 +47,7 @@ class Command(BaseCommand):
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + ["mesas"]
         a.cocina_pantalla = rubro == Rubro.RESTAURANTE
         a.propina_activa = rubro == Rubro.RESTAURANTE
+        a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
         a.ruc = a.ruc or "20123456789"
         a.direccion = a.direccion or "Av. Principal 123"
         a.distrito = a.distrito or "Lima"

@@ -404,8 +404,11 @@ class QueLlevaTests(TestCase):
     """Qué lleva el plato: se puede quitar ("SIN ENSALADA") o cambiar (papas por arroz)."""
 
     def setUp(self):
+        from core.models import Ajustes
+
         from .models import GrupoOpciones, Opcion
 
+        Ajustes.objects.update_or_create(pk=1, defaults={"nivel_pedido": 3})
         self.jefe = User.objects.create_user("jefe", password="x-clave-123")
         self.jefe.groups.add(Group.objects.get(name="Administración"))
         self.pollo = Producto.objects.create(nombre="Pollo a la brasa", precio=Decimal("18"), maneja_stock=False)
@@ -465,3 +468,62 @@ class QueLlevaTests(TestCase):
         self.client.force_login(cajero)
         self.assertEqual(self.client.post(self.url, {"accion": "agregar", "nombre": "X"}).status_code, 403)
         self.assertNotContains(self.client.get(reverse("productos:detalle", args=[self.pollo.pk])), "Escribe lo que lleva")
+
+
+class NivelDePedidoTests(TestCase):
+    """Simple / con opciones / detallado: lo que no se usa no aparece ni se pide."""
+
+    def setUp(self):
+        from core.models import Ajustes
+
+        from .models import Componente, GrupoOpciones, Opcion
+
+        self.aj, _ = Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES"})
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.lomo = Producto.objects.create(nombre="Lomo", precio=Decimal("28"), maneja_stock=False)
+        asegurar_variante_unica(self.lomo)
+        g = GrupoOpciones.objects.create(nombre="Término", minimo=1, maximo=1)
+        self.medio = Opcion.objects.create(grupo=g, nombre="Medio")
+        self.lomo.grupos.add(g)
+        self.cebolla = Componente.objects.create(producto=self.lomo, nombre="Cebolla")
+        self.client.force_login(self.jefe)
+
+    def _nivel(self, n):
+        self.aj.nivel_pedido = n
+        self.aj.save()
+
+    def test_simple(self):
+        from .servicios import resolver_opciones
+
+        self._nivel(1)
+        self.assertEqual(resolver_opciones(self.lomo, []), ([], Decimal("0"), ""))  # el término ya no se exige
+        self.assertNotContains(self.client.get(reverse("ventas:pos")), '"n": "Medio"')
+        r = self.client.get(reverse("productos:detalle", args=[self.lomo.pk]))
+        self.assertNotContains(r, "Qué lleva")
+        self.assertNotContains(r, reverse("productos:opciones"))
+        self.assertContains(self.client.get(reverse("productos:menu")), "Con opciones")
+        # editar el producto en modo simple no le borra sus opciones (por si vuelven a activarlas)
+        r = self.client.get(reverse("productos:editar", args=[self.lomo.pk]))
+        self.assertContains(r, 'class="card mb-4 d-none"')
+
+    def test_con_opciones_sin_lleva(self):
+        from .servicios import OpcionInvalida, resolver_opciones
+
+        self._nivel(2)
+        with self.assertRaises(OpcionInvalida):
+            resolver_opciones(self.lomo, [])  # el término se exige... salvo que tenga algo incluido
+        _, _, texto = resolver_opciones(self.lomo, [self.medio.pk, f"s{self.cebolla.pk}"])
+        self.assertEqual(texto, "Medio")  # "qué lleva" está apagado: no se quita nada
+        self.assertNotContains(self.client.get(reverse("productos:detalle", args=[self.lomo.pk])), "Qué lleva")
+        self.assertContains(self.client.get(reverse("ventas:pos")), '"k": []')
+
+    def test_detallado_y_formulario(self):
+        from .servicios import resolver_opciones
+
+        self._nivel(3)
+        _, _, texto = resolver_opciones(self.lomo, [self.medio.pk, f"s{self.cebolla.pk}"])
+        self.assertEqual(texto, "Medio, SIN CEBOLLA")
+        self.assertContains(self.client.get(reverse("productos:detalle", args=[self.lomo.pk])), "Qué lleva")
+        r = self.client.get(reverse("core:datos_negocio"))
+        self.assertContains(r, "Cómo se toman los pedidos")

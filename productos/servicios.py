@@ -108,6 +108,11 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     foto = [{"id", "g", "n", "p"}] tal como se guarda en la venta o el pedido."""
     from .models import GrupoOpciones, Opcion
 
+    from core.models import Ajustes
+
+    ajustes = Ajustes.cargar()
+    if not ajustes.usa_opciones:  # pedidos simples: no se eligen opciones (lo que haga falta va en la nota)
+        return [], Decimal("0"), ""
     # "s12" = quitar el componente 12 ("SIN ENSALADA"); el resto son opciones
     try:
         crudos = list(ids or [])
@@ -115,6 +120,8 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
         ids = sorted({int(i) for i in crudos if not str(i).startswith("s")})
     except (TypeError, ValueError):
         raise OpcionInvalida("Opción no válida.")
+    if not ajustes.usa_lleva:
+        sin_ids = []
     grupos = ordenar_grupos(producto.grupos.filter(activo=True).prefetch_related("opciones"))
     validas = {o.pk: o for g in grupos for o in g.opciones.all() if o.activa}
     elegidas = []

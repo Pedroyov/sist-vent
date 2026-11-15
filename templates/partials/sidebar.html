@@ -60,7 +60,7 @@
           </a>
         </li>
         {% endif %}
-        {% if P.productos_menu and NEGOCIO.rubro == "RES" %}
+        {% if P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
         <li class="nav-item">
           <a href="{% url 'productos:menu' %}" class="nav-link {% if ns == 'productos' and url == 'menu' %}active{% endif %}">
             <i class="nav-icon bi bi-journal-text"></i>
@@ -104,11 +104,11 @@
             </li>
             {% endif %}
             {% if P.productos_editar %}
-            <li class="nav-item">
+            {% if NEGOCIO.usa_opciones %}<li class="nav-item">
               <a href="{% url 'productos:opciones' %}" class="nav-link {% if ns == 'productos' and 'grupo' in url or ns == 'productos' and url == 'opciones' %}active{% endif %}">
                 <i class="nav-icon bi bi-circle"></i><p>Opciones al pedir</p>
               </a>
-            </li>
+            </li>{% endif %}
             <li class="nav-item">
               <a href="{% url 'productos:categorias' %}" class="nav-link {% if ns == 'productos' and 'categoria' in url %}active{% endif %}">
                 <i class="nav-icon bi bi-circle"></i><p>Categorías</p>
