@@ -4,20 +4,27 @@ REM Tu base real (db.sqlite3) no se toca.
 REM   demo.bat          solo en esta PC
 REM   demo.bat red      tambien desde celulares conectados al mismo WiFi
 REM   demo.bat nuevo    vuelve a generar los datos de ejemplo (se puede combinar: demo.bat nuevo red)
+REM   demo.bat nuevo res   ejemplo de restaurante (tie tienda, res restaurante, rop ropa, lib libreria, pel peluqueria)
 cd /d "%~dp0"
 if exist .venv\Scripts\activate.bat call .venv\Scripts\activate.bat
 set DATABASE_URL=sqlite:///db_demo.sqlite3
 set NUEVO=
 set RED=
+set RUBRO=TIE
 for %%a in (%*) do (
   if /i "%%a"=="nuevo" set NUEVO=1
   if /i "%%a"=="red" set RED=1
+  if /i "%%a"=="tie" set RUBRO=TIE
+  if /i "%%a"=="res" set RUBRO=RES
+  if /i "%%a"=="rop" set RUBRO=ROP
+  if /i "%%a"=="lib" set RUBRO=LIB
+  if /i "%%a"=="pel" set RUBRO=PEL
 )
 if defined NUEVO if exist db_demo.sqlite3 del db_demo.sqlite3
 if not exist db_demo.sqlite3 (
   echo Creando la base de ejemplo, espera unos segundos...
   python manage.py migrate -v0 || goto :error
-  python manage.py datos_demo || goto :error
+  python manage.py datos_demo --rubro %RUBRO% || goto :error
 )
 echo.
 if defined RED goto :red
