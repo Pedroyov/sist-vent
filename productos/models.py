@@ -199,6 +199,27 @@ class Producto(models.Model):
             im.save(self.imagen.path, fmt, quality=85, optimize=True)
 
 
+class Componente(models.Model):
+    """Lo que lleva un plato (pollo, papas, ensalada…). Al pedir se puede quitar ("SIN ENSALADA") o cambiar por otra
+    opción de un grupo (papas -> arroz). Más adelante, con recetas, cada componente tendrá su insumo y su cantidad."""
+
+    producto = models.ForeignKey("Producto", on_delete=models.CASCADE, related_name="componentes")
+    nombre = models.CharField(max_length=60)
+    quitable = models.BooleanField("se puede quitar", default=True)
+    cambiar_con = models.ForeignKey(GrupoOpciones, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                    verbose_name="se puede cambiar por",
+                                    help_text="Grupo con las alternativas (ej.: Acompañamiento: papas, arroz, ensalada).")
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "componente"
+        verbose_name_plural = "componentes (qué lleva)"
+        ordering = ["producto", "orden", "id"]
+
+    def __str__(self):
+        return self.nombre
+
+
 class Variante(models.Model):
     """Lo que realmente se vende y se cuenta. Un producto sin tallas ni colores tiene una sola variante sin nombre."""
 

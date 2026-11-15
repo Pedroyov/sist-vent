@@ -11,12 +11,30 @@ window.Opciones = (function () {
   var actual = null, listo = null;
 
   function grupos(p) { return (p.g || []).filter(function (g) { return g.o && g.o.length; }); }
+  // Lo que lleva el plato: {id, n, q: se puede quitar, g: grupo con el que se cambia}
+  function lleva(p) { return p.k || []; }
+  function enlazado(p, k) { return k.g ? grupos(p).find(function (g) { return g.id === k.g; }) : null; }
+
+  function htmlGrupo(g, titulo) {
+    var unico = g.max === 1;
+    var html = '<div class="mb-3" data-grupo="' + g.id + '" data-min="' + g.min + '" data-max="' + g.max + '">' +
+      '<div class="fw-semibold mb-1">' + (titulo ? esc(titulo) + ' <span class="small text-body-secondary fw-normal">· se puede cambiar</span>'
+        : esc(g.n) + ' <span class="badge ' + (g.min ? "text-bg-danger" : "text-bg-light border") + '">' + esc(g.r) + "</span>") + "</div>" +
+      '<div class="d-flex flex-wrap gap-2">';
+    g.o.forEach(function (o) {
+      html += '<input type="' + (unico ? "radio" : "checkbox") + '" class="btn-check" name="op-g' + g.id + '" id="op-o' + o.id + '" value="' + o.id + '"' + (o.ag ? " disabled" : (o.d ? " checked" : "")) + ">" +
+        '<label class="btn btn-outline-secondary' + (o.ag ? " text-decoration-line-through" : "") + '" for="op-o' + o.id + '">' + esc(o.n) +
+        (cent(o.p) ? ' <span class="small opacity-75">+' + soles(cent(o.p)) + "</span>" : "") + (o.ag ? ' <span class="small">(agotado)</span>' : "") + (o.d && !o.ag ? ' <span class="small opacity-75">(incluido)</span>' : "") + "</label>";
+    });
+    return html + "</div></div>";
+  }
 
   function elegir(p, alListo) {
     if (p.ag) { alert(p.n + " está agotado hoy."); return; }
-    var gs = grupos(p);
+    var gs = grupos(p), ks = lleva(p);
+    var hayQueVer = ks.some(function (k) { return k.q || enlazado(p, k); });
     var disponibles = p.v.filter(function (v) { return true; });
-    if (disponibles.length === 1 && !gs.length) { alListo({vid: disponibles[0].id, ops: [], extra: 0, txt: ""}); return; }
+    if (disponibles.length === 1 && !gs.length && !hayQueVer) { alListo({vid: disponibles[0].id, ops: [], extra: 0, txt: ""}); return; }
     actual = p; listo = alListo;
     $("op-titulo").textContent = p.n;
     var html = "";
@@ -30,18 +48,22 @@ window.Opciones = (function () {
       });
       html += "</div></div>";
     }
-    gs.forEach(function (g) {
-      var unico = g.max === 1;
-      html += '<div class="mb-3" data-grupo="' + g.id + '" data-min="' + g.min + '" data-max="' + g.max + '">' +
-        '<div class="fw-semibold mb-1">' + esc(g.n) + ' <span class="badge ' + (g.min ? "text-bg-danger" : "text-bg-light border") + '">' + esc(g.r) + "</span></div>" +
-        '<div class="d-flex flex-wrap gap-2">';
-      g.o.forEach(function (o) {
-        html += '<input type="' + (unico ? "radio" : "checkbox") + '" class="btn-check" name="op-g' + g.id + '" id="op-o' + o.id + '" value="' + o.id + '"' + (o.ag ? " disabled" : (o.d ? " checked" : "")) + ">" +
-          '<label class="btn btn-outline-secondary' + (o.ag ? " text-decoration-line-through" : "") + '" for="op-o' + o.id + '">' + esc(o.n) +
-          (cent(o.p) ? ' <span class="small opacity-75">+' + soles(cent(o.p)) + "</span>" : "") + (o.ag ? ' <span class="small">(agotado)</span>' : "") + (o.d && !o.ag ? ' <span class="small opacity-75">(incluido)</span>' : "") + "</label>";
+    var usados = {};
+    if (ks.length) {
+      html += '<div class="mb-3 p-2 rounded bg-body-tertiary"><div class="fw-semibold mb-1">Lleva' +
+        (ks.some(function (k) { return k.q && !enlazado(p, k); }) ? ' <span class="small text-body-secondary fw-normal">· toca lo que no quiere</span>' : "") + "</div>" +
+        '<div class="d-flex flex-wrap gap-2 mb-2">';
+      ks.forEach(function (k) {
+        if (enlazado(p, k)) return;
+        if (k.q) html += '<input type="checkbox" class="btn-check" id="op-k' + k.id + '" value="s' + k.id + '" data-sin data-n="' + esc(k.n) + '" checked>' +
+          '<label class="btn btn-outline-success lleva" for="op-k' + k.id + '">' + esc(k.n) + "</label>";
+        else html += '<span class="btn btn-light border disabled opacity-100"><i class="bi bi-lock small opacity-50"></i> ' + esc(k.n) + "</span>";
       });
-      html += "</div></div>";
-    });
+      html += "</div>";
+      ks.forEach(function (k) { var g = enlazado(p, k); if (g) { usados[g.id] = 1; html += htmlGrupo(g, k.n); } });
+      html += "</div>";
+    }
+    gs.forEach(function (g) { if (!usados[g.id]) html += htmlGrupo(g); });
     $("op-cuerpo").innerHTML = html;
     revisar();
     bootstrap.Modal.getOrCreateInstance(modal).show();
@@ -60,13 +82,16 @@ window.Opciones = (function () {
         ops.push(o.id); txt.push(o.n); extra += cent(o.p);
       });
     });
+    modal.querySelectorAll("[data-sin]").forEach(function (c) {
+      if (!c.checked) { ops.push(c.value); txt.push("SIN " + c.dataset.n.toUpperCase()); }
+    });
     return {v: v, ops: ops, txt: txt.join(", "), extra: extra, falta: falta};
   }
 
   function revisar(e) {
     // en grupos de varios con máximo, no deja marcar de más
     if (e && e.target.type === "checkbox") {
-      var caja = e.target.closest("[data-grupo]"), max = parseInt(caja.dataset.max, 10);
+      var caja = e.target.closest("[data-grupo]"), max = caja ? parseInt(caja.dataset.max, 10) : 0;
       if (max && caja.querySelectorAll("input:checked").length > max) e.target.checked = false;
     }
     var s = leer();

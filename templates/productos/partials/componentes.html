@@ -1,0 +1,53 @@
+<div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-check me-1"></i> Qué lleva</h3></div>
+{% if componentes %}
+<ul class="list-group list-group-flush">
+  {% for c in componentes %}
+  <li class="list-group-item py-2">
+    <div class="d-flex align-items-center gap-1">
+      <span class="fw-semibold flex-grow-1">{{ c.nombre }}</span>
+      {% if P.productos_editar %}
+      <form hx-post="{% url 'productos:componentes' p.pk %}" hx-target="#componentes" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="componente" value="{{ c.pk }}">
+        {% if not forloop.first %}<button name="accion" value="subir" class="btn btn-sm btn-link px-1 text-body-secondary" aria-label="Subir"><i class="bi bi-arrow-up"></i></button>{% endif %}
+        <button name="accion" value="borrar" class="btn btn-sm btn-link px-1 text-danger" aria-label="Borrar"><i class="bi bi-x-lg"></i></button>
+      </form>
+      {% endif %}
+    </div>
+    {% if P.productos_editar %}
+    <div class="d-flex flex-wrap gap-2 align-items-center small mt-1">
+      <form hx-post="{% url 'productos:componentes' p.pk %}" hx-target="#componentes">{% csrf_token %}
+        <input type="hidden" name="componente" value="{{ c.pk }}"><input type="hidden" name="accion" value="quitable">
+        <button class="btn btn-sm {% if c.quitable %}btn-outline-success{% else %}btn-outline-secondary{% endif %} py-0" title="Tocar para cambiar">
+          {% if c.quitable %}<i class="bi bi-check2"></i> Se puede quitar{% else %}<i class="bi bi-lock"></i> Siempre va{% endif %}</button>
+      </form>
+      <form hx-post="{% url 'productos:componentes' p.pk %}" hx-target="#componentes" hx-trigger="change">{% csrf_token %}
+        <input type="hidden" name="componente" value="{{ c.pk }}"><input type="hidden" name="accion" value="cambiar">
+        <select name="cambiar_con" class="form-select form-select-sm w-auto py-0" aria-label="Se puede cambiar por">
+          <option value="">No se cambia</option>
+          {% for g in grupos_cambio %}<option value="{{ g.pk }}" {% if c.cambiar_con_id == g.pk %}selected{% endif %}>Se cambia: {{ g.nombre }}</option>{% endfor %}
+        </select>
+      </form>
+    </div>
+    {% else %}
+    <div class="small text-body-secondary">{% if c.quitable %}se puede quitar{% else %}siempre va{% endif %}{% if c.cambiar_con %} · se cambia por {{ c.cambiar_con.nombre|lower }}{% endif %}</div>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card-body small text-body-secondary pb-0">Escribe lo que lleva el plato. Al pedir, el mozo lo verá y podrá quitar algo («SIN ENSALADA») o cambiarlo (papas por arroz).</div>
+{% endif %}
+{% if P.productos_editar %}
+<form hx-post="{% url 'productos:componentes' p.pk %}" hx-target="#componentes" class="card-body">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+  <div class="input-group input-group-sm mb-1">
+    <input type="text" name="nombre" class="form-control" placeholder="Ej.: Ensalada (o varios: Pollo, Papas, Ensalada)" maxlength="300" required>
+    <button class="btn btn-primary" aria-label="Agregar"><i class="bi bi-plus-lg"></i></button>
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center small">
+    <label class="form-check mb-0"><input type="checkbox" name="quitable" value="1" class="form-check-input" checked> Se puede quitar</label>
+    <select name="cambiar_con" class="form-select form-select-sm w-auto py-0" aria-label="Se puede cambiar por">
+      <option value="">No se cambia</option>
+      {% for g in grupos_cambio %}<option value="{{ g.pk }}">Se cambia: {{ g.nombre }}</option>{% endfor %}
+    </select>
+  </div>
+</form>
+{% endif %}

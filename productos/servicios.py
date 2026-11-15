@@ -108,8 +108,11 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     foto = [{"id", "g", "n", "p"}] tal como se guarda en la venta o el pedido."""
     from .models import GrupoOpciones, Opcion
 
+    # "s12" = quitar el componente 12 ("SIN ENSALADA"); el resto son opciones
     try:
-        ids = sorted({int(i) for i in (ids or [])})
+        crudos = list(ids or [])
+        sin_ids = sorted({int(str(i)[1:]) for i in crudos if str(i).startswith("s")})
+        ids = sorted({int(i) for i in crudos if not str(i).startswith("s")})
     except (TypeError, ValueError):
         raise OpcionInvalida("Opción no válida.")
     grupos = ordenar_grupos(producto.grupos.filter(activo=True).prefetch_related("opciones"))
@@ -135,6 +138,13 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     orden = {g.pk: i for i, g in enumerate(grupos)}
     elegidas.sort(key=lambda o: (orden[o.grupo_id], o.orden, o.pk))
     foto = [{"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)} for o in elegidas]
+    if sin_ids:
+        quitables = {c.pk: c for c in producto.componentes.all() if c.quitable}
+        for i in sin_ids:
+            c = quitables.get(i)
+            if c is None:
+                raise OpcionInvalida(f"{producto.nombre}: eso no se puede quitar. Recarga la página.")
+            foto.append({"id": f"s{c.pk}", "g": "Sin", "n": f"SIN {c.nombre.upper()}", "p": "0", "sin": True})
     return foto, sum((o.precio for o in elegidas), Decimal("0")), texto_opciones(foto)
 
 

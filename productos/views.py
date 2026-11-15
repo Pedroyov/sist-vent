@@ -179,7 +179,59 @@ def detalle(request, pk):
         "form_generar": GenerarVariantesForm(),
         "etiqueta_variantes": f"{e1} y {e2.lower()}" if e2 else e1,
         "ver_costos": puede(request.user, "productos.costos"),
+        **_datos_componentes(producto),
     })
+
+
+def _datos_componentes(producto):
+    return {"componentes": list(producto.componentes.select_related("cambiar_con")),
+            "grupos_cambio": GrupoOpciones.objects.filter(activo=True, diario=False, maximo=1).order_by("orden", "nombre")}
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def componentes(request, pk):
+    """Qué lleva el plato: agregar, quitar, ordenar y decir si se puede quitar o cambiar."""
+    from .models import Componente
+
+    p = get_object_or_404(Producto, pk=pk)
+    accion = request.POST.get("accion")
+    if accion == "agregar":
+        nombres = [" ".join(n.split())[:60] for n in request.POST.get("nombre", "").replace(",", "\n").splitlines()]
+        grupo = GrupoOpciones.objects.filter(pk=entero(request.POST.get("cambiar_con")), activo=True).first()
+        orden = (p.componentes.order_by("-orden").values_list("orden", flat=True).first() or 0) + 1
+        for i, nombre in enumerate(n for n in nombres if n):
+            if p.componentes.filter(nombre__iexact=nombre).exists():
+                continue
+            Componente.objects.create(producto=p, nombre=nombre, orden=orden + i, quitable=request.POST.get("quitable") == "1",
+                                      cambiar_con=grupo if i == 0 else None)
+            if grupo and i == 0:
+                p.grupos.add(grupo)  # para cambiar algo, el grupo tiene que estar en el plato
+    else:
+        c = get_object_or_404(Componente, pk=entero(request.POST.get("componente")), producto=p)
+        if accion == "borrar":
+            c.delete()
+        elif accion == "quitable":
+            c.quitable = not c.quitable
+            c.save(update_fields=["quitable"])
+        elif accion == "cambiar":
+            c.cambiar_con = GrupoOpciones.objects.filter(pk=entero(request.POST.get("cambiar_con")), activo=True).first()
+            c.save(update_fields=["cambiar_con"])
+            if c.cambiar_con:
+                p.grupos.add(c.cambiar_con)
+        elif accion in ("subir", "bajar"):
+            lista = list(p.componentes.all())
+            i = lista.index(c)
+            j = i - 1 if accion == "subir" else i + 1
+            if 0 <= j < len(lista):
+                lista[i], lista[j] = lista[j], lista[i]
+                for n, x in enumerate(lista):
+                    if x.orden != n:
+                        x.orden = n
+                        x.save(update_fields=["orden"])
+    if request.htmx:
+        return render(request, "productos/partials/componentes.html", {"p": p, **_datos_componentes(p)})
+    return redirect("productos:detalle", pk=pk)
 
 
 @permiso_requerido("productos.editar")

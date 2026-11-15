@@ -121,6 +121,8 @@ def opciones_demo(producto, azar=None):
                 ids += [o.pk for o in (azar.sample(ops, g.minimo) if azar else ops[:g.minimo])]
         elif azar and azar.random() < .35:
             ids.append(azar.choice(ops).pk)
+    if azar:  # a veces piden sin algo
+        ids += [f"s{c.pk}" for c in producto.componentes.all() if c.quitable and not c.cambiar_con_id and azar.random() < .06]
     return ids
 
 
@@ -147,6 +149,32 @@ def _opciones_restaurante():
         p = Producto.objects.filter(nombre=nombre).first()
         if p:
             p.grupos.set([grupos[g] for g in gs])
+    # qué lleva cada plato: (nombre, se puede quitar, se cambia con el grupo)
+    lleva = {
+        "Pollo a la brasa": [("Pollo", False, None), ("Papas fritas", False, "Acompañamiento"), ("Ensalada", True, None)],
+        "Alitas BBQ": [("Alitas", False, None), ("Salsa BBQ", True, None), ("Papas fritas", False, "Acompañamiento")],
+        "Combo familiar": [("Pollo entero", False, None), ("Papas familiares", True, None), ("Ensalada", True, None), ("Inca Kola 1.5 L", True, None)],
+        "Parrilla personal": [("Bife", False, None), ("Chorizo", True, None), ("Anticucho", True, None),
+                              ("Papas fritas", False, "Acompañamiento"), ("Ensalada", True, None)],
+        "Lomo saltado": [("Lomo de res", False, None), ("Cebolla", True, None), ("Tomate", True, None), ("Papas fritas", True, None), ("Arroz", True, None)],
+        "Bistec a lo pobre": [("Bistec", False, None), ("Huevo frito", True, None), ("Plátano frito", True, None), ("Papas fritas", True, None),
+                              ("Arroz", True, None)],
+        "Ceviche": [("Pescado", False, None), ("Cebolla", True, None), ("Camote", True, None), ("Choclo", True, None), ("Cancha", True, None)],
+        "Salchipapa": [("Salchicha", False, None), ("Papas fritas", False, None)],
+        "Arroz chaufa": [("Arroz", False, None), ("Cebolla china", True, None), ("Tortilla de huevo", True, None)],
+        "Causa limeña de pollo": [("Pollo", False, None), ("Palta", True, None), ("Mayonesa", True, None)],
+    }
+    from .models import Componente
+
+    for nombre, partes in lleva.items():
+        p = Producto.objects.filter(nombre=nombre).first()
+        if not p:
+            continue
+        for i, (n, quitable, grupo) in enumerate(partes):
+            g = grupos.get(grupo) if grupo else None
+            Componente.objects.create(producto=p, nombre=n, quitable=quitable, cambiar_con=g, orden=i)
+            if g:
+                p.grupos.add(g)
     # menú del día: lo de hoy activo y lo de otros días guardado
     menu = {"Entrada": (["Sopa de casa", "Causa de atún", "Ensalada fresca"], ["Papa rellena", "Crema de zapallo", "Ocopa"]),
             "Segundo": (["Arroz con pollo", "Seco de res con frejoles", "Pescado frito|3", "Tallarines rojos con pollo"],

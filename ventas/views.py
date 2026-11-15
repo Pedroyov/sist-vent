@@ -29,7 +29,7 @@ MAX_CATALOGO = 5000
 def _catalogo():
     """Productos activos con sus variantes, para buscar y vender sin ir al servidor en cada tecla."""
     productos = (Producto.objects.filter(activo=True).select_related("categoria")
-                 .prefetch_related(Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"),
+                 .prefetch_related(Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"), "componentes",
                                    Prefetch("grupos", queryset=GrupoOpciones.objects.filter(activo=True).prefetch_related(
                                        Prefetch("opciones", queryset=Opcion.objects.filter(activa=True))), to_attr="grs"))
                  .order_by("nombre")[:MAX_CATALOGO])
@@ -43,6 +43,7 @@ def _catalogo():
             "v": [{"id": v.pk, "n": v.nombre, "cod": v.codigo, "p": str(v.precio_venta),
                    "st": f"{v.stock.normalize():f}" if p.maneja_stock else None} for v in p.vars],
             "ag": p.agotado,
+            "k": [{"id": c.pk, "n": c.nombre, "q": c.quitable, "g": c.cambiar_con_id} for c in p.componentes.all()],
             "g": [{"id": g.pk, "n": g.nombre, "min": minimo_disponible(g), "max": g.maximo, "r": g.regla,
                    "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada, "d": o.por_defecto} for o in g.opciones.all()]}
                   for g in ordenar_grupos(p.grs)],

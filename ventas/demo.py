@@ -54,7 +54,7 @@ def cargar_ventas(dias=7, por_dia=(6, 14)):
                     mov = mover_stock(v, Decimal("24"), MovimientoStock.Tipo.INGRESO, nota="Compra a proveedor",
                                       costo_unitario=v.costo_efectivo, referencia="Factura de ejemplo")
                     MovimientoStock.objects.filter(pk=mov.pk).update(fecha=fecha - timedelta(minutes=30))
-            total = sum((v.precio_venta + sum((o.precio for o in Opcion.objects.filter(pk__in=i["opciones"])), Decimal(0)))
+            total = sum((v.precio_venta + sum((o.precio for o in Opcion.objects.filter(pk__in=[o for o in i["opciones"] if isinstance(o, int)])), Decimal(0)))
                         * Decimal(i["cantidad"]) for v, i in zip(elegidas, items))
             metodo = azar.choices(["EFE", "YAP", "PLI", "TAR"], weights=[55, 25, 10, 10])[0]
             monto = total

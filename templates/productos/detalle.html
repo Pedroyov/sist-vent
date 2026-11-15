@@ -51,6 +51,9 @@
       </ul>
       {% if p.descripcion %}<div class="card-body small border-top">{{ p.descripcion|linebreaksbr }}</div>{% endif %}
     </div>
+    {% if componentes or P.productos_editar and not p.es_servicio %}
+    <div class="card mb-4" id="componentes">{% include "productos/partials/componentes.html" %}</div>
+    {% endif %}
   </div>
 
   <div class="col-lg-8">

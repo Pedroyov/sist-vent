@@ -398,3 +398,70 @@ class OpcionesIncluidasTests(TestCase):
         # en el catálogo del punto de venta y de las mesas sale marcada
         r = self.client.get(reverse("ventas:pos"))
         self.assertContains(r, '"d": true')
+
+
+class QueLlevaTests(TestCase):
+    """Qué lleva el plato: se puede quitar ("SIN ENSALADA") o cambiar (papas por arroz)."""
+
+    def setUp(self):
+        from .models import GrupoOpciones, Opcion
+
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.pollo = Producto.objects.create(nombre="Pollo a la brasa", precio=Decimal("18"), maneja_stock=False)
+        asegurar_variante_unica(self.pollo)
+        self.acomp = GrupoOpciones.objects.create(nombre="Acompañamiento", minimo=1, maximo=1)
+        self.papas = Opcion.objects.create(grupo=self.acomp, nombre="Papas fritas", por_defecto=True)
+        self.arroz = Opcion.objects.create(grupo=self.acomp, nombre="Arroz")
+        self.url = reverse("productos:componentes", args=[self.pollo.pk])
+
+    def test_armar_y_pedir(self):
+        from mesas.models import Mesa, Zona
+        from mesas.servicios import abrir_cuenta, agregar
+
+        from .servicios import OpcionInvalida, resolver_opciones
+
+        self.client.force_login(self.jefe)
+        self.client.post(self.url, {"accion": "agregar", "nombre": "Pollo"})  # sin marcar "se puede quitar": siempre va
+        self.client.post(self.url, {"accion": "agregar", "nombre": "Papas fritas", "cambiar_con": self.acomp.pk})
+        self.client.post(self.url, {"accion": "agregar", "nombre": "Ensalada, Cremas", "quitable": "1"})  # varios a la vez
+        self.client.post(self.url, {"accion": "agregar", "nombre": "ensalada", "quitable": "1"})  # repetido: no se duplica
+        pollo_c, papas_c, ensalada, cremas = self.pollo.componentes.all()
+        self.assertEqual([c.nombre for c in (pollo_c, papas_c, ensalada, cremas)], ["Pollo", "Papas fritas", "Ensalada", "Cremas"])
+        self.assertFalse(pollo_c.quitable)
+        self.assertIn(self.acomp, self.pollo.grupos.all())  # para poder cambiar, el grupo queda en el plato
+        self.assertContains(self.client.get(reverse("productos:detalle", args=[self.pollo.pk])), "Qué lleva")
+        # se ordena y se cambia
+        self.client.post(self.url, {"accion": "subir", "componente": cremas.pk})
+        self.assertEqual([c.nombre for c in self.pollo.componentes.all()][2], "Cremas")
+        self.client.post(self.url, {"accion": "quitable", "componente": cremas.pk})
+        cremas.refresh_from_db()
+        self.assertFalse(cremas.quitable)
+        # al pedir: sin ensalada y con arroz en vez de papas
+        foto, extra, texto = resolver_opciones(self.pollo, [self.arroz.pk, f"s{ensalada.pk}"])
+        self.assertEqual((texto, extra), ("Arroz, SIN ENSALADA", Decimal("0")))
+        with self.assertRaises(OpcionInvalida):  # el pollo no se puede quitar
+            resolver_opciones(self.pollo, [f"s{pollo_c.pk}"])
+        with self.assertRaises(OpcionInvalida):
+            resolver_opciones(self.pollo, ["sx"])
+        # en la mesa: dos pedidos iguales se juntan, uno distinto va aparte; la comanda dice SIN
+        mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        c = abrir_cuenta(self.jefe, mesa)
+        v = self.pollo.variantes.get()
+        agregar(c, [{"variante": v.pk, "opciones": [f"s{ensalada.pk}"]}, {"variante": v.pk, "opciones": [f"s{ensalada.pk}"]},
+                    {"variante": v.pk}], self.jefe)
+        self.assertEqual(sorted((i.cantidad, i.texto_opciones) for i in c.items.all()),
+                         [(Decimal("1"), "Papas fritas"), (Decimal("2"), "Papas fritas, SIN ENSALADA")])
+        # el catálogo lleva lo que lleva
+        r = self.client.get(reverse("ventas:pos"))
+        self.assertContains(r, '"n": "Ensalada", "q": true')
+        # se borra
+        self.client.post(self.url, {"accion": "borrar", "componente": ensalada.pk})
+        self.assertEqual(self.pollo.componentes.count(), 3)
+
+    def test_solo_quien_edita_productos(self):
+        cajero = User.objects.create_user("cajero", password="x-clave-123")
+        cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.client.force_login(cajero)
+        self.assertEqual(self.client.post(self.url, {"accion": "agregar", "nombre": "X"}).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("productos:detalle", args=[self.pollo.pk])), "Escribe lo que lleva")

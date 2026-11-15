@@ -76,3 +76,7 @@ body {
 
 /* Deja que un texto largo se corte dentro de una fila flex (Bootstrap no trae esta clase) */
 .min-w-0 { min-width: 0; }
+
+/* "Lleva" al pedir: lo que se quita se ve tachado y en rojo, con "SIN" delante */
+.btn-check:not(:checked) + .lleva { text-decoration: line-through; color: var(--bs-danger); border-color: var(--bs-danger); background: var(--bs-danger-bg-subtle); }
+.btn-check:not(:checked) + .lleva::before { content: "SIN "; font-weight: 700; text-decoration: none; display: inline-block; margin-right: .25rem; }
