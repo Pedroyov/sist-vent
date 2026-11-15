@@ -72,19 +72,57 @@ document.addEventListener("click", function (e) {
 });
 
 // Imprimir sin salir de la pantalla: <a data-imprimir="/ruta/de/impresion/">.
-// En la PC se imprime desde un marco oculto; en el celular se abre en otra pestaña y se imprime solo.
+// En la PC el ticket se trae y se imprime desde esta misma página (en una zona aislada con Shadow DOM), con la hoja
+// del tamaño del rollo. No se usa un marco oculto porque Chrome ignora el tamaño de hoja de un marco y sale en A4.
+// En el celular se abre en otra pestaña y se imprime solo.
 window.imprimir = function (url) {
   var movil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (movil) { window.open(url + (url.indexOf("?") >= 0 ? "&" : "?") + "auto=1", "_blank"); return; }
-  var viejo = document.getElementById("marco-impresion");
-  if (viejo) viejo.remove();
-  var marco = document.createElement("iframe");
-  marco.id = "marco-impresion";
-  marco.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
-  marco.src = url;
-  marco.onload = function () { setTimeout(function () { marco.contentWindow.focus(); marco.contentWindow.print(); }, 150); };
-  document.body.appendChild(marco);
+  fetch(url, {credentials: "same-origin"}).then(function (r) {
+    if (!r.ok || r.url.indexOf("/ingresar/") >= 0) throw new Error("sin ticket");
+    return r.text();
+  }).then(function (html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    var papel = doc.querySelector(".papel");
+    if (!papel) throw new Error("sin ticket");
+    var css = Array.prototype.map.call(doc.querySelectorAll("style"), function (s) { return s.textContent; }).join("\n").replace(/:root/g, ":host");
+    var viejo = document.getElementById("zona-impresion");
+    if (viejo) viejo.remove();
+    var zona = document.createElement("div");
+    zona.id = "zona-impresion";
+    var sombra = zona.attachShadow({mode: "open"});
+    sombra.innerHTML = "<style>" + css + " @media print { .papel { width: 100%; } }</style>";
+    sombra.appendChild(document.importNode(papel, true));
+    zona.style.cssText = "display:block;position:absolute;left:-10000px;top:0";  // fuera de la vista, solo para medir
+    document.body.appendChild(zona);
+    var imgs = Array.prototype.slice.call(sombra.querySelectorAll("img"));
+    return Promise.race([
+      Promise.all(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (ok) { i.onload = i.onerror = ok; }); })),
+      new Promise(function (ok) { setTimeout(ok, 1500); })
+    ]).then(function () {
+      var mm = Math.ceil(sombra.querySelector(".papel").getBoundingClientRect().height * 25.4 / 96 + 6);
+      zona.style.cssText = "";
+      var pagina = document.getElementById("pagina-impresion");
+      if (!pagina) { pagina = document.createElement("style"); pagina.id = "pagina-impresion"; document.head.appendChild(pagina); }
+      pagina.textContent = "@page { size: " + (papel.dataset.ancho || 80) + "mm " + mm + "mm; margin: 0; }";
+      document.body.classList.add("imprimiendo");
+      var fin = function () {
+        window.removeEventListener("afterprint", fin);
+        document.body.classList.remove("imprimiendo");
+        pagina.textContent = "";  // Ctrl+P en otras pantallas vuelve a ser hoja normal
+      };
+      window.addEventListener("afterprint", fin);
+      window.print();
+    });
+  }).catch(function () { window.open(url, "_blank"); });
 };
+// En la pantalla de una venta, Ctrl+P imprime el ticket del rollo (no la pantalla en A4).
+document.addEventListener("keydown", function (e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === "p" || e.key === "P")) {
+    var b = document.getElementById("btn-imprimir");
+    if (b && b.dataset.imprimir) { e.preventDefault(); window.imprimir(b.dataset.imprimir); }
+  }
+});
 document.addEventListener("click", function (e) {
   var a = e.target.closest("[data-imprimir]");
   if (!a) return;

@@ -33,7 +33,7 @@ Base de todo lo que se imprime en la ticketera (ticket, precuenta, comanda, cier
 <style id="tam-pagina">@page { margin: 0; }</style>
 </head>
 <body>
-<div class="papel"><div class="in">
+<div class="papel" data-ancho="{{ NEGOCIO.ticket_ancho|default:80 }}"><div class="in">
 {% block contenido %}{% endblock %}
 </div></div>
 <div class="acciones"><button type="button" onclick="window.print()">Imprimir</button>{% block volver %}<a href="javascript:history.back()">Volver</a>{% endblock %}</div>

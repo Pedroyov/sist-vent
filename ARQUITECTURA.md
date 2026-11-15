@@ -92,8 +92,8 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 ## Impresión (ticketera)
 
 - Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del rollo (Datos del negocio → 80 o 58 mm). Un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4.
-- `X_FRAME_OPTIONS = "SAMEORIGIN"`: las impresiones se arman en un marco oculto de la misma página. Con `DENY` no se podría imprimir en la PC.
-- Para imprimir sin salir de la pantalla: `<a data-imprimir="/ruta/">` (o `window.imprimir(url)`, en `static/js/app.js`). En la PC imprime desde un marco oculto; en el celular abre otra pestaña con `?auto=1`.
+- Para imprimir sin salir de la pantalla: `<a data-imprimir="/ruta/">` (o `window.imprimir(url)`, en `static/js/app.js`). En la PC trae el ticket con `fetch`, lo pone en `#zona-impresion` (aislado con Shadow DOM para que sus estilos no choquen con los de la pantalla), fija `@page` al ancho del rollo y al alto medido, imprime y al terminar (`afterprint`) quita ese `@page`. **No usar un marco oculto (iframe):** Chrome ignora el tamaño de hoja de un marco y sale en carta/A4 con encabezado y pie. En el celular abre otra pestaña con `?auto=1`.
+- En la pantalla de una venta, Ctrl+P imprime el ticket del rollo.
 - Impresiones: ticket (`ventas:imprimir`), precuenta y comanda (`mesas:precuenta`, `mesas:comanda`), cierre o corte de caja (`caja:imprimir`).
 - Para imprimir **sin el cuadro de diálogo** (ticket automático o comandas en cocina), abre Chrome con `--kiosk-printing` y deja la ticketera como impresora predeterminada.
 

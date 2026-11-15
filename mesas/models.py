@@ -130,7 +130,7 @@ class ItemCuenta(models.Model):
     @property
     def subtotal(self):
         """Lo que se cobra (0 si es cortesía)."""
-        return CERO if self.cortesia else self.valor
+        return Decimal("0.00") if self.cortesia else self.valor
 
     @property
     def valor(self):
