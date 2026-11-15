@@ -189,6 +189,12 @@ def cargar_mesas():
     enviar_cocina(c)
     if jefe:
         cortesia(c.items.get(descripcion="Picarones"), jefe, "Cumpleaños")
+    # pagaron por adelantado: la comida aún no sale de cocina (la mesa queda "Pagada" hasta que se vayan)
+    cajero = User.objects.filter(username="cajero").first()
+    c = mesa("6", ana, 2, [("Arroz chaufa · Pollo", 1, ""), ("Ají de gallina", 1, ""), ("Maracuyá · Jarra 1 L", 1, "")], 15)
+    if cajero:
+        cobrar(c, cajero, [{"metodo": "YAP", "monto": str(c.total_por_cobrar)}], liberar=False)
+        c.items.filter(descripcion__startswith="Maracuyá").update(listo_en=ahora - timedelta(minutes=8), servido_en=ahora - timedelta(minutes=7))
     # recién se sentaron, aún no piden
     mesa("4", ana, 2, [], 2, enviar=False)
     # menú del día anotado, falta mandarlo a cocina

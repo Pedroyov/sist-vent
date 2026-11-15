@@ -361,3 +361,100 @@ class CortesiasYDescuentosTests(TestCase):
         self.assertContains(r, 'name="sup_clave"')
         self.client.force_login(self.jefe)
         self.assertNotContains(self.client.get(reverse("mesas:cuenta", args=[self.c.pk])), 'name="sup_clave"')
+
+
+class PagarAntesOAlFinalTests(TestCase):
+    """Se puede pagar antes, al final, o pagar y seguir pidiendo; la mesa se libera cuando se van."""
+
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "cocina_pantalla": True})
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        abrir(self.cajero, D("0"))
+        self.mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        self.v = asegurar_variante_unica(Producto.objects.create(nombre="Lomo", precio=D("20"), maneja_stock=False))
+        self.c = abrir_cuenta(self.mozo, self.mesa)
+
+    def _cobrar_web(self, **extra):
+        self.client.force_login(self.cajero)
+        datos = {"pagos": [{"metodo": "EFE", "monto": "100"}], **extra}
+        return self.client.post(reverse("mesas:cobrar", args=[self.c.pk]), json.dumps(datos), content_type="application/json")
+
+    def test_pagar_antes_envia_a_cocina_y_la_mesa_queda_pagada(self):
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 2}], self.mozo)  # anotado, sin enviar
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("mesas:cuenta", args=[self.c.pk]))
+        self.assertFalse(r.context["liberar_al_cobrar"])  # algo no salió de cocina: por defecto no se libera
+        r = self._cobrar_web(liberar=False)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.abierta)
+        self.assertTrue(self.c.pagada())
+        item = self.c.items.get()
+        self.assertIsNotNone(item.enviado_en)  # se mandó a cocina al cobrar
+        self.assertIn("enviado%3D", r.json()["url"])  # al volver, la cuenta muestra qué dictar / la comanda
+        # cocina lo ve, lo marca listo; el mapa lo muestra como pagada con su aviso
+        self.client.force_login(self.mozo)
+        r = self.client.get(reverse("mesas:mapa"))
+        self.assertContains(r, "mesa pagada")  # clase del cuadro de la mesa
+        r = self.client.get(reverse("mesas:cuenta", args=[self.c.pk]))
+        self.assertContains(r, "Ya pagado")
+        self.assertContains(r, reverse("mesas:liberar", args=[self.c.pk]))
+        # sirven y siguen comiendo: la mesa NO se libera sola
+        ItemCuenta = item.__class__
+        ItemCuenta.objects.filter(pk=item.pk).update(listo_en=item.enviado_en)
+        self.client.post(reverse("mesas:servido", args=[self.c.pk]))
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.abierta)
+        # se van: el mozo libera
+        self.client.post(reverse("mesas:liberar", args=[self.c.pk]))
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.estado, Cuenta.Estado.COBRADA)
+        self.assertIsNotNone(abrir_cuenta(self.mozo, self.mesa))
+
+    def test_pagar_y_volver_a_pedir_es_la_misma_cuenta(self):
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 1}], self.mozo)
+        enviar_cocina(self.c)
+        v1 = cobrar(self.c, self.cajero, [{"metodo": "EFE", "monto": "20"}], liberar=False)
+        with self.assertRaises(MesaError):  # la mesa sigue ocupada por ellos
+            abrir_cuenta(self.mozo, self.mesa)
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 1}], self.mozo)
+        self.assertEqual(self.c.total_por_cobrar, D("20"))  # solo lo nuevo
+        self.assertFalse(self.c.pagada())
+        with self.assertRaises(MesaError):  # no se libera con algo por cobrar
+            from .servicios import liberar_mesa
+            liberar_mesa(self.c)
+        v2 = cobrar(self.c, self.cajero, [{"metodo": "YAP", "monto": "20"}])
+        self.assertNotEqual(v1.pk, v2.pk)
+        self.assertEqual((v1.total, v2.total), (D("20"), D("20")))
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.estado, Cuenta.Estado.COBRADA)  # pagaron al final y se fueron
+
+    def test_pagar_al_final_libera_como_siempre(self):
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 1}], self.mozo)
+        enviar_cocina(self.c)
+        self.c.items.update(listo_en=self.c.items.get().enviado_en)
+        self.client.force_login(self.cajero)
+        self.assertTrue(self.client.get(reverse("mesas:cuenta", args=[self.c.pk])).context["liberar_al_cobrar"])
+        r = self._cobrar_web()
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.estado, Cuenta.Estado.COBRADA)
+        self.assertIn("volver=/mesas/", r.json()["url"])
+
+    def test_anular_el_cobro_de_una_mesa_pagada_vuelve_a_cobrarse(self):
+        from ventas.servicios import anular_venta
+
+        jefe = User.objects.create_user("jefe", password="x-clave-123")
+        jefe.groups.add(Group.objects.get(name="Administración"))
+        agregar(self.c, [{"variante": self.v.pk, "cantidad": 2}], self.mozo)
+        venta = cobrar(self.c, self.cajero, [{"metodo": "EFE", "monto": "40"}], liberar=False)
+        anular_venta(venta, jefe, "el cliente se fue sin su comida")
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.abierta)
+        self.assertEqual(self.c.total_por_cobrar, D("40"))
+        quitar(self.c.items.get(), jefe, "Cliente se fue, demora", puede_anular=True)
+        anular_cuenta(self.c, jefe, "Cliente se fue", puede_anular=True)
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.estado, Cuenta.Estado.ANULADA)

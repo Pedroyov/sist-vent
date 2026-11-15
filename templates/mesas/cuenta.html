@@ -2,7 +2,7 @@
 {% load sis static %}
 
 {% block title %}{{ c.titulo }}{% endblock %}
-{% block page_title %}{{ c.titulo }}{% if c.pidio_cuenta and c.abierta %} <span class="badge text-bg-warning fs-6 align-middle">Pidió la cuenta</span>{% endif %}
+{% block page_title %}{{ c.titulo }}{% if esta_pagada %} <span class="badge text-bg-info fs-6 align-middle"><i class="bi bi-check2-circle"></i> Pagada</span>{% elif c.pidio_cuenta and c.abierta %} <span class="badge text-bg-warning fs-6 align-middle">Pidió la cuenta</span>{% endif %}
   {% if not c.abierta %} <span class="badge text-bg-secondary fs-6 align-middle">{{ c.get_estado_display }}</span>{% endif %}{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item active">{{ c.titulo }}</li>{% endblock %}
 
@@ -97,7 +97,26 @@
 {% endif %}
 </div>
 
-{% if not por_enviar and not enviados and c.abierta %}
+{% if c.abierta and pagados %}
+{# ---------- Ya pagado (siguen en la mesa o esperan su comida) ---------- #}
+<div class="card mb-3 {% if esta_pagada %}card-outline card-info{% endif %}">
+  <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-check2-circle me-1"></i> Ya pagado</h3>
+    {% if hay_listos and not enviados %}<form method="post" action="{% url 'mesas:servido' c.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-bell me-1"></i>Ya serví lo listo</button></form>{% endif %}</div>
+  <ul class="list-group list-group-flush items">
+    {% for i in pagados %}
+    <li class="list-group-item d-flex align-items-center gap-2">
+      <span class="cant">{{ i.cantidad|cantidad }}</span>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
+        <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}
+          {% if i.servido_en %}<i class="bi bi-check2-all"></i> servido{% elif i.listo_en %}<span class="badge text-bg-success"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<i class="bi bi-hourglass-split"></i> en cocina{% endif %}</div></div>
+      <span class="text-nowrap text-body-secondary small">{% if i.cortesia %}cortesía{% else %}{{ i.subtotal|soles }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if not por_enviar and not enviados and not pagados and c.abierta %}
 <div class="text-center text-body-secondary py-4"><i class="bi bi-journal-plus display-6"></i><p class="mt-2">Aún no hay pedidos.</p>
   <a href="{% url 'mesas:agregar' c.pk %}" class="btn btn-primary btn-lg"><i class="bi bi-plus-lg me-1"></i>Tomar pedido</a></div>
 {% endif %}
@@ -127,9 +146,11 @@
 <div class="fixed-bottom bg-body border-top barra-mesa px-2 pt-2 no-print">
   <div class="d-flex gap-2 align-items-center mx-auto" style="max-width: 900px">
     <a href="{% url 'mesas:mapa' %}" class="btn btn-outline-secondary" aria-label="Volver a las mesas"><i class="bi bi-grid-3x3-gap"></i></a>
-    {% if P.mesas_atender %}<a href="{% url 'mesas:agregar' c.pk %}" class="btn btn-primary flex-grow-1"><i class="bi bi-plus-lg me-1"></i>Agregar</a>{% endif %}
+    {% if P.mesas_atender %}<a href="{% url 'mesas:agregar' c.pk %}" class="btn btn-primary flex-grow-1 text-nowrap"><i class="bi bi-plus-lg me-1"></i>Agregar</a>{% endif %}
     {% if por_enviar or enviados %}
       {% if P.mesas_cobrar %}<button type="button" class="btn btn-success flex-grow-1" id="btn-cobrar" {% if falta_caja %}disabled{% endif %}><i class="bi bi-cash-coin me-1"></i>Cobrar</button>{% endif %}
+    {% elif esta_pagada %}
+      <form method="post" action="{% url 'mesas:liberar' c.pk %}" class="flex-grow-1">{% csrf_token %}<button class="btn btn-info w-100 text-nowrap"><i class="bi bi-door-open me-1"></i>{% if c.mesa %}Liberar<span class="d-none d-sm-inline"> mesa</span>{% else %}Entregado{% endif %}</button></form>
     {% endif %}
     <div class="dropup">
       <button class="btn btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Más opciones"><i class="bi bi-three-dots-vertical"></i></button>
@@ -140,8 +161,10 @@
         {% if P.mesas_cobrar %}<li><button type="button" class="dropdown-item" id="btn-dividir"><i class="bi bi-scissors me-2"></i>Dividir cuenta</button></li>{% endif %}
         {% endif %}
         {% if c.mesa and P.mesas_atender %}<li><a class="dropdown-item" href="{% url 'mesas:cambiar' c.pk %}"><i class="bi bi-arrow-left-right me-2"></i>Cambiar o juntar mesa</a></li>{% endif %}
+        {% if not pagados %}
         <li><hr class="dropdown-divider"></li>
         <li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#m-liberar"><i class="bi bi-x-circle me-2"></i>{% if enviados %}Anular cuenta{% else %}Liberar mesa{% endif %}</button></li>
+        {% endif %}
       </ul>
     </div>
   </div>
@@ -228,6 +251,10 @@
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
     Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
       descuento: {puede: {{ P.ventas_precio|yesno:"true,false" }}},
+      liberar: parcial ? null : {valor: {{ liberar_al_cobrar|yesno:"true,false" }},
+        texto: "{% if c.mesa %}Liberar la mesa al cobrar{% else %}Ya se entregó el pedido{% endif %}",
+        si: "{% if c.mesa %}Los clientes se van: la mesa queda libre.{% else %}El pedido se cierra.{% endif %}",
+        no: "{% if c.mesa %}La mesa queda como «Pagada» (siguen comiendo o esperan su plato). La liberas cuando se vayan.{% else %}Queda como «Pagado» hasta que lo entregues.{% endif %}"},
       onConfirmar: function (datos, terminar) {
         datos.token = token;
         datos.items = items.map(function (li) { return li.dataset.item; });

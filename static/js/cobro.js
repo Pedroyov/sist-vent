@@ -1,6 +1,6 @@
 /* Cuadro de cobro compartido (punto de venta y mesas).
    Cobro.abrir({total: centimos, titulo, detalle, nota, onConfirmar: function (datos, terminar) {}})
-   datos = {pagos: [{metodo, monto}], propina: "0.00", cliente_nombre, cliente_documento, nota}
+   datos = {pagos: [{metodo, monto}], propina: "0.00", cliente_nombre, cliente_documento, nota, liberar}
    terminar(mensajeError) vuelve a habilitar el botón y muestra el error (si lo hay). */
 window.Cobro = (function () {
   "use strict";
@@ -118,8 +118,16 @@ window.Cobro = (function () {
     b.disabled = cargando;
     b.innerHTML = cargando ? '<span class="spinner-border spinner-border-sm me-1"></span>Guardando…' : '<i class="bi bi-check-lg me-1"></i>Confirmar';
   }
+  function ayudaLiberar() {
+    var l = actual && actual.liberar;
+    if (!l) return;
+    $("c-liberar-ayuda").textContent = $("c-liberar").checked ? l.si : l.no;
+  }
   function abrir(opciones) {
     actual = opciones;
+    // Mesas: ¿se libera al cobrar? {valor, texto, si, no}
+    $("c-liberar-fila").classList.toggle("d-none", !opciones.liberar);
+    if (opciones.liberar) { $("c-liberar").checked = !!opciones.liberar.valor; $("c-liberar-texto").textContent = opciones.liberar.texto; ayudaLiberar(); }
     $("c-titulo").textContent = opciones.titulo || "Cobrar";
     $("c-detalle").textContent = opciones.detalle || "Total a cobrar";
     $("c-propina-fila").classList.toggle("d-none", !CON_PROPINA);
@@ -156,7 +164,8 @@ window.Cobro = (function () {
       descuento: (descuento() / 100).toFixed(2), descuento_motivo: $("c-desc-motivo").value,
       sup_usuario: $("c-sup-usuario").value, sup_clave: $("c-sup-clave").value,
       cliente_id: cliente ? cliente.id : null,
-      cliente_nombre: cliente ? "" : $("c-nombre").value, cliente_documento: cliente ? "" : $("c-doc").value, nota: $("c-nota").value
+      cliente_nombre: cliente ? "" : $("c-nombre").value, cliente_documento: cliente ? "" : $("c-doc").value, nota: $("c-nota").value,
+      liberar: actual.liberar ? $("c-liberar").checked : true
     }, function (error) {
       boton(false);
       if (error) { $("c-error").textContent = error; $("c-error").classList.remove("d-none"); }
@@ -165,6 +174,7 @@ window.Cobro = (function () {
 
   modal.addEventListener("shown.bs.modal", function () { var i = modal.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("c-metodos").addEventListener("input", estado);
+  $("c-liberar").addEventListener("change", ayudaLiberar);
   $("c-propina").addEventListener("input", function () { billetes(); estado(); });
   ["c-desc", "c-desc-tipo", "c-desc-motivo", "c-sup-usuario", "c-sup-clave"].forEach(function (id) {
     $(id).addEventListener("input", function () { billetes(); estado(); });

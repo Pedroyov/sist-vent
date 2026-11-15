@@ -88,6 +88,11 @@ class Cuenta(models.Model):
     def por_enviar(self):
         return self.items.filter(anulado=False, enviado_en__isnull=True)
 
+    def pagada(self, items=None):
+        """Abierta, sin nada por cobrar y con algo ya cobrado: pagaron, pero siguen en la mesa (o esperan comida)."""
+        items = [i for i in (self.items.all() if items is None else items) if not i.anulado]
+        return self.abierta and bool(items) and all(i.venta_id for i in items)
+
     @property
     def total_consumido(self):
         return sum((i.subtotal for i in self.items_vigentes()), CERO)

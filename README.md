@@ -76,6 +76,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Impresión** – Ticket, precuenta, comanda y cierre de caja del tamaño del rollo (80 o 58 mm)
 - [x] **Clientes y fiado** – Clientes con DNI/RUC validado, venta al fiado con límite, pagos de deudas que entran a la caja, estado de cuenta, recordatorio por WhatsApp
 - [x] **Reportes** – Ventas comparadas con el periodo anterior, por día/hora/día de la semana, lo más y lo menos vendido, categorías, personal y mozos, mesas y platos quitados, inventario y mermas, deudores, diferencias de caja y anulaciones; Excel
+- [x] **Pagar antes o al final** – Al cobrar se envía a cocina lo que faltaba; la mesa puede quedar "Pagada" mientras siguen comiendo o esperan su plato, se puede seguir pidiendo y se libera cuando se van
 - [x] **Cortesías y descuentos** – Platos de la casa (todo o parte) y descuento en soles o % al cobrar, siempre con motivo; si el usuario no tiene permiso, un supervisor autoriza con su usuario y clave; todo queda en Reportes → Control
 - [ ] Despliegue con HTTPS
 

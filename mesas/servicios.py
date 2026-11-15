@@ -214,9 +214,14 @@ def reabrir_por_anulacion(venta):
 
 
 def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", cliente_documento="", nota="", token=None,
-           cliente_id=None, puede_fiar=False, puede_exceder_limite=False, descuento=0, descuento_motivo="", descuento_por=None):
+           cliente_id=None, puede_fiar=False, puede_exceder_limite=False, descuento=0, descuento_motivo="", descuento_por=None,
+           liberar=True):
     """Cobra todo lo pendiente (o solo los ítems elegidos, para dividir la cuenta) creando una venta normal.
-    Si ya no queda nada por cobrar, la cuenta se cierra y la mesa queda libre."""
+
+    - Lo cobrado que aún no se había enviado a cocina se envía en ese momento (nunca se cobra algo que cocina no sabe).
+      La hora de ese envío queda en `venta.enviado_cocina` (para la comanda), o None.
+    - Si ya no queda nada por cobrar y `liberar`, la cuenta se cierra y la mesa queda libre. Si no, la mesa queda
+      "pagada": los clientes siguen ahí (o esperan su comida) y se libera después con `liberar_mesa`."""
     from ventas.servicios import VentaInvalida, registrar_venta
 
     _abierta(cuenta)
@@ -227,16 +232,20 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
     if not pendientes:
         raise MesaError("No hay nada por cobrar.")
     ids = [i.pk for i in pendientes]
+    enviado = {}
 
     def marcar(venta):
         n = ItemCuenta.objects.select_for_update().filter(pk__in=ids, venta__isnull=True, anulado=False).update(venta=venta)
         if n != len(ids):
             raise VentaInvalida("Alguien cambió esta cuenta mientras cobrabas. Revísala y vuelve a intentar.")
-        if not ItemCuenta.objects.filter(cuenta=cuenta, anulado=False, venta__isnull=True).exists():
-            Cuenta.objects.filter(pk=cuenta.pk).update(estado=Cuenta.Estado.COBRADA, cerrada_en=timezone.now())
+        ahora = timezone.now()
+        if ItemCuenta.objects.filter(pk__in=ids, enviado_en__isnull=True).update(enviado_en=ahora):
+            enviado["en"] = ahora
+        if liberar and not ItemCuenta.objects.filter(cuenta=cuenta, anulado=False, venta__isnull=True).exists():
+            Cuenta.objects.filter(pk=cuenta.pk).update(estado=Cuenta.Estado.COBRADA, cerrada_en=ahora)
 
     try:
-        return registrar_venta(
+        venta = registrar_venta(
             cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones,
                       "cortesia": {"motivo": i.cortesia_motivo, "por": i.cortesia_por_id} if i.cortesia else None}
                      for i in pendientes],
@@ -246,3 +255,25 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
             desde_pedido=True, cliente_id=cliente_id, puede_fiar=puede_fiar, puede_exceder_limite=puede_exceder_limite)
     except VentaInvalida as e:
         raise MesaError(str(e))
+    venta.enviado_cocina = enviado.get("en")
+    return venta
+
+
+def falta_de_cocina(items):
+    """¿Algo de estos platos todavía no sale de cocina? (sin enviar, o enviado y no marcado listo con pantalla de cocina)"""
+    from core.models import Ajustes
+
+    con_pantalla = Ajustes.cargar().cocina_pantalla
+    return any(not i.anulado and (not i.enviado_en or (con_pantalla and not i.listo_en)) for i in items)
+
+
+def liberar_mesa(cuenta):
+    """Cierra una cuenta ya pagada: los clientes se fueron y la mesa queda libre."""
+    _abierta(cuenta)
+    if cuenta.por_cobrar().exists():
+        raise MesaError("Todavía hay productos por cobrar. Cóbralos o quítalos antes de liberar la mesa.")
+    if not cuenta.items.filter(anulado=False, venta__isnull=False).exists():
+        raise MesaError("Esta cuenta no tiene nada cobrado.")
+    cuenta.estado = Cuenta.Estado.COBRADA
+    cuenta.cerrada_en = timezone.now()
+    cuenta.save(update_fields=["estado", "cerrada_en"])

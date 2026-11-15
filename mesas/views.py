@@ -17,8 +17,8 @@ from core.utils import entero
 from .models import Cuenta, ItemCuenta, Mesa, Zona
 from core.autorizacion import AutorizacionError, autorizar
 
-from .servicios import (MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, enviar_cocina, juntar,
-                        marcar_listo, marcar_servido, mover, quitar)
+from .servicios import (MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, enviar_cocina, falta_de_cocina,
+                        juntar, liberar_mesa, marcar_listo, marcar_servido, mover, quitar)
 
 
 def _abiertas():
@@ -37,6 +37,7 @@ def _datos_mapa():
                 m.cuenta.total = sum((i.subtotal for i in m.cuenta.vigentes), 0)
                 m.cuenta.sin_enviar = sum(1 for i in m.cuenta.vigentes if not i.enviado_en)
                 m.cuenta.listos = sum(1 for i in m.cuenta.vigentes if i.listo_en and not i.servido_en)
+                m.cuenta.esta_pagada = m.cuenta.pagada(m.cuenta.vigentes)
         if mesas:
             zonas.append({"zona": z, "mesas": mesas, "libres": sum(1 for m in mesas if not m.cuenta)})
     llevar = [c for c in _abiertas() if not c.mesa_id]
@@ -44,6 +45,7 @@ def _datos_mapa():
         c.total = sum((i.subtotal for i in c.vigentes), 0)
         c.sin_enviar = sum(1 for i in c.vigentes if not i.enviado_en)
         c.listos = sum(1 for i in c.vigentes if i.listo_en and not i.servido_en)
+        c.esta_pagada = c.pagada(c.vigentes)
     return {"zonas": zonas, "llevar": llevar, "ahora": timezone.now()}
 
 
@@ -79,7 +81,7 @@ def cuenta(request, pk):
     items = list(c.items.select_related("agregado_por", "venta").order_by("creado", "id"))
     por_enviar = [i for i in items if not i.anulado and not i.enviado_en and not i.venta_id]
     enviados = [i for i in items if not i.anulado and i.enviado_en and not i.venta_id]
-    pagados = [i for i in items if i.venta_id]
+    pagados = [i for i in items if i.venta_id and not i.anulado]
     anulados = [i for i in items if i.anulado]
     recien = parse_datetime(request.GET.get("enviado", "") or "")
     from caja.servicios import CajaError, sesion_para_vender
@@ -93,7 +95,10 @@ def cuenta(request, pk):
         "c": c, "por_enviar": por_enviar, "enviados": enviados, "pagados": pagados, "anulados": anulados,
         "pendiente": sum((i.subtotal for i in por_enviar + enviados), 0),
         "ventas": sorted({i.venta for i in pagados}, key=lambda v: v.numero),
-        "recien": [i for i in enviados if recien and i.enviado_en == recien],
+        "recien": [i for i in items if recien and not i.anulado and i.enviado_en == recien],
+        "esta_pagada": c.pagada(items),
+        # al cobrar todo: ¿se libera la mesa? Por defecto sí, salvo que algo no haya salido de cocina
+        "liberar_al_cobrar": not falta_de_cocina(por_enviar + enviados + pagados),
         "recien_ts": request.GET.get("enviado", ""),
         "falta_caja": falta_caja and puede(request.user, "mesas.cobrar"),
         "puede_anular": puede(request.user, "mesas.anular"),
@@ -273,12 +278,29 @@ def cobrar_vista(request, pk):
                        datos.get("propina") or 0, datos.get("cliente_nombre", ""), datos.get("cliente_documento", ""),
                        datos.get("nota", ""), str(datos.get("token") or "")[:40] or None, cliente_id=entero(datos.get("cliente_id")),
                        puede_fiar=puede(request.user, "clientes.fiar"), puede_exceder_limite=puede(request.user, "clientes.limite"),
-                       descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por)
+                       descuento=descuento, descuento_motivo=datos.get("descuento_motivo", ""), descuento_por=descuento_por,
+                       liberar=datos.get("liberar", True) is not False)
     except MesaError as e:
         return JsonResponse({"error": str(e)}, status=400)
     c.refresh_from_db()
-    siguiente = reverse("mesas:mapa") if not c.abierta else reverse("mesas:cuenta", args=[c.pk])
-    return JsonResponse({"ok": True, "url": reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=" + siguiente})
+    if venta.enviado_cocina:  # se mandó a cocina al cobrar: al volver, la cuenta muestra qué dictar o la comanda
+        siguiente = reverse("mesas:cuenta", args=[c.pk]) + "?enviado=" + quote(venta.enviado_cocina.isoformat())
+    else:
+        siguiente = reverse("mesas:mapa") if not c.abierta else reverse("mesas:cuenta", args=[c.pk])
+    return JsonResponse({"ok": True, "url": reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=" + quote(siguiente, safe="/")})
+
+
+@permiso_requerido("mesas.atender", "mesas.cobrar")
+@require_POST
+def liberar(request, pk):
+    c = _cuenta(pk)
+    try:
+        liberar_mesa(c)
+    except MesaError as e:
+        messages.error(request, str(e))
+        return redirect("mesas:cuenta", pk=pk)
+    messages.success(request, f"{c.titulo} {'entregado' if not c.mesa_id else 'liberada'}.")
+    return redirect("mesas:mapa")
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")

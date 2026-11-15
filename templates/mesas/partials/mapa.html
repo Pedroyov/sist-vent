@@ -7,11 +7,11 @@
   {% for m in z.mesas %}
   <div class="col-4 col-sm-3 col-md-2 col-xxl-1">
     {% if m.cuenta %}
-    <a href="{% url 'mesas:cuenta' m.cuenta.pk %}" class="mesa {% if m.cuenta.pidio_cuenta %}cuenta{% else %}ocupada{% endif %}">
+    <a href="{% url 'mesas:cuenta' m.cuenta.pk %}" class="mesa {% if m.cuenta.esta_pagada %}pagada{% elif m.cuenta.pidio_cuenta %}cuenta{% else %}ocupada{% endif %}">
       {% if m.cuenta.listos %}<span class="badge rounded-pill text-bg-success globo" title="Platos listos para servir"><i class="bi bi-bell-fill"></i> {{ m.cuenta.listos }}</span>
       {% elif m.cuenta.sin_enviar %}<span class="badge rounded-pill text-bg-primary globo" title="Sin enviar a cocina">{{ m.cuenta.sin_enviar }}</span>{% endif %}
       <span class="num">{{ m.nombre }}</span>
-      <span class="info fw-semibold">{{ m.cuenta.total|soles }}</span>
+      <span class="info fw-semibold">{% if m.cuenta.esta_pagada %}<i class="bi bi-check2-circle"></i> Pagada{% else %}{{ m.cuenta.total|soles }}{% endif %}</span>
       <span class="info">{{ m.cuenta.abierta_en|hace }} · {{ m.cuenta.mozo.first_name|default:m.cuenta.mozo.username|truncatechars:10 }}</span>
     </a>
     {% else %}
@@ -28,10 +28,11 @@
 <h5 class="mt-4 mb-2"><i class="bi bi-bag me-1"></i>Para llevar</h5>
 <div class="list-group mb-3">
   {% for c in llevar %}
-  <a href="{% url 'mesas:cuenta' c.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if c.pidio_cuenta %}list-group-item-warning{% endif %}">
+  <a href="{% url 'mesas:cuenta' c.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if c.esta_pagada %}list-group-item-info{% elif c.pidio_cuenta %}list-group-item-warning{% endif %}">
     <span class="fw-semibold">#{{ c.pk }}</span><span class="text-truncate">{{ c.nombre }}</span>
     {% if c.listos %}<span class="badge rounded-pill text-bg-success"><i class="bi bi-bell-fill"></i> {{ c.listos }} listo{{ c.listos|pluralize }}</span>{% endif %}
     {% if c.sin_enviar %}<span class="badge rounded-pill text-bg-primary">{{ c.sin_enviar }} sin enviar</span>{% endif %}
+    {% if c.esta_pagada %}<span class="badge rounded-pill text-bg-info"><i class="bi bi-check2-circle"></i> Pagado</span>{% endif %}
     <span class="ms-auto small text-body-secondary">{{ c.abierta_en|hace }}</span><span class="fw-semibold">{{ c.total|soles }}</span>
   </a>
   {% endfor %}

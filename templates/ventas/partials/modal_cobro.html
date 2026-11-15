@@ -37,6 +37,11 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
         <div id="c-metodos"></div>
         <div class="d-flex flex-wrap gap-1 mb-3" id="c-billetes"></div>
         <div class="alert py-2 text-center fs-5 mb-3" id="c-estado"></div>
+        <div class="border rounded px-3 py-2 mb-3 d-none" id="c-liberar-fila">
+          <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="c-liberar">
+            <label class="form-check-label fw-semibold" for="c-liberar" id="c-liberar-texto">Liberar la mesa al cobrar</label></div>
+          <div class="small text-body-secondary" id="c-liberar-ayuda"></div>
+        </div>
         <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button" id="c-cliente-enlace"><i class="bi bi-person-plus me-1"></i>Cliente{% if P.clientes_fiar %} (obligatorio para fiar){% endif %} y nota</a>
         <div class="collapse" id="c-cliente">
           {% if P.mod_clientes %}
