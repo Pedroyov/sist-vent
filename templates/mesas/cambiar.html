@@ -1,24 +1,87 @@
 {% extends "base.html" %}
 {% load sis %}
-{% block title %}Cambiar mesa{% endblock %}
-{% block page_title %}Cambiar o juntar · {{ c.titulo }}{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item"><a href="{% url 'mesas:cuenta' c.pk %}">{{ c.titulo }}</a></li><li class="breadcrumb-item active">Cambiar</li>{% endblock %}
+{% block title %}Mesas · {{ c.titulo }}{% endblock %}
+{% block page_title %}{{ c.titulo }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item"><a href="{% url 'mesas:cuenta' c.pk %}">{{ c.titulo }}</a></li><li class="breadcrumb-item active">Juntar o cambiar</li>{% endblock %}
 {% block content %}
-<p class="text-body-secondary">Elige una mesa <strong class="text-success">libre</strong> para mudarse, o una <strong class="text-danger">ocupada</strong> para juntar las cuentas.</p>
-<form method="post">{% csrf_token %}
+<ul class="nav nav-pills nav-fill mb-3 small">
+  <li class="nav-item"><a class="nav-link py-1 {% if modo == 'juntar' %}active{% endif %}" href="?{% if nueva %}nueva=1{% endif %}"><i class="bi bi-plus-square-dotted me-1"></i>Juntar mesas</a></li>
+  <li class="nav-item"><a class="nav-link py-1 {% if modo == 'mudar' %}active{% endif %}" href="?modo=mudar"><i class="bi bi-arrow-left-right me-1"></i>Cambiarse de mesa</a></li>
+</ul>
+
+{% if modo == "juntar" %}
+{% if c.unidas %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+  <span class="text-body-secondary">Ya juntas:</span>
+  <span class="badge text-bg-danger">{{ c.mesa.nombre }}</span>
+  {% for m in c.unidas %}
+  <form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="accion" value="separar"><input type="hidden" name="mesa" value="{{ m.pk }}">
+    <button class="badge text-bg-danger border-0" title="Separar la mesa {{ m.nombre }}" aria-label="Separar la mesa {{ m.nombre }}">{{ m.nombre }} <i class="bi bi-x-lg"></i></button></form>
+  {% endfor %}
+</div>
+{% endif %}
+<p class="small text-body-secondary mb-2">{% if nueva %}¿Qué mesas pegaron? {% endif %}Toca las mesas <strong class="text-success">libres</strong> que se juntaron y pulsa Juntar. Una mesa <strong class="text-danger">ocupada</strong> une las dos cuentas.</p>
+<form method="post" id="f-unir">{% csrf_token %}<input type="hidden" name="accion" value="unir">{% if nueva %}<input type="hidden" name="nueva" value="1">{% endif %}
 {% for z in zonas %}
-<h6 class="mt-3">{{ z.zona.nombre }}</h6>
+<h6 class="mt-3 mb-2 small text-uppercase text-body-secondary">{{ z.zona.nombre }}</h6>
 <div class="row g-2">
   {% for m in z.mesas %}{% if m.pk != c.mesa_id %}
-  <div class="col-4 col-sm-3 col-md-2">
-    <button name="mesa" value="{{ m.pk }}" class="mesa w-100 {% if m.cuenta %}ocupada{% else %}libre{% endif %}"
-            {% if m.cuenta %}onclick="return confirm('¿Juntar {{ c.titulo|escapejs }} con la mesa {{ m.nombre|escapejs }}? Todo pasará a esa mesa.')"{% endif %}>
-      <span class="num">{{ m.nombre }}</span><span class="info">{% if m.cuenta %}juntar · {{ m.cuenta.total|soles }}{% else %}libre{% endif %}</span>
-    </button>
+  <div class="col-3 col-sm-2 col-xl-1">
+    {% if m.pegada and m.pegada.pk == c.pk %}
+    <span class="mesa mesa-sm ocupada w-100"><span class="num">{{ m.nombre }}</span><span class="info">junta</span></span>
+    {% elif m.cuenta or m.pegada %}
+    <button form="f-juntar" name="mesa" value="{{ m.pk }}" class="mesa mesa-sm ocupada w-100"
+            data-confirmar="¿Unir {{ c.titulo }} con {% if m.cuenta %}{{ m.cuenta.titulo }}{% else %}{{ m.pegada.titulo }}{% endif %}? Todo quedará en una sola cuenta.">
+      <span class="num">{{ m.nombre }}</span><span class="info">unir</span></button>
+    {% else %}
+    <input type="checkbox" class="btn-check" name="mesas" value="{{ m.pk }}" id="u{{ m.pk }}">
+    <label class="mesa mesa-sm libre w-100" for="u{{ m.pk }}"><span class="num">{{ m.nombre }}</span><span class="info"><i class="bi bi-people"></i> {{ m.capacidad }}</span></label>
+    {% endif %}
+  </div>
+  {% endif %}{% endfor %}
+</div>
+{% endfor %}
+<div class="d-flex gap-2 mt-3">
+  <a href="{% if nueva %}{% url 'mesas:agregar' c.pk %}{% else %}{% url 'mesas:cuenta' c.pk %}{% endif %}" class="btn btn-outline-secondary">{% if nueva %}Omitir{% else %}Cancelar{% endif %}</a>
+  <button class="btn btn-primary flex-grow-1" id="btn-unir" disabled>Juntar</button>
+</div>
+</form>
+<form method="post" id="f-juntar">{% csrf_token %}<input type="hidden" name="accion" value="juntar_cuenta"></form>
+
+{% else %}
+<p class="small text-body-secondary mb-2">Toca la mesa <strong class="text-success">libre</strong> a la que se cambian. {% if c.unidas %}Las mesas que estaban juntas quedan libres.{% endif %}</p>
+<form method="post">{% csrf_token %}<input type="hidden" name="accion" value="mudar">
+{% for z in zonas %}
+<h6 class="mt-3 mb-2 small text-uppercase text-body-secondary">{{ z.zona.nombre }}</h6>
+<div class="row g-2">
+  {% for m in z.mesas %}{% if m.pk != c.mesa_id %}
+  <div class="col-3 col-sm-2 col-xl-1">
+    {% if m.cuenta or m.pegada and m.pegada.pk != c.pk %}
+    <span class="mesa mesa-sm ocupada w-100 opacity-50"><span class="num">{{ m.nombre }}</span><span class="info">ocupada</span></span>
+    {% else %}
+    <button name="mesa" value="{{ m.pk }}" class="mesa mesa-sm libre w-100"><span class="num">{{ m.nombre }}</span><span class="info"><i class="bi bi-people"></i> {{ m.capacidad }}</span></button>
+    {% endif %}
   </div>
   {% endif %}{% endfor %}
 </div>
 {% endfor %}
 </form>
 <a href="{% url 'mesas:cuenta' c.pk %}" class="btn btn-outline-secondary mt-3">Cancelar</a>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var f = document.getElementById("f-unir"), b = document.getElementById("btn-unir");
+  if (f) f.addEventListener("change", function () {
+    var n = f.querySelectorAll("input[name=mesas]:checked").length;
+    b.disabled = !n;
+    b.textContent = n ? "Juntar " + n + " mesa" + (n > 1 ? "s" : "") : "Juntar";
+  });
+  document.querySelectorAll("[data-confirmar]").forEach(function (el) {
+    el.addEventListener("click", function (e) { if (!confirm(el.dataset.confirmar)) e.preventDefault(); });
+  });
+})();
+</script>
 {% endblock %}

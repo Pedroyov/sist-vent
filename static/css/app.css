@@ -68,6 +68,13 @@ body {
 .mesa.pagada { background: var(--bs-info-bg-subtle); border-color: var(--bs-info); color: var(--bs-info-text-emphasis); }
 .mesa.cuenta { background: var(--bs-warning-bg-subtle); border-color: var(--bs-warning); color: var(--bs-warning-text-emphasis); }
 .mesa .globo { position: absolute; top: .3rem; right: .35rem; }
+.mesa.junta { border-style: dashed; }
+.mesa .union { position: absolute; left: .35rem; top: .3rem; font-size: .8rem; }
+.mesa-sm .num { font-size: 1.2rem; }
+.mesa-sm .info { font-size: .7rem; }
+label.mesa { cursor: pointer; margin: 0; }
+.btn-check:checked + .mesa.libre { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
+.btn-check:checked + .mesa.libre .info::before { content: "\2713  "; }
 
 /* Barras de acción fijas abajo: en PC no deben quedar debajo del menú lateral */
 @media (min-width: 992px) {
@@ -80,3 +87,16 @@ body {
 /* "Lleva" al pedir: lo que se quita se ve tachado y en rojo, con "SIN" delante */
 .btn-check:not(:checked) + .lleva { text-decoration: line-through; color: var(--bs-danger); border-color: var(--bs-danger); background: var(--bs-danger-bg-subtle); }
 .btn-check:not(:checked) + .lleva::before { content: "SIN "; font-weight: 700; text-decoration: none; display: inline-block; margin-right: .25rem; }
+
+/* Celular: todo un poco más chico para que entre más en la pantalla */
+@media (max-width: 575.98px) {
+  .total-grande { font-size: 1.65rem; }
+  .mesa { border-radius: .7rem; padding: .2rem; }
+  .mesa .num { font-size: 1.25rem; }
+  .mesa .info { font-size: .66rem; margin-top: .1rem; }
+  .mesa .globo { top: .15rem; right: .15rem; font-size: .65rem; }
+  .mesa .union { left: .2rem; top: .1rem; }
+  #m-cobro .modal-body { padding: .75rem; }
+  #m-cobro #c-metodos .input-group-text { font-size: .85rem; }
+}
+.leyenda .bi-circle-fill { font-size: .6rem; vertical-align: .1em; }

@@ -14,9 +14,20 @@ class MesaError(Exception):
     pass
 
 
+def cuenta_de_mesa(mesa):
+    """La cuenta abierta que ocupa la mesa: la suya propia o la de la mesa a la que está pegada."""
+    if mesa is None:
+        return None
+    propia = mesa.cuentas.filter(estado=Cuenta.Estado.ABIERTA).first()
+    return propia or Cuenta.objects.filter(mesas_unidas=mesa, estado=Cuenta.Estado.ABIERTA).first()
+
+
 def abrir_cuenta(mozo, mesa=None, personas=1, nombre=""):
     if mesa is not None and not mesa.activa:
         raise MesaError("Esa mesa está desactivada.")
+    pegada = Cuenta.objects.filter(mesas_unidas=mesa, estado=Cuenta.Estado.ABIERTA).first() if mesa is not None else None
+    if pegada:
+        raise MesaError(f"La mesa {mesa.nombre} está junto con {pegada.titulo}.")
     try:
         with transaction.atomic():
             return Cuenta.objects.create(mesa=mesa, mozo=mozo, personas=max(1, min(int(personas or 1), 99)), nombre=" ".join(str(nombre or "").split())[:60],
@@ -143,7 +154,7 @@ def agregar(cuenta, items, usuario):
         ids = [int(i["variante"]) for i in items]
     except (KeyError, TypeError, ValueError):
         raise MesaError("Producto no válido.")
-    variantes = Variante.objects.select_related("producto").in_bulk(ids)
+    variantes = Variante.objects.select_related("producto__categoria").in_bulk(ids)
     creados = []
     with transaction.atomic():
         for it, vid in zip(items, ids):
@@ -172,7 +183,7 @@ def agregar(cuenta, items, usuario):
                 previo.save(update_fields=["cantidad"])
                 creados.append(previo)
             else:
-                creados.append(ItemCuenta.objects.create(cuenta=cuenta, variante=v, descripcion=v.nombre_completo[:240], opciones=foto,
+                creados.append(ItemCuenta.objects.create(cuenta=cuenta, variante=v, descripcion=v.nombre_completo[:240], opciones=foto, area=v.producto.area_efectiva,
                                                          cantidad=cantidad, precio=v.precio_venta + extra, nota=nota, agregado_por=usuario))
     return creados
 
@@ -182,6 +193,8 @@ def enviar_cocina(cuenta):
     _abierta(cuenta)
     ahora = timezone.now()
     n = cuenta.items.filter(anulado=False, enviado_en__isnull=True).update(enviado_en=ahora)
+    # Lo que saca el mozo (gaseosas, agua) no espera a nadie: queda listo para llevar a la mesa
+    cuenta.items.filter(enviado_en=ahora, area="MOZ", es_envio=False).update(listo_en=ahora)
     return ahora if n else None
 
 
@@ -256,20 +269,54 @@ def cortesia(item, autoriza, motivo, cantidad=None, quitar=False):
     return item
 
 
+def _libre(mesa, cuenta=None):
+    otra = cuenta_de_mesa(mesa)
+    if otra and (cuenta is None or otra.pk != cuenta.pk):
+        raise MesaError(f"La mesa {mesa.nombre} está ocupada ({otra.titulo}).")
+    if not mesa.activa:
+        raise MesaError(f"La mesa {mesa.nombre} está desactivada.")
+
+
 def mover(cuenta, mesa):
+    """El grupo se muda a otra mesa libre (las mesas que tenía pegadas se liberan)."""
     _abierta(cuenta)
-    if mesa.cuentas.filter(estado=Cuenta.Estado.ABIERTA).exists():
-        raise MesaError(f"La mesa {mesa.nombre} está ocupada. Usa «Juntar» si quieres unir las cuentas.")
-    cuenta.mesa = mesa
+    _libre(mesa, cuenta)
     try:
         with transaction.atomic():
+            Mesa.objects.filter(unida_a=cuenta).update(unida_a=None)
+            cuenta.mesa = mesa
             cuenta.save(update_fields=["mesa"])
     except IntegrityError:
         raise MesaError(f"La mesa {mesa.nombre} se acaba de ocupar.")
 
 
+def unir_mesas(cuenta, mesas):
+    """Pega mesas libres a la cuenta (una familia que junta 3 mesas). Devuelve cuántas se unieron."""
+    _abierta(cuenta)
+    if not cuenta.mesa_id:
+        raise MesaError("Solo se pueden juntar mesas a una cuenta de mesa.")
+    mesas = [m for m in mesas if m.pk != cuenta.mesa_id]
+    if not mesas:
+        raise MesaError("Elige al menos una mesa libre.")
+    with transaction.atomic():
+        for m in Mesa.objects.select_for_update().filter(pk__in=[m.pk for m in mesas]):
+            _libre(m, cuenta)
+            m.unida_a = cuenta
+            m.save(update_fields=["unida_a"])
+    return len(mesas)
+
+
+def separar_mesa(cuenta, mesa):
+    _abierta(cuenta)
+    mesa.refresh_from_db(fields=["unida_a"])
+    if mesa.unida_a_id != cuenta.pk or mesa.pk == cuenta.mesa_id:
+        raise MesaError(f"La mesa {mesa.nombre} no está junto con esta cuenta.")
+    mesa.unida_a = None
+    mesa.save(update_fields=["unida_a"])
+
+
 def juntar(origen, destino):
-    """Pasa todo lo de una cuenta a otra (mesas juntadas). La de origen queda libre."""
+    """Une dos cuentas abiertas (dos grupos que se juntan): todo pasa a `destino` y la mesa de origen queda pegada a ella."""
     _abierta(origen)
     _abierta(destino)
     if origen.pk == destino.pk:
@@ -277,11 +324,18 @@ def juntar(origen, destino):
     with transaction.atomic():
         origen.items.update(cuenta=destino)
         destino.personas += origen.personas
-        destino.save(update_fields=["personas"])
+        destino.pidio_cuenta = destino.pidio_cuenta or origen.pidio_cuenta
+        destino.save(update_fields=["personas", "pidio_cuenta"])
+        titulo = destino.titulo
         origen.estado = Cuenta.Estado.ANULADA
         origen.cerrada_en = timezone.now()
-        origen.motivo_anulacion = f"Se juntó con {destino.titulo}"
+        origen.motivo_anulacion = f"Se juntó con {titulo}"
         origen.save(update_fields=["estado", "cerrada_en", "motivo_anulacion"])
+        pegar = [m for m in Mesa.objects.filter(unida_a=origen)] + ([origen.mesa] if origen.mesa_id else [])
+        for m in pegar:
+            if m.pk != destino.mesa_id:
+                m.unida_a = destino
+                m.save(update_fields=["unida_a"])
 
 
 def anular_cuenta(cuenta, usuario, motivo="", puede_anular=False):

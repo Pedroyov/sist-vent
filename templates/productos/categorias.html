@@ -15,11 +15,12 @@
       {% if categorias %}
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead><tr><th class="ps-3">Categoría</th><th class="text-end">Productos</th><th class="text-end d-none d-sm-table-cell">Orden</th><th></th></tr></thead>
+          <thead><tr><th class="ps-3">Categoría</th>{% if P.mod_mesas %}<th class="d-none d-sm-table-cell">Se prepara en</th>{% endif %}<th class="text-end">Productos</th><th class="text-end d-none d-sm-table-cell">Orden</th><th></th></tr></thead>
           <tbody>
             {% for c in categorias %}
             <tr class="{% if not c.activa %}text-body-secondary{% endif %}">
               <td class="ps-3 fw-semibold">{{ c.nombre }}{% if not c.activa %} <span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
+              {% if P.mod_mesas %}<td class="d-none d-sm-table-cell small">{{ c.get_area_display }}</td>{% endif %}
               <td class="text-end"><a href="{% url 'productos:lista' %}?cat={{ c.pk }}">{{ c.n }}</a></td>
               <td class="text-end d-none d-sm-table-cell">{{ c.orden }}</td>
               <td class="text-end text-nowrap">

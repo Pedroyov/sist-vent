@@ -22,5 +22,7 @@ def negocio(request):
 
         from .permisos import puede
 
-        contexto["METODOS_PAGO"] = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.CREDITO or puede(user, "clientes.fiar")]
+        aceptados = datos.metodos_aceptados
+        contexto["METODOS_PAGO"] = [(k, v) for k, v in MetodoPago.choices
+                                    if k in aceptados and (k != MetodoPago.CREDITO or (puede(user, "clientes.fiar") and datos.tiene_modulo("clientes")))]
     return contexto

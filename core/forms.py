@@ -126,13 +126,16 @@ class UsuarioForm(forms.ModelForm):
 # --- Datos del negocio ---------------------------------------------------------
 
 class DatosNegocioForm(forms.ModelForm):
+    metodos = forms.MultipleChoiceField(label="Métodos de pago que acepta", required=False, widget=forms.CheckboxSelectMultiple(attrs={"class": "btn-check"}),
+                                        help_text="Solo los marcados aparecen al cobrar. El efectivo siempre está.")
+
     class Meta:
         from .models import Ajustes
 
         model = Ajustes
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
-                  "vender_sin_caja", "propina_activa",
+                  "vender_sin_caja", "propina_activa", "descuentos_activos", "cortesias_activas",
                   "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo"]
         widgets = {
             "nivel_pedido": forms.RadioSelect,
@@ -142,6 +145,21 @@ class DatosNegocioForm(forms.ModelForm):
             "telefono": forms.TextInput(attrs={"inputmode": "tel"}),
             "whatsapp": forms.TextInput(attrs={"inputmode": "tel", "placeholder": "987654321"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from ventas.models import MetodoPago
+
+        self.fields["metodos"].choices = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.EFECTIVO]
+        self.fields["metodos"].initial = [m for m in self.instance.metodos_aceptados if m != MetodoPago.EFECTIVO]
+        if not self.instance.tiene_modulo("mesas"):
+            del self.fields["cortesias_activas"]  # no se muestra: que no se apague sin querer
+
+    def save(self, commit=True):
+        from ventas.models import MetodoPago
+
+        self.instance.metodos_pago = [MetodoPago.EFECTIVO] + list(self.cleaned_data.get("metodos") or [])
+        return super().save(commit)
 
     def clean_ruc(self):
         ruc = self.cleaned_data["ruc"].strip()

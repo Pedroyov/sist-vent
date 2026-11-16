@@ -11,7 +11,7 @@ from productos.models import MovimientoStock, Producto
 from productos.servicios import asegurar_variante_unica, generar_variantes, mover_stock
 
 from .models import Cuenta, Mesa, Zona
-from .servicios import MesaError, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, enviar_cocina, juntar, mover, quitar
+from .servicios import MesaError, cuenta_de_mesa, separar_mesa, unir_mesas, abrir_cuenta, agregar, anular_cuenta, cambiar_cantidad, cobrar, enviar_cocina, juntar, mover, quitar
 
 D = Decimal
 
@@ -85,6 +85,52 @@ class MesasTests(TestCase):
         vacia = abrir_cuenta(self.mozo, self.m2, 1)
         anular_cuenta(vacia, self.mozo)  # sin consumo: se libera sin permiso
 
+    def test_mesas_juntas(self):
+        m3 = Mesa.objects.create(zona=self.m1.zona, nombre="3")
+        m4 = Mesa.objects.create(zona=self.m1.zona, nombre="4")
+        fam = abrir_cuenta(self.mozo, self.m1, 8)
+        unir_mesas(fam, [self.m2, m3])
+        self.assertEqual(Cuenta.objects.get(pk=fam.pk).titulo, "Mesa 1 + 2 + 3")
+        # Una mesa pegada no se puede abrir ni volver a juntar con otra cuenta
+        with self.assertRaises(MesaError):
+            abrir_cuenta(self.mozo, self.m2, 2)
+        otra = abrir_cuenta(self.mozo, m4, 2)
+        with self.assertRaises(MesaError):
+            unir_mesas(otra, [m3])
+        with self.assertRaises(MesaError):
+            mover(otra, self.m2)
+        self.assertEqual(cuenta_de_mesa(m3).pk, fam.pk)
+        # Separar devuelve la mesa
+        separar_mesa(fam, m3)
+        self.assertIsNone(cuenta_de_mesa(Mesa.objects.get(pk=m3.pk)))
+        # Juntar dos cuentas: la mesa de origen queda pegada a la otra (no libre)
+        agregar(otra, [{"variante": self.lomo.pk, "cantidad": 1}], self.mozo)
+        juntar(otra, fam)
+        self.assertEqual(cuenta_de_mesa(Mesa.objects.get(pk=m4.pk)).pk, fam.pk)
+        self.assertEqual(Cuenta.objects.get(pk=fam.pk).titulo, "Mesa 1 + 2 + 4")
+        # El mapa las muestra ocupadas y enlazadas a la misma cuenta
+        self.client.force_login(self.mozo)
+        r = self.client.get(reverse("mesas:mapa"))
+        self.assertContains(r, "con la 1", count=2)
+        # Al cerrar la cuenta se liberan todas
+        anular_cuenta(fam, self.jefe, "prueba", puede_anular=True)
+        for m in (self.m1, self.m2, m4):
+            self.assertIsNone(cuenta_de_mesa(Mesa.objects.get(pk=m.pk)))
+        self.assertIsNotNone(abrir_cuenta(self.mozo, self.m2, 2))
+
+    def test_vista_juntar_al_abrir(self):
+        self.client.force_login(self.mozo)
+        r = self.client.post(reverse("mesas:abrir"), {"mesa": self.m1.pk, "personas": 6, "juntar": "1"})
+        c = Cuenta.objects.get(mesa=self.m1, estado=Cuenta.Estado.ABIERTA)
+        self.assertRedirects(r, reverse("mesas:cambiar", args=[c.pk]) + "?nueva=1", fetch_redirect_response=False)
+        self.assertContains(self.client.get(r.url), "Juntar mesas")
+        r = self.client.post(reverse("mesas:cambiar", args=[c.pk]), {"accion": "unir", "mesas": [self.m2.pk], "nueva": "1"})
+        self.assertRedirects(r, reverse("mesas:agregar", args=[c.pk]), fetch_redirect_response=False)
+        self.assertEqual(Mesa.objects.get(pk=self.m2.pk).unida_a_id, c.pk)
+        # Tocar la mesa pegada lleva a la misma cuenta
+        r = self.client.post(reverse("mesas:abrir"), {"mesa": self.m2.pk, "personas": 2})
+        self.assertRedirects(r, reverse("mesas:cuenta", args=[c.pk]), fetch_redirect_response=False)
+
     def test_vistas(self):
         self.client.force_login(self.mozo)
         self.assertEqual(self.client.get(reverse("mesas:mapa")).status_code, 200)
@@ -118,6 +164,45 @@ class MesasTests(TestCase):
         self.assertEqual(Mesa.objects.filter(nombre__startswith="T").count(), 3)
         self.client.force_login(self.mozo)
         self.assertEqual(self.client.get(reverse("mesas:configurar")).status_code, 403)
+
+    def test_cocina_barra_y_mozo(self):
+        from productos.models import Categoria
+
+        Ajustes.objects.filter(pk=1).update(modulos_inactivos=[])
+        platos = Categoria.objects.create(nombre="Platos de fondo")
+        bebidas = Categoria.objects.create(nombre="Bebidas", area="MOZ")
+        tragos = Categoria.objects.create(nombre="Jugos y tragos", area="BAR")
+        Producto.objects.filter(pk=self.lomo.producto_id).update(categoria=platos)
+        Producto.objects.filter(pk=self.gas.producto_id).update(categoria=bebidas)
+        pisco = asegurar_variante_unica(Producto.objects.create(nombre="Pisco sour", precio=D("18"), maneja_stock=False, categoria=tragos))
+        # Un producto puede ir a otro lado que su categoría
+        cafe = asegurar_variante_unica(Producto.objects.create(nombre="Café", precio=D("5"), maneja_stock=False, categoria=bebidas, area="BAR"))
+        c = abrir_cuenta(self.mozo, self.m1, 2)
+        agregar(c, [{"variante": v.pk, "cantidad": 1} for v in (self.lomo, self.gas, pisco, cafe)], self.mozo)
+        self.assertEqual(sorted(c.items.values_list("area", flat=True)), ["BAR", "BAR", "COC", "MOZ"])
+        enviar_cocina(c)
+        gas = c.items.get(variante=self.gas)
+        self.assertIsNotNone(gas.listo_en)  # lo lleva el mozo: listo al instante
+        self.assertIsNone(c.items.get(variante=self.lomo).listo_en)
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("mesas:cocina"))
+        self.assertContains(r, "Lomo saltado")
+        self.assertNotContains(r, "Inca Kola")
+        self.assertNotContains(r, "Pisco sour")
+        self.assertContains(r, "Barra")  # hay barra: aparecen las pestañas
+        r = self.client.get(reverse("mesas:cocina") + "?area=BAR")
+        self.assertContains(r, "Pisco sour")
+        self.assertContains(r, "Café")
+        self.assertNotContains(r, "Lomo saltado")
+        # La comanda de barra solo trae lo de barra
+        r = self.client.get(reverse("mesas:comanda", args=[c.pk]) + "?area=BAR")
+        self.assertContains(r, "BARRA")
+        self.assertNotContains(r, "Lomo saltado")
+        # "Todo listo" en la barra no toca la cocina
+        ts = c.items.get(variante=pisco).enviado_en
+        self.client.post(reverse("mesas:cocina_marcar"), {"cuenta": c.pk, "enviado": ts.isoformat(), "area": "BAR"})
+        self.assertIsNotNone(c.items.get(variante=pisco).listo_en)
+        self.assertIsNone(c.items.get(variante=self.lomo).listo_en)
 
     def test_guardar_zona_completa(self):
         self.client.force_login(self.jefe)

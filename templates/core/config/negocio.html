@@ -58,8 +58,19 @@
       </div>
 
       <div class="card mb-4">
-        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-sliders me-1"></i> Opciones de venta</h3></div>
-        <div class="card-body">{{ form.vender_sin_caja|as_crispy_field }}{{ form.propina_activa|as_crispy_field }}</div>
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-sliders me-1"></i> Cobro</h3></div>
+        <div class="card-body">
+          <div class="mb-3"><label class="form-label">{{ form.metodos.label }}</label>
+            <div class="d-flex flex-wrap gap-2">
+              <span class="btn btn-sm btn-success disabled" aria-disabled="true"><i class="bi bi-check-lg"></i> Efectivo</span>
+              {% for c in form.metodos %}{{ c.tag }}<label class="btn btn-sm btn-outline-success" for="{{ c.id_for_label }}">{{ c.choice_label }}</label>{% endfor %}
+            </div>
+            <div class="form-text">{{ form.metodos.help_text }}{% if P.mod_clientes %} «Fiado» además necesita el permiso de fiar.{% endif %}</div></div>
+          {{ form.propina_activa|as_crispy_field }}
+          {{ form.descuentos_activos|as_crispy_field }}
+          {% if P.mod_mesas %}{{ form.cortesias_activas|as_crispy_field }}{% endif %}
+          {{ form.vender_sin_caja|as_crispy_field }}
+        </div>
       </div>
 
       <div class="card mb-4">

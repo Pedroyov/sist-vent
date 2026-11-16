@@ -27,6 +27,8 @@ class Mesa(models.Model):
     capacidad = models.PositiveSmallIntegerField(default=4)
     orden = models.PositiveSmallIntegerField(default=0)
     activa = models.BooleanField(default=True)
+    unida_a = models.ForeignKey("Cuenta", on_delete=models.SET_NULL, null=True, blank=True, related_name="mesas_unidas",
+                                help_text="Mesa pegada a la de otra cuenta (familias, grupos). Cuenta como ocupada mientras esa cuenta siga abierta.")
 
     class Meta:
         verbose_name = "mesa"
@@ -90,9 +92,20 @@ class Cuenta(models.Model):
     @property
     def titulo(self):
         if self.mesa_id:
-            return f"Mesa {self.mesa.nombre}"
+            return f"Mesa {self.nombres_mesas}"
         tipo = "Delivery" if self.es_delivery else "Para llevar"
         return f"{tipo} #{self.pk}" + (f" · {self.nombre}" if self.nombre else "")
+
+    @property
+    def unidas(self):
+        """Mesas pegadas a esta cuenta (además de la principal)."""
+        if not hasattr(self, "_unidas"):
+            self._unidas = [m for m in self.mesas_unidas.all() if m.pk != self.mesa_id] if self.pk else []
+        return self._unidas
+
+    @property
+    def nombres_mesas(self):
+        return " + ".join([self.mesa.nombre] + [m.nombre for m in self.unidas]) if self.mesa_id else ""
 
     @property
     def es_delivery(self):
@@ -163,6 +176,7 @@ class ItemCuenta(models.Model):
     opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, acompañamiento, adicionales).")
     agregado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     creado = models.DateTimeField(default=timezone.now)
+    area = models.CharField("se prepara en", max_length=3, default="COC", help_text="Copia de la categoría al pedir: COC cocina, BAR barra, MOZ lo sirve el mozo.")
     enviado_en = models.DateTimeField("enviado a cocina", null=True, blank=True)
     listo_en = models.DateTimeField("listo en cocina", null=True, blank=True)
     servido_en = models.DateTimeField(null=True, blank=True)

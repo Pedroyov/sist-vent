@@ -16,7 +16,7 @@ from core.utils import entero
 
 from . import excel
 from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
-from .models import CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
+from .models import area_sugerida, CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
 from .rubros import CATEGORIAS, GRUPOS, etiquetas_variantes, rubro_actual, valores_iniciales
 from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock
 
@@ -398,7 +398,7 @@ def categorias_sugeridas(request):
     orden = (Categoria.objects.count() + 1) * 10
     creadas = 0
     for n in nombres:
-        _, nueva = Categoria.objects.get_or_create(nombre=n, defaults={"orden": orden})
+        _, nueva = Categoria.objects.get_or_create(nombre=n, defaults={"orden": orden, "area": area_sugerida(n)})
         orden += 10
         creadas += nueva
     messages.success(request, f"Se crearon {creadas} categorías.")

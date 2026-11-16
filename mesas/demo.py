@@ -26,8 +26,8 @@ REPARTIDORES = ["Carlos (moto)", "Jhon (bici)"]
 
 # Cómo pide una mesa típica: (categoría, probabilidad, unidades por persona)
 PEDIDO = [("Entradas", .45, .4), ("Marinos", .35, .5), ("Platos de fondo", .7, .6), ("Pollos y parrillas", .5, .4),
-          ("Sopas", .15, .3), ("Bebidas", .95, .8), ("Postres", .3, .5)]
-MENU = [("Menú del día", 1, 1), ("Bebidas", .5, .5)]
+          ("Sopas", .15, .3), ("Bebidas", .7, .5), ("Jugos y tragos", .5, .4), ("Postres", .3, .5)]
+MENU = [("Menú del día", 1, 1), ("Bebidas", .4, .4), ("Jugos y tragos", .3, .3)]
 
 
 def _mozos():

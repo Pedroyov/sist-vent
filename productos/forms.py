@@ -4,7 +4,7 @@ from django import forms
 
 import re
 
-from .models import CERO, Categoria, GrupoOpciones, MovimientoStock, Producto, Variante
+from .models import Area, CERO, Categoria, GrupoOpciones, MovimientoStock, Producto, Variante
 from .rubros import etiquetas_variantes
 
 DINERO = {"step": "0.01", "min": "0", "inputmode": "decimal"}
@@ -30,7 +30,7 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = ["tipo", "nombre", "categoria", "unidad", "precio", "costo", "maneja_stock", "stock_minimo",
-                  "duracion_min", "descripcion", "imagen", "activo", "grupos"]
+                  "duracion_min", "descripcion", "imagen", "activo", "grupos", "area"]
         widgets = {
             "tipo": forms.RadioSelect,
             "precio": forms.NumberInput(attrs=DINERO),
@@ -52,6 +52,12 @@ class ProductoForm(forms.ModelForm):
         self.fields["grupos"].queryset = GrupoOpciones.objects.filter(activo=True)
         self.fields["grupos"].label_from_instance = lambda g: f"{g.nombre} ({g.regla.lower()})"
         self.fields["unidad"].required = False
+        from core.models import Ajustes
+
+        if Ajustes.cargar().tiene_modulo("mesas"):
+            self.fields["area"].choices = [("", "Como su categoría")] + list(Area.choices)
+        else:
+            del self.fields["area"]
         self.es_nuevo = self.instance.pk is None
         self.unica = None if self.es_nuevo else self.instance.variante_unica()
         self.con_variantes = not self.es_nuevo and self.instance.tiene_variantes
@@ -158,7 +164,14 @@ class MovimientoForm(forms.Form):
 class CategoriaForm(forms.ModelForm):
     class Meta:
         model = Categoria
-        fields = ["nombre", "orden", "activa"]
+        fields = ["nombre", "area", "orden", "activa"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Ajustes
+
+        if not Ajustes.cargar().tiene_modulo("mesas"):
+            del self.fields["area"]
 
     def clean_nombre(self):
         nombre = " ".join(self.cleaned_data["nombre"].split())

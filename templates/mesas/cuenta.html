@@ -73,13 +73,16 @@
 {% endif %}
 
 {% if recien %}
-<div class="alert alert-info">
-  <div class="d-flex align-items-center mb-2"><strong>{% if NEGOCIO.cocina_pantalla %}<i class="bi bi-check2-circle me-1"></i>Enviado a la pantalla de cocina:{% else %}<i class="bi bi-megaphone me-1"></i>Díctale a cocina:{% endif %}</strong>
-    <a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" data-imprimir="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-printer me-1"></i>Comanda</a></div>
-  <ul class="list-unstyled mb-0 dictar">
-    {% for i in recien %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.opciones %} <span class="fw-semibold">({{ i.texto_opciones }})</span>{% endif %}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
+<div class="alert alert-info py-2">
+  {% for codigo, nombre, lista in recien_areas %}
+  <div class="d-flex align-items-center {% if not forloop.first %}mt-2 pt-2 border-top border-info-subtle{% endif %}">
+    <strong class="small">{% if codigo == "MOZ" %}<i class="bi bi-cup-straw me-1"></i>Llévalo tú a la mesa{% elif NEGOCIO.cocina_pantalla %}<i class="bi bi-check2-circle me-1"></i>Enviado a {{ nombre|lower }}{% else %}<i class="bi bi-megaphone me-1"></i>Díctale a {{ nombre|lower }}{% endif %}</strong>
+    {% if codigo != "MOZ" %}<a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}&area={{ codigo }}" data-imprimir="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}&area={{ codigo }}" class="btn btn-sm btn-outline-primary ms-auto py-0"><i class="bi bi-printer me-1"></i>Comanda</a>{% endif %}
+  </div>
+  <ul class="list-unstyled mb-0 dictar small">
+    {% for i in lista %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.opciones %} <span class="fw-semibold">({{ i.texto_opciones }})</span>{% endif %}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
   </ul>
-  <div class="small mt-2">{{ c.titulo }}</div>
+  {% endfor %}
 </div>
 {% endif %}
 
@@ -106,7 +109,7 @@
       </form>
       <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
       {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
-      {% if c.abierta %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
+      {% if c.abierta and NEGOCIO.cortesias_activas or c.abierta and i.cortesia %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
                 data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
                 title="{% if i.cortesia %}Quitar cortesía{% else %}Cortesía de la casa{% endif %}" aria-label="Cortesía"><i class="bi bi-gift{% if i.cortesia %}-fill{% endif %}"></i></button>{% endif %}
     </li>
@@ -127,9 +130,9 @@
       <span class="cant">{{ i.cantidad|cantidad }}</span>
       <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}
-          {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en cocina</span>{% endif %}</div>{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
+          {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en {% if i.area == "BAR" %}barra{% else %}cocina{% endif %}</span>{% endif %}</div>{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
       {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
-      {% if c.abierta %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
+      {% if c.abierta and NEGOCIO.cortesias_activas or c.abierta and i.cortesia %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
                 data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
                 title="{% if i.cortesia %}Quitar cortesía{% else %}Cortesía de la casa{% endif %}" aria-label="Cortesía"><i class="bi bi-gift{% if i.cortesia %}-fill{% endif %}"></i></button>{% endif %}
       {% if c.abierta and puede_anular and not i.es_envio %}
@@ -154,7 +157,7 @@
       <span class="cant">{{ i.cantidad|cantidad }}</span>
       <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}
-          {% if i.servido_en %}<i class="bi bi-check2-all"></i> servido{% elif i.listo_en %}<span class="badge text-bg-success"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<i class="bi bi-hourglass-split"></i> en cocina{% endif %}</div></div>
+          {% if i.servido_en %}<i class="bi bi-check2-all"></i> servido{% elif i.listo_en %}<span class="badge text-bg-success"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<i class="bi bi-hourglass-split"></i> en {% if i.area == "BAR" %}barra{% else %}cocina{% endif %}{% endif %}</div></div>
       <span class="text-nowrap text-body-secondary small">{% if i.cortesia %}cortesía{% else %}{{ i.subtotal|soles }}{% endif %}</span>
     </li>
     {% endfor %}
@@ -206,7 +209,7 @@
         <li><a class="dropdown-item" href="{% url 'mesas:precuenta' c.pk %}" data-imprimir="{% url 'mesas:precuenta' c.pk %}"><i class="bi bi-printer me-2"></i>Imprimir precuenta</a></li>
         {% if P.mesas_cobrar %}<li><button type="button" class="dropdown-item" id="btn-dividir"><i class="bi bi-scissors me-2"></i>Dividir cuenta</button></li>{% endif %}
         {% endif %}
-        {% if c.mesa and P.mesas_atender %}<li><a class="dropdown-item" href="{% url 'mesas:cambiar' c.pk %}"><i class="bi bi-arrow-left-right me-2"></i>Cambiar o juntar mesa</a></li>{% endif %}
+        {% if c.mesa and P.mesas_atender %}<li><a class="dropdown-item" href="{% url 'mesas:cambiar' c.pk %}"><i class="bi bi-plus-square-dotted me-2"></i>Juntar o cambiar mesa</a></li>{% endif %}
         {% if not pagados %}
         <li><hr class="dropdown-divider"></li>
         <li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#m-liberar"><i class="bi bi-x-circle me-2"></i>{% if enviados %}Anular cuenta{% else %}Liberar mesa{% endif %}</button></li>
@@ -296,7 +299,7 @@
     if (!items.length) { alert("Marca lo que se va a cobrar."); return; }
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
     Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
-      descuento: {puede: {{ P.ventas_precio|yesno:"true,false" }}},
+      descuento: {% if NEGOCIO.descuentos_activos %}{puede: {{ P.ventas_precio|yesno:"true,false" }}}{% else %}null{% endif %},
       partes: parcial ? null : {n: {{ c.personas }}},
       liberar: parcial ? null : {valor: {{ liberar_al_cobrar|yesno:"true,false" }},
         texto: "{% if c.mesa %}Liberar la mesa al cobrar{% else %}Ya se entregó el pedido{% endif %}",

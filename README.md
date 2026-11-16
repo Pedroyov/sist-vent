@@ -85,6 +85,10 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Cortesías y descuentos** – Platos de la casa (todo o parte) y descuento en soles o % al cobrar, siempre con motivo; si el usuario no tiene permiso, un supervisor autoriza con su usuario y clave; todo queda en Reportes → Control
 - [x] **Facturación electrónica** – Boleta o factura al cobrar (o después desde la venta), IGV por línea, QR, reenvío si no hay internet, nota de crédito al anular; modo prueba y conector Nubefact
 - [x] **Rol Mozo** – En restaurantes: toma pedidos y entrega la precuenta; el cobro se hace en caja
+- [x] **Mesas juntas** – Una cuenta puede ocupar varias mesas pegadas (familias); se separan o se liberan juntas
+- [x] **Cocina, barra o mozo** – Cada categoría o producto dice dónde se prepara: cocina, barra (pantalla y comanda propias) o lo lleva el mozo directo (gaseosas)
+- [x] **Aviso al mozo** – Suena y vibra en el celular cuando algo está listo para llevar
+- [x] **Reglas de cobro** – El negocio elige qué métodos de pago acepta y si usa propinas, descuentos y cortesías; cobro compacto para celular
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo

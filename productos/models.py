@@ -11,8 +11,27 @@ from core.utils import TamanoMaximo
 CERO = Decimal("0")
 
 
+class Area(models.TextChoices):
+    """Dónde se prepara lo que se pide en mesas."""
+    COCINA = "COC", "Cocina"
+    BARRA = "BAR", "Barra"
+    MOZO = "MOZ", "Lo sirve el mozo"
+
+
+def area_sugerida(nombre):
+    """Para categorías nuevas: gaseosas y cervezas las saca el mozo; tragos y jugos, la barra."""
+    n = nombre.lower()
+    if any(p in n for p in ("trago", "cóctel", "coctel", "jugo", "batido", "barra", "café", "cafe", "infusi", "caliente")):
+        return Area.BARRA
+    if any(p in n for p in ("bebida", "gaseosa", "cerveza", "agua", "vino", "licor")):
+        return Area.MOZO
+    return Area.COCINA
+
+
 class Categoria(models.Model):
     nombre = models.CharField(max_length=80, unique=True)
+    area = models.CharField("se prepara en", max_length=3, choices=Area.choices, default=Area.COCINA,
+                            help_text="Al enviar un pedido de mesa: a la cocina, a la barra, o lo lleva el mozo directamente (gaseosas, agua).")
     orden = models.PositiveSmallIntegerField(default=0, help_text="Las de número menor salen primero.")
     activa = models.BooleanField(default=True)
 
@@ -127,6 +146,8 @@ class Producto(models.Model):
     duracion_min = models.PositiveSmallIntegerField("duración (minutos)", null=True, blank=True,
                                                     help_text="Para servicios. Sirve más adelante para las citas.")
     imagen = models.ImageField(upload_to="productos/", blank=True, validators=[TamanoMaximo(5)])
+    area = models.CharField("se prepara en", max_length=3, choices=Area.choices, blank=True,
+                            help_text="Vacío = como su categoría. Cámbialo solo si este producto va a otro lado.")
     grupos = models.ManyToManyField(GrupoOpciones, blank=True, related_name="productos", verbose_name="opciones al pedir",
                                     help_text="Término, acompañamiento, adicionales… Se crean en Productos → Opciones.")
     agotado_en = models.DateTimeField(null=True, blank=True, help_text="Agotado por hoy (vuelve solo mañana).")
@@ -149,6 +170,10 @@ class Producto(models.Model):
         elif self.unidad == Unidad.SERVICIO:
             self.unidad = Unidad.UNIDAD
         super().save(*args, **kwargs)
+
+    @property
+    def area_efectiva(self):
+        return self.area or (self.categoria.area if self.categoria_id else Area.COCINA)
 
     @property
     def agotado(self):

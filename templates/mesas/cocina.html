@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Cocina{% endblock %}
+{% block title %}{% if area == "BAR" %}Barra{% else %}Cocina{% endif %}{% endblock %}
 {% block body_class %}bg-body-tertiary{% endblock %}
 {% block extra_css %}
 <style>
@@ -20,7 +20,8 @@
 
 {% block layout %}
 <div class="kds-barra bg-dark text-white px-3 py-2 d-flex align-items-center gap-2 flex-wrap">
-  <i class="bi bi-fire fs-4 text-warning"></i><strong class="fs-5">Cocina</strong>
+  {% if area == "BAR" %}<i class="bi bi-cup-straw fs-4 text-info"></i><strong class="fs-5">Barra</strong>{% else %}<i class="bi bi-fire fs-4 text-warning"></i><strong class="fs-5">Cocina</strong>{% endif %}
+  {% if hay_barra %}<div class="btn-group btn-group-sm ms-1"><a href="{% url 'mesas:cocina' %}" class="btn {% if area == 'COC' %}btn-light{% else %}btn-outline-light{% endif %}">Cocina</a><a href="{% url 'mesas:cocina' %}?area=BAR" class="btn {% if area == 'BAR' %}btn-light{% else %}btn-outline-light{% endif %}">Barra</a></div>{% endif %}
   <span class="text-white-50 d-none d-sm-inline">· {{ NEGOCIO_NOMBRE }}</span>
   <span class="badge text-bg-primary fs-6" id="n-pendientes">{{ pendientes|length }}</span>
   <span class="ms-auto fs-5 fw-semibold" id="reloj"></span>
@@ -33,7 +34,7 @@
   <a href="{% url 'core:inicio' %}" class="btn btn-sm btn-outline-light" title="Salir"><i class="bi bi-house"></i></a>
 </div>
 {% csrf_token %}
-<div class="container-fluid py-3" id="kds" hx-get="{% url 'mesas:cocina' %}" hx-trigger="every 5s" hx-swap="innerHTML">
+<div class="container-fluid py-3" id="kds" hx-get="{% url 'mesas:cocina' %}?area={{ area }}" hx-vals='{"area": "{{ area }}"}' hx-trigger="every 5s" hx-swap="innerHTML">
   {% include "mesas/partials/cocina.html" %}
 </div>
 {% endblock %}
@@ -44,9 +45,9 @@
   var kds = document.getElementById("kds");
   var conocidas = new Set(Array.prototype.map.call(kds.querySelectorAll("[data-clave]"), function (e) { return e.dataset.clave; }));
   var audio = null;
-  try { document.getElementById("auto-imprimir").checked = localStorage.getItem("cocina_imprimir") === "1"; } catch (e) {}
+  try { document.getElementById("auto-imprimir").checked = localStorage.getItem("cocina_imprimir_{{ area }}") === "1"; } catch (e) {}
   document.getElementById("auto-imprimir").addEventListener("change", function () {
-    try { localStorage.setItem("cocina_imprimir", this.checked ? "1" : "0"); } catch (e) {}
+    try { localStorage.setItem("cocina_imprimir_{{ area }}", this.checked ? "1" : "0"); } catch (e) {}
   });
   // Los navegadores solo dejan sonar después de un toque en la pantalla
   document.getElementById("btn-sonido").addEventListener("click", function () {

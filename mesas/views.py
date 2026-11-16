@@ -18,30 +18,33 @@ from .models import Cuenta, ItemCuenta, Mesa, Zona
 from core.autorizacion import AutorizacionError, autorizar
 
 from .servicios import (MesaError, abrir_cuenta, abrir_delivery, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, datos_delivery,
-                        entregar_delivery, enviar_cocina, falta_de_cocina, juntar, liberar_mesa, marcar_listo, marcar_servido, mover,
+                        entregar_delivery, enviar_cocina, falta_de_cocina, juntar, cuenta_de_mesa, unir_mesas, separar_mesa, liberar_mesa, marcar_listo, marcar_servido, mover,
                         poner_envio, quitar, salio_delivery)
 
 
 def _abiertas():
     return Cuenta.objects.filter(estado=Cuenta.Estado.ABIERTA).select_related("mesa", "mozo").prefetch_related(
-        Prefetch("items", queryset=ItemCuenta.objects.filter(anulado=False), to_attr="vigentes"))
+        "mesas_unidas", Prefetch("items", queryset=ItemCuenta.objects.filter(anulado=False), to_attr="vigentes"))
 
 
 def _datos_mapa():
-    cuentas = {c.mesa_id: c for c in _abiertas() if c.mesa_id}
+    abiertas = list(_abiertas())
+    cuentas = {c.mesa_id: c for c in abiertas if c.mesa_id}
+    pegadas = {m.pk: c for c in abiertas if c.mesa_id for m in c.unidas}
     zonas = []
     for z in Zona.objects.prefetch_related(Prefetch("mesas", queryset=Mesa.objects.filter(activa=True))):
         mesas = list(z.mesas.all())
         for m in mesas:
             m.cuenta = cuentas.get(m.pk)
+            m.pegada = pegadas.get(m.pk) if not m.cuenta else None
             if m.cuenta:
                 m.cuenta.total = sum((i.subtotal for i in m.cuenta.vigentes), 0)
                 m.cuenta.sin_enviar = sum(1 for i in m.cuenta.vigentes if not i.enviado_en)
                 m.cuenta.listos = sum(1 for i in m.cuenta.vigentes if i.listo_en and not i.servido_en)
                 m.cuenta.esta_pagada = m.cuenta.pagada(m.cuenta.vigentes)
         if mesas:
-            zonas.append({"zona": z, "mesas": mesas, "libres": sum(1 for m in mesas if not m.cuenta)})
-    sin_mesa = [c for c in _abiertas() if not c.mesa_id]
+            zonas.append({"zona": z, "mesas": mesas, "libres": sum(1 for m in mesas if not m.cuenta and not m.pegada)})
+    sin_mesa = [c for c in abiertas if not c.mesa_id]
     for c in sin_mesa:
         c.total = sum((i.subtotal for i in c.vigentes), 0)
         c.sin_enviar = sum(1 for i in c.vigentes if not i.enviado_en)
@@ -69,13 +72,21 @@ def abrir(request):
         cuenta = abrir_cuenta(request.user, mesa, entero(request.POST.get("personas")) or 1, request.POST.get("nombre", ""))
     except MesaError as e:
         messages.error(request, str(e))
-        ocupada = mesa and mesa.cuentas.filter(estado=Cuenta.Estado.ABIERTA).first()
+        ocupada = cuenta_de_mesa(mesa)
         return redirect("mesas:cuenta", pk=ocupada.pk) if ocupada else redirect("mesas:mapa")
+    if mesa and request.POST.get("juntar"):
+        return redirect(reverse("mesas:cambiar", args=[cuenta.pk]) + "?nueva=1")
     return redirect(reverse("mesas:agregar", args=[cuenta.pk]))
 
 
+def _por_area(items):
+    """Lo recién enviado, separado: [(código, nombre, items)] en orden cocina, barra, mozo."""
+    nombres = {"COC": "Cocina", "BAR": "Barra", "MOZ": "Llévalo tú"}
+    return [(a, nombres[a], [i for i in items if i.area == a]) for a in ("COC", "BAR", "MOZ") if any(i.area == a for i in items)]
+
+
 def _cuenta(pk):
-    return get_object_or_404(Cuenta.objects.select_related("mesa__zona", "mozo"), pk=pk)
+    return get_object_or_404(Cuenta.objects.select_related("mesa__zona", "mozo").prefetch_related("mesas_unidas"), pk=pk)
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")
@@ -99,6 +110,7 @@ def cuenta(request, pk):
         "pendiente": sum((i.subtotal for i in por_enviar + enviados), 0),
         "ventas": sorted({i.venta for i in pagados}, key=lambda v: v.numero),
         "recien": [i for i in items if recien and not i.anulado and not i.es_envio and i.enviado_en == recien],
+        "recien_areas": _por_area([i for i in items if recien and not i.anulado and not i.es_envio and i.enviado_en == recien]),
         "esta_pagada": c.pagada(items),
         # al cobrar todo: ¿se libera la mesa? Por defecto sí, salvo que algo no haya salido de cocina (o el delivery no se entregó)
         "liberar_al_cobrar": (c.estado_envio == Cuenta.Envio.ENTREGADO) if c.es_delivery else not falta_de_cocina(por_enviar + enviados + pagados),
@@ -183,6 +195,11 @@ def item(request, pk):
 @require_POST
 def cortesia_vista(request, pk):
     it = get_object_or_404(ItemCuenta.objects.select_related("cuenta"), pk=pk)
+    from core.models import Ajustes
+
+    if not Ajustes.cargar().cortesias_activas and request.POST.get("quitar") != "1":
+        messages.error(request, "Las cortesías están desactivadas en Datos del negocio.")
+        return redirect("mesas:cuenta", pk=it.cuenta_id)
     try:
         autoriza = autorizar(request, "mesas.cortesia", request.POST.get("sup_usuario"), request.POST.get("sup_clave"))
         quitar_ = request.POST.get("quitar") == "1"
@@ -233,29 +250,48 @@ def precuenta(request, pk):
 def comanda(request, pk):
     c = _cuenta(pk)
     ts = parse_datetime(request.GET.get("enviado", "") or "")
-    items = c.items.filter(anulado=False, enviado_en__isnull=False, es_envio=False)
+    area = _area(request)
+    items = c.items.filter(anulado=False, enviado_en__isnull=False, es_envio=False, area=area)
     items = items.filter(enviado_en=ts) if ts else items
-    return render(request, "mesas/comanda.html", {"c": c, "items": items, "ts": ts})
+    return render(request, "mesas/comanda.html", {"c": c, "items": items, "ts": ts, "area": area})
 
 
 @permiso_requerido("mesas.atender")
 def cambiar_mesa(request, pk):
+    """Mesas de la cuenta: juntar mesas libres, juntar con otra cuenta, separar o mudarse."""
     c = _cuenta(pk)
+    if not c.mesa_id:
+        return redirect("mesas:cuenta", pk=pk)
     if request.method == "POST":
-        destino = get_object_or_404(Mesa, pk=entero(request.POST.get("mesa")))
-        otra = destino.cuentas.filter(estado=Cuenta.Estado.ABIERTA).first()
+        accion = request.POST.get("accion")
         try:
-            if otra:
+            if accion == "unir":
+                mesas = list(Mesa.objects.filter(pk__in=[entero(x) for x in request.POST.getlist("mesas") if entero(x)]))
+                n = unir_mesas(c, mesas)
+                c = _cuenta(pk)
+                messages.success(request, f"Mesas juntas: {c.nombres_mesas}." if n else "Sin cambios.")
+                return redirect("mesas:agregar" if request.POST.get("nueva") else "mesas:cuenta", pk=pk)
+            if accion == "separar":
+                separar_mesa(c, get_object_or_404(Mesa, pk=entero(request.POST.get("mesa"))))
+                messages.success(request, "Mesa separada: quedó libre.")
+                return redirect(reverse("mesas:cambiar", args=[pk]))
+            destino = get_object_or_404(Mesa, pk=entero(request.POST.get("mesa")))
+            if accion == "juntar_cuenta":
+                otra = cuenta_de_mesa(destino)
+                if not otra:
+                    raise MesaError(f"La mesa {destino.nombre} ya no está ocupada.")
                 juntar(c, otra)
-                messages.success(request, f"{c.titulo} se juntó con la mesa {destino.nombre}.")
+                messages.success(request, f"Se juntó con {_cuenta(otra.pk).titulo}.")
                 return redirect("mesas:cuenta", pk=otra.pk)
             mover(c, destino)
             messages.success(request, f"Se cambió a la mesa {destino.nombre}.")
+            return redirect("mesas:cuenta", pk=pk)
         except MesaError as e:
             messages.error(request, str(e))
-        return redirect("mesas:cuenta", pk=pk)
+            return redirect(reverse("mesas:cambiar", args=[pk]))
     datos = _datos_mapa()
-    return render(request, "mesas/cambiar.html", {"c": c, **datos})
+    modo = "mudar" if request.GET.get("modo") == "mudar" else "juntar"
+    return render(request, "mesas/cambiar.html", {"c": c, "modo": modo, "nueva": request.GET.get("nueva"), **datos})
 
 
 @permiso_requerido("mesas.cobrar")
@@ -523,12 +559,23 @@ def _borrar_mesa(request, m):
 
 # --- Pantalla de cocina ----------------------------------------------------------
 
-def _comandas():
-    """Pedidos enviados a cocina, agrupados por envío (una comanda = una mesa + una hora de envío)."""
+def _area(request):
+    a = (request.POST.get("area") or request.GET.get("area") or "COC").upper()
+    return a if a in ("COC", "BAR") else "COC"
+
+
+def _hay_barra():
+    from productos.models import Categoria, Producto
+
+    return Categoria.objects.filter(area="BAR", activa=True).exists() or Producto.objects.filter(area="BAR", activo=True).exists()
+
+
+def _comandas(area="COC"):
+    """Pedidos enviados a cocina (o a la barra), agrupados por envío (una comanda = una mesa + una hora de envío)."""
     from datetime import timedelta
 
     desde = timezone.now() - timedelta(hours=12)
-    items = (ItemCuenta.objects.filter(enviado_en__gte=desde, es_envio=False).exclude(cuenta__estado=Cuenta.Estado.ANULADA)
+    items = (ItemCuenta.objects.filter(enviado_en__gte=desde, es_envio=False, area=area).exclude(cuenta__estado=Cuenta.Estado.ANULADA)
              .select_related("cuenta__mesa", "cuenta__mozo").order_by("enviado_en", "id"))
     grupos = {}
     for i in items:
@@ -547,15 +594,16 @@ def _comandas():
             comanda["listo"] = max(i.listo_en for i in vigentes)
             listas.append(comanda)
     listas.sort(key=lambda c: c["listo"], reverse=True)
-    return {"pendientes": pendientes, "listas": listas[:12]}
+    return {"pendientes": pendientes, "listas": listas[:12], "area": area}
 
 
 @permiso_requerido("mesas.cocina")
 def cocina(request):
-    datos = _comandas()
+    area = _area(request)
+    datos = _comandas(area)
     if request.htmx:
         return render(request, "mesas/partials/cocina.html", datos)
-    return render(request, "mesas/cocina.html", datos)
+    return render(request, "mesas/cocina.html", {**datos, "area": area, "hay_barra": _hay_barra()})
 
 
 @permiso_requerido("mesas.cocina")
@@ -563,13 +611,16 @@ def cocina(request):
 def cocina_marcar(request):
     """Marca como listo (o deshace) un plato o una comanda entera."""
     listo = request.POST.get("listo", "1") == "1"
+    area = _area(request)
     if request.POST.get("item"):
         items = ItemCuenta.objects.filter(pk=entero(request.POST.get("item")))
     else:
         enviado = parse_datetime(request.POST.get("enviado", "") or "")
-        items = ItemCuenta.objects.filter(cuenta_id=entero(request.POST.get("cuenta")), enviado_en=enviado) if enviado else ItemCuenta.objects.none()
+        items = ItemCuenta.objects.filter(cuenta_id=entero(request.POST.get("cuenta")), enviado_en=enviado, area=area) if enviado else ItemCuenta.objects.none()
     if listo and request.POST.get("item"):
         it = items.first()
         listo = it is not None and it.listo_en is None  # un plato: alterna
     marcar_listo(list(items), listo)
-    return render(request, "mesas/partials/cocina.html", _comandas()) if request.htmx else redirect("mesas:cocina")
+    if request.htmx:
+        return render(request, "mesas/partials/cocina.html", _comandas(area))
+    return redirect(reverse("mesas:cocina") + ("?area=BAR" if area == "BAR" else ""))

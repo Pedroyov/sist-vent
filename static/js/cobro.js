@@ -14,6 +14,7 @@ window.Cobro = (function () {
   var soles = function (c) { return "S/ " + (c / 100).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
   var esc = function (s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
   var actual = null, cliente = null, buscando = null;
+  var visibles = [], combinar = false;  // métodos a la vista (por defecto uno solo: efectivo)
   var soloSoles = function (t) { return "S/ " + parseFloat(t || 0).toFixed(2); };
 
   // ---------- cliente ----------
@@ -116,7 +117,9 @@ window.Cobro = (function () {
     $("c-partes").classList.toggle("d-none", !n);
     $("c-partes-btn-fila").classList.toggle("d-none", !!n || !(actual && actual.partes));
     $("c-metodos").classList.toggle("d-none", !!n);
+    $("c-chips").classList.toggle("d-none", !!n);
     $("c-billetes").classList.toggle("d-none", !!n);
+    if (actual) pintarMetodos();
     pintarPartes();
     estado();
   }
@@ -173,7 +176,7 @@ window.Cobro = (function () {
     if (partes.n) pintarPartes();
     var t = aCobrar();
     var sugeridos = BILLETES.filter(function (b) { return b * 100 > t; }).slice(0, 3);
-    $("c-billetes").innerHTML = '<span class="small text-body-secondary me-1 align-self-center">Efectivo:</span>' +
+    $("c-billetes").innerHTML = '<span class="small text-body-secondary me-1 align-self-center">Billete:</span>' +
       '<button type="button" class="btn btn-sm btn-outline-success" data-billete="exacto">Exacto</button>' +
       sugeridos.map(function (b) { return '<button type="button" class="btn btn-sm btn-outline-success" data-billete="' + b * 100 + '">S/ ' + b + "</button>"; }).join("");
   }
@@ -191,25 +194,25 @@ window.Cobro = (function () {
     var pagado = ps.reduce(function (a, p) { return a + p.c; }, 0);
     var efectivo = ps.filter(function (p) { return p.metodo === "EFE"; }).reduce(function (a, p) { return a + p.c; }, 0);
     if (descuento() && !$("c-desc-motivo").value.trim()) {
-      e.className = "alert alert-warning py-2 text-center mb-3"; e.textContent = "Escribe el motivo del descuento."; $("c-confirmar").disabled = true; return false;
+      e.className = "alert alert-warning py-1 text-center mb-2"; e.textContent = "Escribe el motivo del descuento."; $("c-confirmar").disabled = true; return false;
     }
     if (descuento() && !actual.descuento.puede && (!$("c-sup-usuario").value.trim() || !$("c-sup-clave").value)) {
-      e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-shield-lock"></i> El descuento lo autoriza un supervisor con su clave.'; $("c-confirmar").disabled = true; return false;
+      e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-shield-lock"></i> El descuento lo autoriza un supervisor con su clave.'; $("c-confirmar").disabled = true; return false;
     }
     var fiado = ps.filter(function (p) { return p.metodo === "CRE"; }).reduce(function (a, p) { return a + p.c; }, 0);
     var fc = faltaComp(neto(), fiado > 0);
-    if (fc) { e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-receipt"></i> ' + esc(fc); $("c-confirmar").disabled = true; return false; }
+    if (fc) { e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-receipt"></i> ' + esc(fc); $("c-confirmar").disabled = true; return false; }
     var ok = false;
-    if (fiado && !cliente && !$("c-nombre").value.trim()) { e.className = "alert alert-warning py-2 text-center mb-3"; e.innerHTML = '<i class="bi bi-person-exclamation"></i> Para fiar, elige o escribe el cliente.'; $("c-confirmar").disabled = true; return false; }
+    if (fiado && !cliente && !$("c-nombre").value.trim()) { e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-person-exclamation"></i> Para fiar, elige o escribe el cliente.'; $("c-confirmar").disabled = true; return false; }
     if (fiado && cliente && parseFloat(cliente.limite) > 0 && (parseFloat(cliente.saldo) * 100 + fiado) > parseFloat(cliente.limite) * 100) {
-      e.className = "alert alert-danger py-2 text-center mb-3"; e.textContent = "Supera su límite de fiado (" + soloSoles(cliente.limite) + "). Solo con permiso especial.";
+      e.className = "alert alert-danger py-1 text-center mb-2"; e.textContent = "Supera su límite de fiado (" + soloSoles(cliente.limite) + "). Solo con permiso especial.";
       $("c-confirmar").disabled = false; return true;
     }
-    if (pagado === 0) { e.className = "alert alert-secondary py-2 text-center mb-3"; e.innerHTML = "Escribe cuánto paga, o pulsa <strong>Confirmar</strong> si es efectivo exacto."; ok = true; }
-    else if (pagado < t) { e.className = "alert alert-warning py-2 text-center fs-5 mb-3"; e.innerHTML = "Falta <strong>" + soles(t - pagado) + "</strong>"; }
-    else if (pagado - t > efectivo) { e.className = "alert alert-danger py-2 text-center mb-3"; e.textContent = "El vuelto solo puede salir del efectivo: revisa los montos."; }
-    else if (pagado > t) { e.className = "alert alert-success py-2 text-center fs-4 mb-3"; e.innerHTML = "Vuelto: <strong>" + soles(pagado - t) + "</strong>"; ok = true; }
-    else { e.className = "alert alert-success py-2 text-center fs-5 mb-3"; e.innerHTML = '<i class="bi bi-check-circle"></i> Pago completo'; ok = true; }
+    if (pagado === 0) { e.className = "alert alert-secondary py-1 text-center mb-2"; e.innerHTML = "Escribe cuánto paga, o pulsa <strong>Confirmar</strong> si es efectivo exacto."; ok = true; }
+    else if (pagado < t) { e.className = "alert alert-warning py-1 text-center fs-5 mb-2"; e.innerHTML = "Falta <strong>" + soles(t - pagado) + "</strong>"; }
+    else if (pagado - t > efectivo) { e.className = "alert alert-danger py-1 text-center mb-2"; e.textContent = "El vuelto solo puede salir del efectivo: revisa los montos."; }
+    else if (pagado > t) { e.className = "alert alert-success py-1 text-center fs-4 mb-2"; e.innerHTML = "Vuelto: <strong>" + soles(pagado - t) + "</strong>"; ok = true; }
+    else { e.className = "alert alert-success py-1 text-center fs-5 mb-2"; e.innerHTML = '<i class="bi bi-check-circle"></i> Pago completo'; ok = true; }
     $("c-confirmar").disabled = !ok;
     return ok;
   }
@@ -230,8 +233,11 @@ window.Cobro = (function () {
     if (opciones.liberar) { $("c-liberar").checked = !!opciones.liberar.valor; $("c-liberar-texto").textContent = opciones.liberar.texto; ayudaLiberar(); }
     $("c-titulo").textContent = opciones.titulo || "Cobrar";
     $("c-detalle").textContent = opciones.detalle || "Total a cobrar";
-    $("c-propina-fila").classList.toggle("d-none", !CON_PROPINA);
-    $("c-desc-fila").classList.toggle("d-none", !opciones.descuento);
+    $("c-mas-propina").classList.toggle("d-none", !CON_PROPINA);
+    $("c-mas-desc").classList.toggle("d-none", !opciones.descuento);
+    $("c-propina-fila").classList.add("d-none");
+    $("c-desc-fila").classList.add("d-none");
+    bootstrap.Collapse.getOrCreateInstance($("c-cliente"), {toggle: false}).hide();
     $("c-desc").value = ""; $("c-desc-motivo").value = ""; $("c-sup-usuario").value = ""; $("c-sup-clave").value = "";
     $("c-propina").value = "";
     $("c-nota").value = opciones.nota || "";
@@ -239,10 +245,11 @@ window.Cobro = (function () {
     cliente = opciones.cliente || null;
     mostrarCliente();
     $("c-metodos").innerHTML = METODOS.map(function (m) {
-      return '<div class="input-group mb-2"><span class="input-group-text" style="width: 8.5rem">' + esc(m.n) + "</span>" +
-        '<input type="number" class="form-control text-end fs-5" data-metodo="' + m.id + '" min="0" step="0.10" inputmode="decimal" placeholder="0.00">' +
+      return '<div class="input-group mb-2" data-fila-metodo="' + m.id + '"><span class="input-group-text" style="width: 6.5rem">' + (m.id === "EFE" ? "Recibe" : esc(m.n)) + "</span>" +
+        '<input type="number" class="form-control text-end fs-5" data-metodo="' + m.id + '" min="0" step="0.10" inputmode="decimal" placeholder="' + (m.id === "EFE" ? "exacto" : "0.00") + '" aria-label="' + esc(m.n) + '">' +
         '<button type="button" class="btn btn-outline-secondary" data-todo="' + m.id + '">Todo</button></div>';
     }).join("");
+    visibles = [METODOS[0].id]; combinar = false;
     $("c-error").classList.add("d-none");
     partes = {n: 0, filas: []};
     modoPartes(0);
@@ -254,9 +261,40 @@ window.Cobro = (function () {
       if (cliente) compDesdeCliente(cliente);
     }
     boton(false);
+    pintarMetodos();
     billetes();
     estado();
     bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
+  // ---------- métodos: un botón por método; por defecto se paga con uno solo ----------
+  function pintarMetodos() {
+    $("c-chips").innerHTML = METODOS.length > 1 ? '<span class="small text-body-secondary align-self-center me-1">Paga con</span>' + METODOS.map(function (m) {
+      var on = visibles.indexOf(m.id) >= 0;
+      return '<button type="button" class="btn btn-sm ' + (on ? "btn-primary" : "btn-outline-primary") + '" data-chip="' + m.id + '" aria-pressed="' + on + '">' + esc(m.n) + "</button>";
+    }).join("") : "";
+    modal.querySelectorAll("[data-fila-metodo]").forEach(function (f) { f.classList.toggle("d-none", visibles.indexOf(f.dataset.filaMetodo) < 0); });
+    modal.querySelectorAll("[data-todo]").forEach(function (b) { b.classList.toggle("d-none", visibles.length < 2); });
+    $("c-combinar").classList.toggle("d-none", METODOS.length < 2 || partes.n > 0);
+    $("c-combinar").innerHTML = combinar ? '<i class="bi bi-1-circle"></i> Un solo método' : '<i class="bi bi-plus-slash-minus"></i> Combinar pagos';
+    if (!partes.n) $("c-billetes").classList.toggle("d-none", visibles.indexOf("EFE") < 0);
+  }
+  function elegirMetodo(id) {
+    if (combinar) {
+      var i = visibles.indexOf(id);
+      if (i >= 0 && visibles.length > 1) { visibles.splice(i, 1); var inp = modal.querySelector('[data-metodo="' + id + '"]'); if (inp) inp.value = ""; }
+      else if (i < 0) visibles.push(id);
+    } else {
+      visibles = [id];
+      modal.querySelectorAll("[data-metodo]").forEach(function (x) { x.value = ""; });
+      if (id !== "EFE") poner(id, aCobrar());  // Yape, tarjeta…: normalmente es el total
+    }
+    pintarMetodos(); billetes(); estado();
+    var campo = modal.querySelector('[data-metodo="' + id + '"]');
+    if (campo && id === "EFE") campo.focus();
+    if (id === "CRE") abrirCliente(true);
+  }
+  function reajustar() {  // cambió el total (descuento, propina): el pago único que no es efectivo sigue al total
+    if (!partes.n && !combinar && visibles.length === 1 && visibles[0] !== "EFE") poner(visibles[0], aCobrar());
   }
   function poner(metodo, centimos) {
     modal.querySelectorAll("[data-metodo]").forEach(function (i) { i.value = i.dataset.metodo === metodo ? (centimos / 100).toFixed(2) : ""; });
@@ -307,16 +345,16 @@ window.Cobro = (function () {
     vueltosPartes(); estado();
   });
   $("c-liberar").addEventListener("change", ayudaLiberar);
-  $("c-propina").addEventListener("input", function () { billetes(); estado(); });
+  $("c-propina").addEventListener("input", function () { reajustar(); billetes(); estado(); });
   ["c-desc", "c-desc-tipo", "c-desc-motivo", "c-sup-usuario", "c-sup-clave"].forEach(function (id) {
-    $(id).addEventListener("input", function () { billetes(); estado(); });
-    $(id).addEventListener("change", function () { billetes(); estado(); });
+    $(id).addEventListener("input", function () { reajustar(); billetes(); estado(); });
+    $(id).addEventListener("change", function () { reajustar(); billetes(); estado(); });
   });
   $("c-propina-fila").addEventListener("click", function (e) {
     var b = e.target.closest("[data-pct]");
     if (!b) return;
     $("c-propina").value = (Math.round(neto() * parseInt(b.dataset.pct, 10) / 100 / 10) / 10).toFixed(2);
-    billetes(); estado();
+    reajustar(); billetes(); estado();
   });
   $("c-metodos").addEventListener("click", function (e) {
     var b = e.target.closest("[data-todo]");
@@ -324,6 +362,13 @@ window.Cobro = (function () {
     poner(b.dataset.todo, aCobrar());
     if (b.dataset.todo === "CRE") abrirCliente(true);
   });
+  $("c-chips").addEventListener("click", function (e) { var b = e.target.closest("[data-chip]"); if (b) elegirMetodo(b.dataset.chip); });
+  $("c-combinar").addEventListener("click", function () {
+    combinar = !combinar;
+    if (!combinar) elegirMetodo(visibles[0]); else { pintarMetodos(); estado(); }
+  });
+  $("c-mas-desc").addEventListener("click", function () { $("c-desc-fila").classList.toggle("d-none"); if (!$("c-desc-fila").classList.contains("d-none")) $("c-desc").focus(); });
+  $("c-mas-propina").addEventListener("click", function () { $("c-propina-fila").classList.toggle("d-none"); if (!$("c-propina-fila").classList.contains("d-none")) $("c-propina").focus(); });
   $("c-metodos").addEventListener("focusin", function (e) { if (e.target.dataset.metodo === "CRE") abrirCliente(false); });
   $("c-nombre").addEventListener("input", estado);
   $("c-billetes").addEventListener("click", function (e) {

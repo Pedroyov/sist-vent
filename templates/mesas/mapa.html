@@ -12,17 +12,25 @@
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-primary">Crear mesas</a>{% endif %}
 </div>
 {% endif %}
-<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
-  <span class="small"><span class="badge rounded-pill text-bg-success">&nbsp;</span> Libre</span>
-  <span class="small"><span class="badge rounded-pill text-bg-danger">&nbsp;</span> Ocupada</span>
-  <span class="small"><span class="badge rounded-pill text-bg-warning">&nbsp;</span> Pidió la cuenta</span>
-  <span class="small"><span class="badge rounded-pill text-bg-info">&nbsp;</span> Pagada</span>
-  {% if NEGOCIO.cocina_pantalla %}<span class="small"><i class="bi bi-bell-fill text-success"></i> Platos listos</span>{% endif %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center small">
+  <span class="d-flex flex-wrap gap-2 text-body-secondary leyenda w-100">
+  <span><i class="bi bi-circle-fill text-success"></i> Libre</span>
+  <span><i class="bi bi-circle-fill text-danger"></i> Ocupada</span>
+  <span><i class="bi bi-circle-fill text-warning"></i> Pidió cuenta</span>
+  <span><i class="bi bi-circle-fill text-info"></i> Pagada</span>
+  </span>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-aviso" title="Sonar y vibrar cuando algo esté listo para llevar"><i class="bi bi-bell-slash"></i> Aviso</button>
   {% if P.mesas_atender %}<button type="button" class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#m-llevar"><i class="bi bi-bag me-1"></i>Para llevar</button>
   {% if NEGOCIO.delivery_activo %}<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#m-delivery"><i class="bi bi-scooter me-1"></i>Delivery</button>{% endif %}{% endif %}
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-sm btn-outline-secondary {% if not P.mesas_atender %}ms-auto{% endif %}" title="Configurar mesas"><i class="bi bi-gear"></i></a>{% endif %}
 </div>
 
+<div class="toast-container position-fixed top-0 start-50 translate-middle-x p-2" style="z-index: 1090">
+  <div class="toast align-items-center text-bg-success border-0" id="toast-listo" role="status" aria-live="polite">
+    <div class="d-flex"><div class="toast-body fw-semibold"><i class="bi bi-bell-fill me-1"></i><span id="toast-listo-texto"></span></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button></div>
+  </div>
+</div>
 <div id="mapa" hx-get="{% url 'mesas:mapa' %}" hx-trigger="every 8s" hx-swap="innerHTML">
   {% include "mesas/partials/mapa.html" %}
 </div>
@@ -39,6 +47,8 @@
         <div class="d-flex flex-wrap gap-2">
           {% for n in "12345678" %}<button name="personas" value="{{ n }}" class="btn btn-outline-primary btn-lg" style="width: 3.4rem">{{ n }}</button>{% endfor %}
         </div>
+        <div class="form-check form-switch mt-3 mb-0"><input class="form-check-input" type="checkbox" name="juntar" value="1" id="abrir-juntar">
+          <label class="form-check-label small" for="abrir-juntar">Juntaron varias mesas (familia o grupo)</label></div>
       </div>
     </form>
   </div>
@@ -88,12 +98,61 @@
 
 {% block extra_js %}
 <script>
+  // ---------- Aviso al mozo: suena y vibra cuando la cocina o la barra marca algo listo ----------
+  (function () {
+    var btn = document.getElementById("btn-aviso"), audio = null, activo = true, antes = contar();
+    try { activo = localStorage.getItem("mesas_aviso") !== "0"; } catch (e) {}
+    function pintar() {
+      btn.innerHTML = (activo ? '<i class="bi bi-bell-fill"></i>' : '<i class="bi bi-bell-slash"></i>') + '<span class="d-none d-sm-inline"> Aviso</span>';
+      btn.className = "btn btn-sm " + (activo ? "btn-success" : "btn-outline-secondary");
+    }
+    function contar() {
+      var r = {};
+      document.querySelectorAll("#mapa [data-listos]").forEach(function (el) { r[el.dataset.aviso] = parseInt(el.dataset.listos, 10) || 0; });
+      return r;
+    }
+    function despertar() {  // los celulares solo dejan sonar después de un toque
+      if (audio) return;
+      try { audio = new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) { audio = null; }
+    }
+    function timbre() {
+      if (navigator.vibrate) navigator.vibrate([250, 120, 250]);
+      if (!audio) return;
+      [0, .2].forEach(function (t) {
+        var o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = 988; o.type = "sine";
+        g.gain.setValueAtTime(.3, audio.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + t + .18);
+        o.connect(g); g.connect(audio.destination); o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .2);
+      });
+    }
+    document.addEventListener("click", despertar, {once: true, capture: true});
+    document.addEventListener("touchstart", despertar, {once: true, capture: true});
+    btn.addEventListener("click", function () {
+      activo = !activo;
+      try { localStorage.setItem("mesas_aviso", activo ? "1" : "0"); } catch (e) {}
+      despertar(); pintar();
+      if (activo) timbre();
+    });
+    pintar();
+    document.body.addEventListener("htmx:afterSwap", function (e) {
+      if (e.target.id !== "mapa") return;
+      var ahora = contar(), nuevos = [];
+      Object.keys(ahora).forEach(function (k) { if (ahora[k] > (antes[k] || 0)) nuevos.push(k); });
+      antes = ahora;
+      if (!nuevos.length) return;
+      document.getElementById("toast-listo-texto").textContent = "Listo para llevar: " + nuevos.join(", ");
+      bootstrap.Toast.getOrCreateInstance(document.getElementById("toast-listo"), {delay: 6000}).show();
+      if (activo) timbre();
+    });
+  })();
+
   document.getElementById("mapa").addEventListener("click", function (e) {
     var m = e.target.closest("[data-libre]");
     if (!m) return;
     e.preventDefault();
     document.getElementById("abrir-mesa").value = m.dataset.libre;
     document.getElementById("abrir-nombre").textContent = m.dataset.nombre;
+    document.getElementById("abrir-juntar").checked = false;
     bootstrap.Modal.getOrCreateInstance(document.getElementById("m-abrir")).show();
   });
   // Delivery: al escribir el celular, se recuerdan el nombre y la última dirección

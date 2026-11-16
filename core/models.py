@@ -53,6 +53,12 @@ class Ajustes(models.Model):
         help_text="Si está desmarcado (recomendado), cada venta queda en la caja abierta de quien cobra y así cuadra al cierre.")
     propina_activa = models.BooleanField(
         "pedir propina al cobrar", default=False, help_text="Muestra un campo de propina al cobrar (útil en restaurantes).")
+    metodos_pago = models.JSONField("métodos de pago que acepta", default=list, blank=True,
+                                    help_text="Vacío = todos. El efectivo siempre está.")
+    descuentos_activos = models.BooleanField("permitir descuentos al cobrar", default=True,
+                                             help_text="Si lo desmarcas, nadie ve el campo de descuento.")
+    cortesias_activas = models.BooleanField("permitir cortesías en mesas", default=True,
+                                            help_text="Platos «por la casa» (S/ 0.00), con motivo y autorización.")
     # --- Impresión y cocina ---
     ticket_ancho = models.PositiveSmallIntegerField(
         "ancho del papel de la ticketera", choices=[(80, "80 mm (el más común)"), (58, "58 mm (ticketeras pequeñas o portátiles)")],
@@ -83,6 +89,14 @@ class Ajustes(models.Model):
     def cargar(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @property
+    def metodos_aceptados(self):
+        """Códigos de los métodos de pago activos, en el orden de siempre (efectivo primero, siempre está)."""
+        from ventas.models import MetodoPago
+
+        elegidos = set(self.metodos_pago or MetodoPago.values) | {MetodoPago.EFECTIVO}
+        return [m for m in MetodoPago.values if m in elegidos]
 
     # --- módulos que antes eran ajustes: se leen igual (NEGOCIO.cocina_pantalla, NEGOCIO.delivery_activo) ---
     def tiene_modulo(self, codigo):

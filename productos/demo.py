@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from core.models import Rubro
 
-from .models import Categoria, MovimientoStock, Producto, Variante
+from .models import area_sugerida, Categoria, MovimientoStock, Producto, Variante
 from .servicios import asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock
 
 NEGOCIOS = {
@@ -54,19 +54,19 @@ CATALOGOS = {
         ("Sopas", "Chupe de camarones", "42.00", "20.00", None, "UND", "", None),
         ("Menú del día", "Menú ejecutivo", "15.00", "7.00", None, "UND", "", None),
         ("Menú del día", "Menú económico", "10.00", "5.00", None, "UND", "", None),
-        ("Bebidas", "Chicha morada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 15")),
-        ("Bebidas", "Limonada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 16")),
-        ("Bebidas", "Maracuyá", "7.00", "2.00", None, "UND", "", ("Vaso, Jarra 1 L", "", "7, 17")),
+        ("Jugos y tragos", "Chicha morada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 15")),
+        ("Jugos y tragos", "Limonada", "6.00", "1.50", None, "UND", "", ("Vaso, Jarra 1 L", "", "6, 16")),
+        ("Jugos y tragos", "Maracuyá", "7.00", "2.00", None, "UND", "", ("Vaso, Jarra 1 L", "", "7, 17")),
         ("Bebidas", "Inca Kola 500 ml", "4.00", "1.80", 36, "UND", "7750182001236", None),
         ("Bebidas", "Coca-Cola 500 ml", "4.00", "1.80", 30, "UND", "7750182002233", None),
         ("Bebidas", "Inca Kola 1.5 L", "9.00", "5.00", 12, "UND", "7750182003230", None),
         ("Bebidas", "Agua San Luis 625 ml", "3.00", "0.90", 24, "UND", "", None),
         ("Bebidas", "Cerveza Cusqueña 620 ml", "12.00", "6.50", 48, "UND", "", None),
         ("Bebidas", "Cerveza Pilsen 630 ml", "10.00", "5.50", 48, "UND", "", None),
-        ("Bebidas", "Pisco sour", "18.00", "6.00", None, "UND", "", None),
-        ("Bebidas", "Chilcano de pisco", "16.00", "5.00", None, "UND", "", None),
-        ("Bebidas", "Café pasado", "5.00", "1.00", None, "UND", "", None),
-        ("Bebidas", "Infusión", "3.00", "0.40", None, "UND", "", None),
+        ("Jugos y tragos", "Pisco sour", "18.00", "6.00", None, "UND", "", None),
+        ("Jugos y tragos", "Chilcano de pisco", "16.00", "5.00", None, "UND", "", None),
+        ("Jugos y tragos", "Café pasado", "5.00", "1.00", None, "UND", "", None),
+        ("Jugos y tragos", "Infusión", "3.00", "0.40", None, "UND", "", None),
         ("Postres", "Mazamorra morada", "5.00", "1.50", None, "UND", "", None),
         ("Postres", "Arroz con leche", "5.00", "1.50", None, "UND", "", None),
         ("Postres", "Suspiro a la limeña", "9.00", "3.00", None, "UND", "", None),
@@ -196,7 +196,7 @@ def cargar_catalogo(rubro, usuario=None):
         return Producto.objects.count()
     for orden, item in enumerate(CATALOGOS.get(rubro, CATALOGOS[Rubro.TIENDA])):
         cat_nombre, nombre, precio, costo, stock, unidad, codigo, extra = item
-        cat, _ = Categoria.objects.get_or_create(nombre=cat_nombre, defaults={"orden": orden * 10})
+        cat, _ = Categoria.objects.get_or_create(nombre=cat_nombre, defaults={"orden": orden * 10, "area": area_sugerida(cat_nombre)})
         servicio = unidad == "SRV"
         maneja = not servicio and (stock is not None)
         p = Producto.objects.create(

@@ -90,7 +90,12 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         lineas.append((v, cantidad, precio, lista, importe, foto, cortesia))
         subtotal += importe
 
+    from core.models import Ajustes
+
+    ajustes = Ajustes.cargar()
     descuento = dinero(_dec(descuento or 0, "Descuento"))
+    if descuento and not ajustes.descuentos_activos:
+        raise VentaInvalida("Los descuentos están desactivados en Datos del negocio.")
     if descuento and not puede_descontar:
         raise VentaInvalida("No tienes permiso para dar descuentos.")
     descuento_motivo = " ".join(str(descuento_motivo or "").split())[:120]
@@ -99,9 +104,7 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
     total = subtotal - descuento
     propina = dinero(_dec(propina or 0, "Propina"))
     if propina:
-        from core.models import Ajustes
-
-        if not Ajustes.cargar().propina_activa:
+        if not ajustes.propina_activa:
             raise VentaInvalida("La propina no está activada.")
     a_cobrar = total + propina
 
@@ -112,6 +115,8 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         if metodo not in MetodoPago.values:
             raise VentaInvalida("Método de pago no válido.")
         monto = dinero(_dec(p.get("monto") or 0, "Monto"))
+        if monto > 0 and metodo not in ajustes.metodos_aceptados:
+            raise VentaInvalida(f"El negocio no acepta pagos con {MetodoPago(metodo).label}.")
         if monto > 0:
             m = por_metodo.setdefault(metodo, {"monto": CERO, "referencia": ""})
             m["monto"] += monto

@@ -4,7 +4,7 @@
   {% for co in pendientes %}
   <div class="col-12 col-sm-6 col-lg-4 col-xxl-3">
     <div class="card comanda h-100 {% if co.minutos >= 20 %}muy-tarde border-danger{% elif co.minutos >= 10 %}tarde border-warning{% else %}border-primary{% endif %}"
-         data-clave="{{ co.clave }}" data-comanda="{% url 'mesas:comanda' co.cuenta.pk %}?enviado={{ co.enviado_iso|urlencode }}">
+         data-clave="{{ co.clave }}" data-comanda="{% url 'mesas:comanda' co.cuenta.pk %}?enviado={{ co.enviado_iso|urlencode }}&area={{ area }}">
       <div class="card-header d-flex align-items-center">
         <span>{{ co.cuenta.titulo }}</span>
         <span class="ms-auto fs-6 fw-semibold {% if co.minutos >= 20 %}text-danger{% elif co.minutos >= 10 %}text-warning-emphasis{% else %}text-body-secondary{% endif %}"><i class="bi bi-clock"></i> {{ co.minutos }} min</span>

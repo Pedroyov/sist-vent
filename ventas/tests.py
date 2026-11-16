@@ -106,6 +106,34 @@ class ServicioTests(Base):
         self.assertTrue(Producto.objects.filter(pk=p.pk).exists())
 
 
+class ReglasCobroTests(Base):
+    def test_metodos_descuentos_y_propina(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.filter(pk=1).update(metodos_pago=["EFE", "YAP"], descuentos_activos=False)
+        item = [{"variante": self.vg.pk, "cantidad": "1"}]
+        with self.assertRaisesMessage(VentaInvalida, "no acepta pagos con Tarjeta"):
+            registrar_venta(self.admin, item, [{"metodo": "TAR", "monto": "2.50"}])
+        with self.assertRaisesMessage(VentaInvalida, "descuentos están desactivados"):
+            registrar_venta(self.admin, item, [{"metodo": "EFE", "monto": "2.50"}], descuento="0.50", puede_descontar=True)
+        self.assertEqual(registrar_venta(self.admin, item, [{"metodo": "YAP", "monto": "2.50"}]).total, D("2.50"))
+        # El cobro solo muestra los métodos aceptados
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("ventas:pos"))
+        self.assertContains(r, '"id": "YAP"')
+        self.assertNotContains(r, '"id": "TAR"')
+        self.assertNotContains(r, 'id="descuento"')
+        # Al guardar Datos del negocio, el efectivo siempre queda
+        a = Ajustes.cargar()
+        from core.forms import DatosNegocioForm
+
+        f = DatosNegocioForm({"rubro": a.rubro, "nombre": "X", "color": "#0d6efd", "ticket_ancho": 80, "nivel_pedido": 2,
+                              "delivery_costo": "0", "metodos": ["PLI"]}, instance=a)
+        self.assertTrue(f.is_valid(), f.errors)
+        f.save()
+        self.assertEqual(Ajustes.cargar().metodos_aceptados, ["EFE", "PLI"])
+
+
 class VistasTests(Base):
     def _vender(self, usuario, cuerpo):
         self.client.force_login(usuario)

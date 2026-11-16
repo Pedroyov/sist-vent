@@ -7,15 +7,15 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
      data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}">
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <form class="modal-content" id="f-cobro" novalidate>
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-cash-coin me-1"></i> <span id="c-titulo">Cobrar</span></h5>
+      <div class="modal-header py-2">
+        <h5 class="modal-title fs-6 fw-semibold text-truncate"><i class="bi bi-cash-coin me-1"></i> <span id="c-titulo">Cobrar</span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <div class="text-center mb-3"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
+        <div class="text-center mb-2"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
         {% if FE %}
-        <div class="mb-3" id="c-comp" data-defecto="{{ FE.por_defecto }}">
-          <div class="btn-group w-100" role="group" aria-label="Comprobante">
+        <div class="mb-2" id="c-comp" data-defecto="{{ FE.por_defecto }}">
+          <div class="btn-group btn-group-sm w-100" role="group" aria-label="Comprobante">
             <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-N" value="N"><label class="btn btn-outline-secondary" for="c-comp-N">Nota de venta</label>
             <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-B" value="B"><label class="btn btn-outline-primary" for="c-comp-B">Boleta</label>
             <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-F" value="F"><label class="btn btn-outline-primary" for="c-comp-F">Factura</label>
@@ -25,31 +25,9 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
             <div class="col-7"><input type="text" class="form-control" id="c-comp-nombre" maxlength="150" aria-label="Nombre o razón social"></div>
             <div class="col-12 d-none" id="c-comp-dir-fila"><input type="text" class="form-control" id="c-comp-dir" maxlength="200" placeholder="Dirección fiscal" aria-label="Dirección fiscal"></div>
           </div>
-          {% if FE.proveedor == "PRU" %}<div class="small text-warning-emphasis mt-1"><i class="bi bi-exclamation-triangle"></i> Facturación en modo prueba: no se envía a SUNAT.</div>{% endif %}
+          {% if FE.proveedor == "PRU" %}<div class="text-warning-emphasis mt-1" style="font-size: .75rem"><i class="bi bi-exclamation-triangle"></i> Modo prueba: no se envía a SUNAT.</div>{% endif %}
         </div>
         {% endif %}
-        <div class="mb-3 d-none" id="c-desc-fila">
-          <div class="input-group">
-            <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-tag me-1"></i>Descuento</span>
-            <input type="number" class="form-control text-end" id="c-desc" min="0" step="0.10" inputmode="decimal" placeholder="0">
-            <select class="form-select" id="c-desc-tipo" style="max-width: 5.5rem" aria-label="Tipo de descuento"><option value="S">S/</option><option value="P">%</option></select>
-          </div>
-          <div class="d-none mt-2" id="c-desc-extra">
-            <input type="text" class="form-control mb-2" id="c-desc-motivo" maxlength="120" placeholder="Motivo del descuento (obligatorio)">
-            <div class="row g-2 d-none" id="c-desc-sup">
-              <div class="col-12 small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Autoriza un supervisor:</div>
-              <div class="col-6"><input type="text" class="form-control" id="c-sup-usuario" placeholder="Usuario" autocomplete="off" autocapitalize="none"></div>
-              <div class="col-6"><input type="password" class="form-control" id="c-sup-clave" placeholder="Clave" autocomplete="new-password"></div>
-            </div>
-          </div>
-        </div>
-        <div class="input-group mb-3 d-none" id="c-propina-fila">
-          <span class="input-group-text" style="width: 8.5rem"><i class="bi bi-heart me-1"></i>Propina</span>
-          <input type="number" class="form-control text-end" id="c-propina" min="0" step="0.50" inputmode="decimal" placeholder="0.00">
-          <button type="button" class="btn btn-outline-secondary" data-pct="5">5%</button>
-          <button type="button" class="btn btn-outline-secondary" data-pct="10">10%</button>
-        </div>
-        <div class="mb-2 d-none" id="c-partes-btn-fila"><button type="button" class="btn btn-sm btn-outline-primary" id="c-partes-btn"><i class="bi bi-people me-1"></i>Partes iguales</button></div>
         <div class="border rounded px-2 pt-2 mb-3 d-none" id="c-partes">
           <div class="d-flex align-items-center gap-2 mb-1">
             <span class="fw-semibold">Entre</span>
@@ -63,15 +41,44 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
           </div>
           <div id="c-partes-lista"></div>
         </div>
+        <div class="d-flex flex-wrap gap-1 mb-2" id="c-chips" role="group" aria-label="Paga con"></div>
         <div id="c-metodos"></div>
-        <div class="d-flex flex-wrap gap-1 mb-3" id="c-billetes"></div>
-        <div class="alert py-2 text-center fs-5 mb-3" id="c-estado"></div>
-        <div class="border rounded px-3 py-2 mb-3 d-none" id="c-liberar-fila">
-          <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="c-liberar">
-            <label class="form-check-label fw-semibold" for="c-liberar" id="c-liberar-texto">Liberar la mesa al cobrar</label></div>
-          <div class="small text-body-secondary" id="c-liberar-ayuda"></div>
+        <div class="d-flex flex-wrap gap-1 mb-2" id="c-billetes"></div>
+        <div class="alert py-2 text-center fs-5 mb-2" id="c-estado"></div>
+        <div class="d-flex flex-wrap gap-1 mb-2" id="c-extras">
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none" id="c-mas-desc"><i class="bi bi-tag"></i> Descuento</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none" id="c-mas-propina"><i class="bi bi-heart"></i> Propina</button>
+          <span class="d-none" id="c-partes-btn-fila"><button type="button" class="btn btn-sm btn-outline-secondary py-0" id="c-partes-btn"><i class="bi bi-people"></i> Partes iguales</button></span>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none" id="c-combinar"><i class="bi bi-plus-slash-minus"></i> Combinar pagos</button>
+          <a class="btn btn-sm btn-outline-secondary py-0" data-bs-toggle="collapse" href="#c-cliente" role="button" id="c-cliente-enlace"><i class="bi bi-person"></i> Cliente y nota</a>
         </div>
-        <a class="small" data-bs-toggle="collapse" href="#c-cliente" role="button" id="c-cliente-enlace"><i class="bi bi-person-plus me-1"></i>Cliente{% if P.clientes_fiar %} (obligatorio para fiar){% endif %} y nota</a>
+        <div class="mb-2 d-none" id="c-desc-fila">
+          <div class="input-group">
+            <span class="input-group-text">Descuento</span>
+            <input type="number" class="form-control text-end" id="c-desc" min="0" step="0.10" inputmode="decimal" placeholder="0">
+            <select class="form-select" id="c-desc-tipo" style="max-width: 5.5rem" aria-label="Tipo de descuento"><option value="S">S/</option><option value="P">%</option></select>
+          </div>
+          <div class="d-none mt-2" id="c-desc-extra">
+            <input type="text" class="form-control mb-2" id="c-desc-motivo" maxlength="120" placeholder="Motivo del descuento (obligatorio)">
+            <div class="row g-2 d-none" id="c-desc-sup">
+              <div class="col-12 small text-body-secondary"><i class="bi bi-shield-lock me-1"></i>Autoriza un supervisor:</div>
+              <div class="col-6"><input type="text" class="form-control" id="c-sup-usuario" placeholder="Usuario" autocomplete="off" autocapitalize="none"></div>
+              <div class="col-6"><input type="password" class="form-control" id="c-sup-clave" placeholder="Clave" autocomplete="new-password"></div>
+            </div>
+          </div>
+        </div>
+        <div class="input-group input-group-sm mb-2 d-none" id="c-propina-fila">
+          <span class="input-group-text">Propina</span>
+          <input type="number" class="form-control text-end" id="c-propina" min="0" step="0.50" inputmode="decimal" placeholder="0.00">
+          <button type="button" class="btn btn-outline-secondary" data-pct="5">5%</button>
+          <button type="button" class="btn btn-outline-secondary" data-pct="10">10%</button>
+        </div>
+
+        <div class="border rounded px-2 py-1 mb-2 d-none" id="c-liberar-fila">
+          <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="c-liberar">
+            <label class="form-check-label fw-semibold small" for="c-liberar" id="c-liberar-texto">Liberar la mesa al cobrar</label></div>
+          <div class="text-body-secondary" style="font-size: .75rem" id="c-liberar-ayuda"></div>
+        </div>
         <div class="collapse" id="c-cliente">
           {% if P.mod_clientes %}
           <div class="alert alert-light border py-2 mt-2 mb-1 d-none align-items-center gap-2" id="c-cli-elegido">
@@ -93,9 +100,9 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
         </div>
         <div class="alert alert-danger mt-3 mb-0 d-none" id="c-error"></div>
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer py-2 flex-nowrap">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver</button>
-        <button type="submit" class="btn btn-success btn-lg" id="c-confirmar"><i class="bi bi-check-lg me-1"></i>Confirmar</button>
+        <button type="submit" class="btn btn-success flex-grow-1 fw-semibold" id="c-confirmar"><i class="bi bi-check-lg me-1"></i>Confirmar</button>
       </div>
     </form>
   </div>

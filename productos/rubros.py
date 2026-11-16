@@ -3,7 +3,7 @@ from core.models import Rubro
 
 CATEGORIAS = {
     Rubro.TIENDA: ["Abarrotes", "Bebidas", "Lácteos y embutidos", "Snacks y golosinas", "Limpieza", "Cuidado personal"],
-    Rubro.RESTAURANTE: ["Entradas", "Marinos", "Platos de fondo", "Pollos y parrillas", "Sopas", "Menú del día", "Bebidas", "Postres", "Extras"],
+    Rubro.RESTAURANTE: ["Entradas", "Marinos", "Platos de fondo", "Pollos y parrillas", "Sopas", "Menú del día", "Bebidas", "Jugos y tragos", "Postres", "Extras"],
     Rubro.ROPA: ["Polos", "Camisas y blusas", "Pantalones", "Vestidos y faldas", "Casacas", "Ropa interior", "Calzado", "Accesorios"],
     Rubro.LIBRERIA: ["Cuadernos", "Lápices y lapiceros", "Papelería", "Arte y manualidades", "Mochilas y cartucheras", "Oficina", "Copias e impresiones"],
     Rubro.PELUQUERIA: ["Cortes", "Peinados", "Coloración", "Tratamientos", "Uñas", "Productos de venta"],
