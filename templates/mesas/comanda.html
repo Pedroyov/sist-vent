@@ -4,7 +4,7 @@
 {% block contenido %}
 {% if area == "BAR" %}<div class="c b">— BARRA —</div>{% endif %}
 <div class="c enorme">{{ c.titulo }}</div>
-<div class="c">{% if ts %}{{ ts|date:"H:i" }}{% else %}{% now "H:i" %}{% endif %} · {{ c.mozo.first_name|default:c.mozo.username }} · {{ c.personas }} pers.</div>
+<div class="c">{% if ts %}{{ ts|date:"H:i" }}{% else %}{% now "H:i" %}{% endif %} · {{ c.mozo.first_name|default:c.mozo.username }} {% if c.personas %} · {{ c.personas }} pers.{% endif %}</div>
 <div class="linea"></div>
 {% for i in items %}
 <div class="grande">{{ i.cantidad|cantidad }} x {{ i.descripcion }}</div>

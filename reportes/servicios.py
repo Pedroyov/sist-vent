@@ -213,6 +213,7 @@ def mesas(desde, hasta):
     con_mesa = [x for x in cuentas if x.mesa_id]
     personas = sum(x.personas for x in con_mesa)
     consumo = sum((i.subtotal for x in con_mesa for i in x.items.all() if not i.anulado), CERO)
+    consumo_contado = sum((i.subtotal for x in con_mesa if x.personas for i in x.items.all() if not i.anulado), CERO)  # mesas con personas indicadas
     minutos = [int((x.cerrada_en - x.abierta_en).total_seconds() // 60) for x in con_mesa if x.cerrada_en]
     quitados = list(ItemCuenta.objects.filter(anulado=True, enviado_en__isnull=False, cuenta__abierta_en__date__gte=desde,
                                               cuenta__abierta_en__date__lte=hasta)
@@ -242,7 +243,7 @@ def mesas(desde, hasta):
     return {
         "delivery": delivery,
         "atenciones": len(con_mesa), "para_llevar": len(cuentas) - len(con_mesa) - len(deliverys), "personas": personas,
-        "por_persona": c(consumo / personas) if personas else CERO, "consumo": c(consumo),
+        "por_persona": c(consumo_contado / personas) if personas else CERO, "consumo": c(consumo),
         "minutos_promedio": round(sum(minutos) / len(minutos)) if minutos else None,
         "quitados": quitados, "quitados_valor": c(sum((i.subtotal for i in quitados), CERO)),
         "por_mesa": _con_barras(sorted([{"etiqueta": k, **v} for k, v in por_mesa.items()], key=lambda f: -f["total"])),

@@ -18,7 +18,7 @@ from .models import Cuenta, ItemCuenta, Mesa, Zona
 from core.autorizacion import AutorizacionError, autorizar
 
 from .servicios import (MesaError, abrir_cuenta, abrir_delivery, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, datos_delivery,
-                        entregar_delivery, enviar_cocina, falta_de_cocina, juntar, cuenta_de_mesa, unir_mesas, separar_mesa, liberar_mesa, marcar_listo, marcar_servido, mover,
+                        entregar_delivery, enviar_cocina, falta_de_cocina, juntar, cambiar_personas, cuenta_de_mesa, unir_mesas, separar_mesa, liberar_mesa, marcar_listo, marcar_servido, mover,
                         poner_envio, quitar, salio_delivery)
 
 
@@ -69,7 +69,7 @@ def mapa(request):
 def abrir(request):
     mesa = get_object_or_404(Mesa, pk=entero(request.POST.get("mesa"))) if request.POST.get("mesa") else None
     try:
-        cuenta = abrir_cuenta(request.user, mesa, entero(request.POST.get("personas")) or 1, request.POST.get("nombre", ""))
+        cuenta = abrir_cuenta(request.user, mesa, entero(request.POST.get("personas")) or 0, request.POST.get("nombre", ""))
     except MesaError as e:
         messages.error(request, str(e))
         ocupada = cuenta_de_mesa(mesa)
@@ -212,6 +212,16 @@ def cortesia_vista(request, pk):
     except (AutorizacionError, MesaError) as e:
         messages.error(request, str(e))
     return redirect("mesas:cuenta", pk=it.cuenta_id)
+
+
+@permiso_requerido("mesas.atender", "mesas.cobrar")
+@require_POST
+def personas(request, pk):
+    try:
+        cambiar_personas(_cuenta(pk), request.POST.get("personas"))
+    except MesaError as e:
+        messages.error(request, str(e))
+    return redirect("mesas:cuenta", pk=pk)
 
 
 @permiso_requerido("mesas.atender")

@@ -21,10 +21,29 @@
 {% block content %}
 {% csrf_token %}
 <div class="d-flex flex-wrap gap-3 small text-body-secondary mb-3">
-  {% if c.mesa %}<span><i class="bi bi-people me-1"></i>{{ c.personas }} persona{{ c.personas|pluralize }}</span>{% endif %}
+  {% if c.mesa %}{% if c.abierta %}<button type="button" class="btn btn-link btn-sm p-0 text-body-secondary text-decoration-none small" data-bs-toggle="modal" data-bs-target="#m-personas" title="Cambiar el número de personas"><i class="bi bi-people me-1"></i>{% if c.personas %}{{ c.personas }} persona{{ c.personas|pluralize }}{% else %}Personas: sin indicar{% endif %} <i class="bi bi-pencil small"></i></button>{% elif c.personas %}<span><i class="bi bi-people me-1"></i>{{ c.personas }} persona{{ c.personas|pluralize }}</span>{% endif %}{% endif %}
   <span><i class="bi bi-person-badge me-1"></i>{{ c.mozo|nombre }}</span>
   <span><i class="bi bi-clock me-1"></i>{{ c.abierta_en|date:"H:i" }}{% if c.abierta %} · hace {{ c.abierta_en|hace }}{% endif %}</span>
 </div>
+
+{% if c.mesa and c.abierta %}
+<div class="modal fade" id="m-personas" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <form method="post" action="{% url 'mesas:personas' c.pk %}" class="modal-content">{% csrf_token %}
+      <div class="modal-header py-2"><h5 class="modal-title fs-6">¿Cuántas personas?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p class="small text-body-secondary mb-2">Cuenta solo a quienes comen o pagan. Sirve para el reparto en partes iguales y los reportes.</p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for n in "123456789" %}<button name="personas" value="{{ n }}" class="btn {% if c.personas|stringformat:'s' == n %}btn-primary{% else %}btn-outline-primary{% endif %}" style="width: 3rem">{{ n }}</button>{% endfor %}
+          <button name="personas" value="10" class="btn btn-outline-primary" style="width: 3rem">10</button>
+          <button name="personas" value="12" class="btn btn-outline-primary" style="width: 3rem">12</button>
+          <button name="personas" value="0" class="btn btn-outline-secondary">Sin indicar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% if c.es_delivery %}
 {# ---------- Delivery ---------- #}
@@ -300,7 +319,7 @@
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
     Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
       descuento: {% if NEGOCIO.descuentos_activos %}{puede: {{ P.ventas_precio|yesno:"true,false" }}}{% else %}null{% endif %},
-      partes: parcial ? null : {n: {{ c.personas }}},
+      partes: parcial ? null : {n: {{ c.personas|default:2 }}},
       liberar: parcial ? null : {valor: {{ liberar_al_cobrar|yesno:"true,false" }},
         texto: "{% if c.mesa %}Liberar la mesa al cobrar{% else %}Ya se entregó el pedido{% endif %}",
         si: "{% if c.mesa %}Los clientes se van: la mesa queda libre.{% else %}El pedido se cierra.{% endif %}",

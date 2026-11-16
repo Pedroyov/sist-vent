@@ -30,7 +30,7 @@ def abrir_cuenta(mozo, mesa=None, personas=1, nombre=""):
         raise MesaError(f"La mesa {mesa.nombre} está junto con {pegada.titulo}.")
     try:
         with transaction.atomic():
-            return Cuenta.objects.create(mesa=mesa, mozo=mozo, personas=max(1, min(int(personas or 1), 99)), nombre=" ".join(str(nombre or "").split())[:60],
+            return Cuenta.objects.create(mesa=mesa, mozo=mozo, personas=max(0, min(int(personas or 0), 99)), nombre=" ".join(str(nombre or "").split())[:60],
                                          tipo=Cuenta.Tipo.MESA if mesa else Cuenta.Tipo.LLEVAR)
     except IntegrityError:
         raise MesaError(f"La mesa {mesa.nombre} ya está ocupada.")
@@ -275,6 +275,19 @@ def _libre(mesa, cuenta=None):
         raise MesaError(f"La mesa {mesa.nombre} está ocupada ({otra.titulo}).")
     if not mesa.activa:
         raise MesaError(f"La mesa {mesa.nombre} está desactivada.")
+
+
+def cambiar_personas(cuenta, personas):
+    """Corrige cuántas personas hay (0 = sin indicar). Sirve para el reparto en partes iguales y los reportes."""
+    _abierta(cuenta)
+    try:
+        n = int(personas)
+    except (TypeError, ValueError):
+        raise MesaError("Número de personas no válido.")
+    if not 0 <= n <= 99:
+        raise MesaError("Número de personas no válido.")
+    cuenta.personas = n
+    cuenta.save(update_fields=["personas"])
 
 
 def mover(cuenta, mesa):

@@ -10,7 +10,7 @@
 <div class="grande">{{ c.direccion }}</div>
 {% if c.referencia %}<div>Ref.: {{ c.referencia }}</div>{% endif %}
 {% else %}
-<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }} · {{ c.personas }} pers.<br>{% now "d/m/Y H:i" %}</div>
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }}{% if c.personas %} · {{ c.personas }} pers.{% endif %}<br>{% now "d/m/Y H:i" %}</div>
 {% endif %}
 <div class="linea"></div>
 <table>{% for i in items %}<tr><td>{{ i.cantidad|cantidad }} {{ i.descripcion }}{% if i.opciones %} ({{ i.texto_opciones }}){% endif %}{% if i.cortesia %} - CORTESÍA{% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>{% endfor %}</table>

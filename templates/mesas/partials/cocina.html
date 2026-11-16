@@ -10,7 +10,7 @@
         <span class="ms-auto fs-6 fw-semibold {% if co.minutos >= 20 %}text-danger{% elif co.minutos >= 10 %}text-warning-emphasis{% else %}text-body-secondary{% endif %}"><i class="bi bi-clock"></i> {{ co.minutos }} min</span>
       </div>
       <div class="card-body py-2">
-        <div class="small text-body-secondary mb-1">{{ co.enviado|date:"H:i" }} · {{ co.cuenta.mozo.first_name|default:co.cuenta.mozo.username }} · {{ co.cuenta.personas }} pers.</div>
+        <div class="small text-body-secondary mb-1">{{ co.enviado|date:"H:i" }} · {{ co.cuenta.mozo.first_name|default:co.cuenta.mozo.username }} {% if co.cuenta.personas %}· {{ co.cuenta.personas }} pers.{% endif %}</div>
         <ul class="list-unstyled mb-0">
           {% for i in co.items %}
           <li class="plato py-1 border-bottom {% if i.anulado %}quitado{% elif i.listo_en %}hecho{% endif %}"
