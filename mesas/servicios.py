@@ -284,7 +284,7 @@ def cambiar_personas(cuenta, personas):
         n = int(personas)
     except (TypeError, ValueError):
         raise MesaError("Número de personas no válido.")
-    if not 1 <= n <= 99:
+    if not 0 <= n <= 99:  # 0 = sin indicar
         raise MesaError("Número de personas no válido.")
     cuenta.personas = n
     cuenta.save(update_fields=["personas"])

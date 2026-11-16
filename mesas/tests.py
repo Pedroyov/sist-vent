@@ -127,6 +127,11 @@ class MesasTests(TestCase):
         self.client.post(reverse("mesas:personas", args=[c.pk]), {"personas": 3})
         c.refresh_from_db()
         self.assertEqual(c.personas, 3)
+        self.client.post(reverse("mesas:personas", args=[c.pk]), {"personas": 0})
+        c.refresh_from_db()
+        self.assertEqual(c.personas, 0)  # sin indicar
+        self.assertContains(self.client.get(reverse("mesas:cuenta", args=[c.pk])), "sin indicar")
+        self.client.post(reverse("mesas:personas", args=[c.pk]), {"personas": 3})
         self.client.post(reverse("mesas:personas", args=[c.pk]), {"personas": 500})
         c.refresh_from_db()
         self.assertEqual(c.personas, 3)

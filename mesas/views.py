@@ -69,7 +69,7 @@ def mapa(request):
 def abrir(request):
     mesa = get_object_or_404(Mesa, pk=entero(request.POST.get("mesa"))) if request.POST.get("mesa") else None
     try:
-        cuenta = abrir_cuenta(request.user, mesa, entero(request.POST.get("personas")) or 1, request.POST.get("nombre", ""))
+        cuenta = abrir_cuenta(request.user, mesa, entero(request.POST.get("personas")) or 0, request.POST.get("nombre", ""))
     except MesaError as e:
         messages.error(request, str(e))
         ocupada = cuenta_de_mesa(mesa)

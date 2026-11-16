@@ -37,6 +37,7 @@
           {% for n in "123456789" %}<button name="personas" value="{{ n }}" class="btn {% if c.personas|stringformat:'s' == n %}btn-primary{% else %}btn-outline-primary{% endif %}" style="width: 3rem">{{ n }}</button>{% endfor %}
           <button name="personas" value="10" class="btn btn-outline-primary" style="width: 3rem">10</button>
           <button name="personas" value="12" class="btn btn-outline-primary" style="width: 3rem">12</button>
+          <button name="personas" value="0" class="btn {% if not c.personas %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Sin indicar</button>
         </div>
       </div>
     </form>
