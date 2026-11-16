@@ -88,12 +88,16 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Mesas juntas** – Una cuenta puede ocupar varias mesas pegadas (familias); se separan o se liberan juntas
 - [x] **Cocina, barra o mozo** – Cada categoría o producto dice dónde se prepara: cocina, barra (pantalla y comanda propias) o lo lleva el mozo directo (gaseosas)
 - [x] **Aviso al mozo** – Suena y vibra en el celular cuando algo está listo para llevar
+- [x] **Combos** – Un producto que trae otros (fijos y partes a elegir) a un precio especial; descuenta el stock de cada uno
+- [x] **Cajas y series** – Varios puntos de cobro (Caja 1, Barra); cada uno puede tener su serie de boletas y facturas
+- [x] **Factura al crédito** – Apagada por defecto. Factura con forma de pago Crédito y cuotas; cuenta corriente por cliente con vencidos, bloqueo de fiado si debe algo vencido, deudas incobrables y Excel mensual para el contador
+- [x] **Cobranzas (mensualidades)** – Para academias, gimnasios y talleres: planes (mensual, quincenal, semanal, por número de cuotas o pago único, con matrícula), inscripciones con alumno distinto al que paga y precio con descuento, cuotas que se generan solas, cobro en caja con recibo (todo o a cuenta), adelantar periodos, bajas, exoneraciones, mora opcional, morosos y por vencer con WhatsApp, reporte mensual y Excel. Funciona sin el punto de venta
 - [x] **Reglas de cobro** – El negocio elige qué métodos de pago acepta y si usa propinas, descuentos y cortesías; cobro compacto para celular
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo
 
-Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo (bodega). Para otro rubro: `python manage.py datos_demo --rubro ROP` (ROP ropa, RES restaurante, LIB librería, PEL peluquería) sobre una base vacía. **Tu base real (`db.sqlite3`) no se toca.**
+Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo (bodega). Para otro rubro: `python manage.py datos_demo --rubro ROP` (ROP ropa, RES restaurante, LIB librería, PEL peluquería, ACA academia o gimnasio con cobranzas) sobre una base vacía. **Tu base real (`db.sqlite3`) no se toca.**
 
 Usuarios (clave `demo1234`): `admin` (administrador principal: módulos del sistema), `gerente` (Administración), `cajero`, `vendedor`.
 Para regenerar los datos: `demo.bat nuevo`.

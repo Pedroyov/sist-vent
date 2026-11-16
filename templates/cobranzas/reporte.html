@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Reporte de cobranzas{% endblock %}
+{% block page_title %}Reporte de cobranzas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Reporte</li>{% endblock %}
+{% block content %}
+{% include "cobranzas/partials/menu.html" with activo="reporte" %}
+<form method="get" class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <input type="month" name="mes" value="{{ mes }}" class="form-control w-auto" onchange="this.form.submit()" aria-label="Mes">
+  <a href="?mes={{ mes }}&excel=1" class="btn btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Excel de cobros</a>
+</form>
+<div class="row g-2 g-md-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100"><div class="inner"><h3>{{ total|soles }}</h3><p class="mb-0">Cobrado ({{ n_pagos }} recibo{{ n_pagos|pluralize }})</p></div><i class="small-box-icon bi bi-cash-coin"></i></div></div>
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-light border mb-0 h-100"><div class="inner"><h3>{% if porcentaje is not None %}{{ porcentaje }} %{% else %}—{% endif %}</h3>
+    <p class="mb-0">De lo que vencía este mes ({{ emitido|soles }}) ya se pagó {{ cobrado_emitido|soles }}</p></div><i class="small-box-icon bi bi-pie-chart"></i></div></div>
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-light border mb-0 h-100"><div class="inner"><h3>{{ nuevos }}</h3><p class="mb-0">Inscripcion{{ nuevos|pluralize:"es" }} nueva{{ nuevos|pluralize }}</p></div><i class="small-box-icon bi bi-person-plus"></i></div></div>
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-light border mb-0 h-100"><div class="inner"><h3>{{ bajas }}</h3><p class="mb-0">Baja{{ bajas|pluralize }}</p></div><i class="small-box-icon bi bi-person-x"></i></div></div>
+</div>
+<div class="row g-3">
+  <div class="col-md-4">
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0">Por método</h3></div>
+      <table class="table table-sm mb-0">{% for m in por_metodo %}<tr><td class="ps-3">{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></td><td class="text-end pe-3">{{ m.t|soles }}</td></tr>{% empty %}<tr><td class="ps-3 text-body-secondary small">Sin cobros.</td></tr>{% endfor %}</table></div>
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0">Por plan</h3></div>
+      <table class="table table-sm mb-0">{% for p in por_plan %}<tr><td class="ps-3">{{ p.cuota__inscripcion__plan__nombre }}</td><td class="text-end pe-3">{{ p.t|soles }}</td></tr>{% empty %}<tr><td class="ps-3 text-body-secondary small">Sin cobros.</td></tr>{% endfor %}</table></div>
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0">Quién cobró</h3></div>
+      <table class="table table-sm mb-0">{% for u in por_usuario %}<tr><td class="ps-3">{% if u.usuario__first_name %}{{ u.usuario__first_name }} {{ u.usuario__last_name }}{% else %}{{ u.usuario__username }}{% endif %} <small class="text-body-secondary">({{ u.n }})</small></td><td class="text-end pe-3">{{ u.t|soles }}</td></tr>{% empty %}<tr><td class="ps-3 text-body-secondary small">Sin cobros.</td></tr>{% endfor %}</table></div>
+  </div>
+  <div class="col-md-8">
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0">Recibos del mes</h3></div>
+      {% if pagos %}
+      <ul class="list-group list-group-flush small">
+        {% for p in pagos %}<li class="list-group-item d-flex align-items-center gap-2">
+          <div class="flex-grow-1" style="min-width: 0"><a href="{% url 'cobranzas:cuenta' p.cliente_id %}" class="d-block text-truncate">{{ p.cliente.nombre }}</a>
+            <span class="text-body-secondary"><a href="{% url 'cobranzas:recibo' p.pk %}" data-imprimir="{% url 'cobranzas:recibo' p.pk %}" class="text-body-secondary">{{ p.numero }}</a> · {{ p.fecha|date:"d/m H:i" }} · {{ p.get_metodo_display }}</span></div>
+          <strong class="text-nowrap">{{ p.monto|soles }}</strong></li>{% endfor %}
+      </ul>
+      {% else %}<div class="card-body small text-body-secondary">No hubo cobros este mes.</div>{% endif %}
+    </div>
+    {% if anulados %}<details class="small text-body-secondary mb-3"><summary>Recibos anulados ({{ anulados|length }})</summary><ul>{% for p in anulados %}<li>{{ p.numero }} · {{ p.cliente.nombre }} · {{ p.monto|soles }} · {{ p.motivo_anulacion }} ({{ p.anulado_por|nombre }})</li>{% endfor %}</ul></details>{% endif %}
+  </div>
+</div>
+{% endblock %}

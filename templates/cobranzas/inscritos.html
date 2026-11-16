@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Inscritos{% endblock %}
+{% block page_title %}Inscritos{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Inscritos</li>{% endblock %}
+{% block content %}
+{% include "cobranzas/partials/menu.html" with activo="inscritos" %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Inscribir</a>{% endif %}
+  <a href="?{{ query.urlencode }}&excel=1" class="btn btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
+</div>
+<div class="card mb-4">
+  <div class="card-header">
+    <form class="row g-2" method="get">
+      <div class="col-md-6"><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" name="q" value="{{ f.q }}" class="form-control" placeholder="Nombre, alumno, DNI o celular"></div></div>
+      <div class="col-6 col-md-3"><select name="plan" class="form-select" onchange="this.form.submit()" aria-label="Plan">
+        <option value="">Todos los planes</option>{% for p in planes %}<option value="{{ p.pk }}" {% if f.plan == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-3"><select name="estado" class="form-select" onchange="this.form.submit()" aria-label="Estado">
+        {% for k, v in estados %}<option value="{{ k }}" {% if f.estado == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+    </form>
+  </div>
+  {% if pagina.object_list %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th class="ps-3">Inscrito</th><th class="d-none d-md-table-cell">Plan</th><th class="d-none d-sm-table-cell">Celular</th><th class="text-end pe-3">Debe</th></tr></thead>
+      <tbody>
+        {% for i in pagina.object_list %}
+        <tr onclick="location.href='{% url 'cobranzas:cuenta' i.cliente_id %}'" style="cursor: pointer">
+          <td class="ps-3"><a href="{% url 'cobranzas:cuenta' i.cliente_id %}" class="fw-semibold text-body text-decoration-none">{{ i.quien }}</a>
+            {% if i.alumno %}<div class="small text-body-secondary">paga {{ i.cliente.nombre }}</div>{% endif %}
+            <div class="small text-body-secondary d-md-none">{{ i.plan.nombre }}</div></td>
+          <td class="d-none d-md-table-cell small">{{ i.plan.nombre }}<div class="text-body-secondary">{{ i.precio|soles }} · desde {{ i.inicio|date:"d/m/Y" }}</div></td>
+          <td class="d-none d-sm-table-cell small">{{ i.cliente.telefono|default:"—" }}</td>
+          <td class="text-end pe-3 text-nowrap">{% if i.vencido %}<strong class="text-danger">{{ i.debe|soles }}</strong><div class="small text-danger">vencido {{ i.vencido|soles }}</div>
+            {% elif i.debe %}{{ i.debe|soles }}{% else %}<span class="badge text-bg-success">Al día</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagina.paginator.num_pages > 1 %}
+  <div class="card-footer d-flex justify-content-between align-items-center">
+    <span class="small text-body-secondary">{{ pagina.paginator.count }} inscritos · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+    <div class="btn-group">
+      {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>{% endif %}
+      {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}"><i class="bi bi-chevron-right"></i></a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="text-center text-body-secondary py-5"><i class="bi bi-people display-6"></i><p class="mt-2 mb-0">No hay inscritos con esos filtros.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

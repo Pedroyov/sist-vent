@@ -26,6 +26,11 @@
   <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
   {% if P.facturacion_configurar %}<a href="{% url 'facturacion:configurar' %}" class="btn btn-outline-secondary ms-auto"><i class="bi bi-gear me-1"></i>Configuración</a>{% endif %}
 </form>
+<form class="d-flex flex-wrap gap-2 align-items-center mb-3 small" method="get" action="{% url 'facturacion:excel' %}">
+  <i class="bi bi-file-earmark-excel text-success"></i><span>Excel para el contador:</span>
+  <input type="month" name="mes" class="form-control form-control-sm w-auto" value="{% now 'Y-m' %}" aria-label="Mes">
+  <button class="btn btn-sm btn-outline-success">Descargar</button>
+</form>
 
 <div class="card">
   <div class="table-responsive"><table class="table table-hover align-middle mb-0">

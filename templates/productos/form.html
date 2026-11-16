@@ -21,10 +21,10 @@
             <div class="btn-group" role="group" aria-label="Tipo">
               {% for r in form.tipo %}
               <input type="radio" class="btn-check" name="tipo" id="tipo-{{ r.data.value }}" value="{{ r.data.value }}" {% if r.data.selected %}checked{% endif %}>
-              <label class="btn btn-outline-primary" for="tipo-{{ r.data.value }}"><i class="bi {% if r.data.value == 'S' %}bi-scissors{% else %}bi-box{% endif %} me-1"></i>{{ r.choice_label }}</label>
+              <label class="btn btn-outline-primary" for="tipo-{{ r.data.value }}"><i class="bi {% if r.data.value == 'S' %}bi-scissors{% elif r.data.value == 'C' %}bi-collection{% else %}bi-box{% endif %} me-1"></i>{{ r.choice_label }}</label>
               {% endfor %}
             </div>
-            <div class="form-text">Un servicio (corte, manicure, delivery, copias…) no maneja stock.</div>
+            <div class="form-text">Un servicio (corte, manicure, delivery, copias…) no maneja stock. Un combo trae otros productos a un precio especial: después de guardarlo, eliges qué trae.</div>
           </div>
           {{ form.nombre|as_crispy_field }}
           <div class="row">
@@ -98,10 +98,11 @@
     var stock = document.getElementById("id_maneja_stock");
     function mostrar(sel, si) { form.querySelectorAll(sel).forEach(function (el) { el.classList.toggle("d-none", !si); }); }
     function actualizar() {
-      var servicio = (form.querySelector("input[name=tipo]:checked") || {}).value === "S";
+      var tipo = (form.querySelector("input[name=tipo]:checked") || {}).value;
+      var servicio = tipo === "S", combo = tipo === "C";
       mostrar(".solo-servicio", servicio);
-      mostrar(".solo-producto", !servicio);
-      mostrar(".con-stock", !servicio && stock && stock.checked);
+      mostrar(".solo-producto", !servicio && !combo);
+      mostrar(".con-stock", !servicio && !combo && stock && stock.checked);
       var precio = parseFloat(document.getElementById("id_precio").value);
       var costoEl = document.getElementById("id_costo"), g = document.getElementById("ganancia");
       if (costoEl && g) {

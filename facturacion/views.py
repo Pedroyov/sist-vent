@@ -100,3 +100,62 @@ def emitir_venta(request, pk):
     c = enviar_seguro(c)
     messages.success(request, f"{c.get_tipo_display()} {c.numero_str}: {c.get_estado_display().lower()}.")
     return volver
+
+
+@permiso_requerido("facturacion.ver")
+def excel_contador(request):
+    """Registro de ventas del mes para el contador: cada comprobante con sus montos, forma de pago y si ya se cobró.
+    Otra hoja con lo que el negocio marcó como incobrable."""
+    from datetime import date
+
+    from django.http import HttpResponse
+    from django.utils.http import content_disposition_header
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    from clientes.models import Abono
+    from clientes.servicios import deudas
+    from core.excel import a_bytes, como_texto
+
+    hoy = timezone.localdate()
+    try:
+        anio, mes = (int(x) for x in (request.GET.get("mes") or f"{hoy:%Y-%m}").split("-"))
+        desde = date(anio, mes, 1)
+    except (TypeError, ValueError):
+        desde = hoy.replace(day=1)
+    hasta = (desde.replace(day=28) + timedelta(days=4)).replace(day=1)
+    comps = list(Comprobante.objects.filter(fecha__gte=desde, fecha__lt=hasta).select_related("venta__cliente", "modifica").order_by("fecha", "serie", "numero"))
+    pend = {}
+    for cl in {c.venta.cliente for c in comps if c.al_credito and c.venta.cliente_id}:
+        for d in deudas(cl):
+            pend[d["venta"].pk] = d["pendiente"]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Registro de ventas"
+    ws.append(["Fecha", "Tipo", "Serie", "Número", "Tipo doc.", "Documento", "Cliente", "Op. gravada", "Op. exonerada", "Op. inafecta",
+               "IGV", "Total", "Forma de pago", "Vence", "Pendiente de cobro", "Estado SUNAT", "Modifica a", "Venta anulada"])
+    for c in comps:
+        signo = -1 if c.es_nota else 1
+        pendiente = pend.get(c.venta_id, 0) if c.al_credito else 0
+        ws.append([c.fecha, c.get_tipo_display(), c.serie, c.numero, c.cliente_tipo_doc, c.cliente_doc, c.cliente_nombre or "CLIENTES VARIOS",
+                   float(c.gravada) * signo, float(c.exonerada) * signo, float(c.inafecta) * signo, float(c.igv) * signo, float(c.total) * signo,
+                   "Crédito" if c.al_credito else "Contado", c.vence, float(pendiente), c.get_estado_display(),
+                   c.modifica.numero_str if c.modifica_id else "", "Sí" if c.venta.anulada else ""])
+    ws2 = wb.create_sheet("Incobrables")
+    ws2.append(["Fecha", "Cliente", "Documento", "Monto", "Motivo", "Marcado por"])
+    for a in Abono.objects.filter(metodo="INC", anulado=False, fecha__date__gte=desde, fecha__date__lt=hasta).select_related("cliente", "usuario"):
+        ws2.append([timezone.localtime(a.fecha).replace(tzinfo=None), a.cliente.nombre, a.cliente.documento, float(a.monto),
+                    a.nota.removeprefix("Incobrable: "), a.usuario.get_full_name() or a.usuario.username])
+    for hoja in (ws, ws2):
+        for celda in hoja[1]:
+            celda.font = Font(bold=True)
+        for fila in hoja.iter_rows(min_row=2):
+            for celda in fila:
+                como_texto(celda)
+                if isinstance(celda.value, (date,)):
+                    celda.number_format = "DD/MM/YYYY"
+        for col in hoja.columns:
+            hoja.column_dimensions[col[0].column_letter].width = 16
+    r = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    r["Content-Disposition"] = content_disposition_header(True, f"registro_ventas_{desde:%Y-%m}.xlsx")
+    return r

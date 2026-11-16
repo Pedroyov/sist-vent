@@ -20,7 +20,7 @@
         </li>
 
         {# ---------- Atención: lo del día a día ---------- #}
-        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.ventas_vender or P.caja_usar or P.caja_ver %}
+        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.ventas_vender or P.caja_usar or P.caja_ver or P.cobranzas_ver %}
         <li class="nav-header">ATENCIÓN</li>
         {% endif %}
         {% if P.mesas_atender or P.mesas_cobrar %}
@@ -44,6 +44,14 @@
           <a href="{% url 'ventas:pos' %}" class="nav-link {% if ns == 'ventas' and url == 'pos' %}active{% endif %}">
             <i class="nav-icon bi bi-cart-plus"></i>
             <p>Vender</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.cobranzas_ver %}
+        <li class="nav-item">
+          <a href="{% url 'cobranzas:inicio' %}" class="nav-link {% if ns == 'cobranzas' %}active{% endif %}">
+            <i class="nav-icon bi bi-calendar-check"></i>
+            <p>Cobranzas</p>
           </a>
         </li>
         {% endif %}

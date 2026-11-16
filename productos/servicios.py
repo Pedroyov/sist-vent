@@ -101,6 +101,36 @@ class OpcionInvalida(Exception):
     pass
 
 
+def foto_combo(producto):
+    """Lo que trae un combo, tal como se guarda en el pedido y la venta (marcado "c"): la cocina lo ve, el ticket no,
+    y al vender se descuenta su stock aunque después cambie el combo."""
+    if not producto.es_combo:
+        return []
+    foto = []
+    for i in producto.combo_items.select_related("variante__producto"):
+        q = i.cantidad.normalize()
+        foto.append({"id": f"k{i.pk}", "g": "Combo", "n": (f"{q} " if q != 1 else "") + i.variante.nombre_completo, "p": "0",
+                     "c": True, "v": i.variante_id, "q": str(i.cantidad)})
+    return foto
+
+
+def consumo(variante, cantidad, foto):
+    """Qué stock se mueve al vender `cantidad` de esta variante con estas opciones: [(variante, cantidad)].
+    El producto mismo (si se cuenta), lo que trae el combo y las opciones que descuentan de otro producto."""
+    from .models import Variante
+
+    salidas = {}
+    if variante.producto.maneja_stock:
+        salidas[variante.pk] = cantidad
+    for o in foto or []:
+        if o.get("v"):
+            salidas[o["v"]] = salidas.get(o["v"], Decimal("0")) + Decimal(str(o.get("q") or 1)) * cantidad
+    if not salidas:
+        return []
+    vs = Variante.objects.select_related("producto").in_bulk(list(salidas))
+    return [(vs[k], q) for k, q in salidas.items() if k in vs and vs[k].producto.maneja_stock]
+
+
 def resolver_opciones(producto, ids, revisar_disponible=True):
     """Valida las opciones elegidas para un producto. Devuelve (foto, precio_extra, texto):
     foto = [{"id", "g", "n", "p"}] tal como se guarda en la venta o el pedido."""
@@ -109,8 +139,9 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
     from core.models import Ajustes
 
     ajustes = Ajustes.cargar()
+    combo = foto_combo(producto)
     if not ajustes.usa_opciones:  # pedidos simples: no se eligen opciones (lo que haga falta va en la nota)
-        return [], Decimal("0"), ""
+        return combo, Decimal("0"), ""
     # "s12" = quitar el componente 12 ("SIN ENSALADA"); el resto son opciones
     try:
         crudos = list(ids or [])
@@ -142,7 +173,8 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
             raise OpcionInvalida(f"{producto.nombre}: en {g.nombre.lower()} se puede elegir hasta {g.maximo}.")
     orden = {g.pk: i for i, g in enumerate(grupos)}
     elegidas.sort(key=lambda o: (orden[o.grupo_id], o.orden, o.pk))
-    foto = [{"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)} for o in elegidas]
+    foto = combo + [dict({"id": o.pk, "g": o.grupo.nombre, "n": o.nombre, "p": str(o.precio)}, **({"v": o.variante_id} if o.variante_id else {}))
+                    for o in elegidas]
     if sin_ids:
         quitables = {c.pk: c for c in producto.componentes.all() if c.quitable}
         for i in sin_ids:
@@ -196,11 +228,11 @@ def ordenar_grupos(grupos):
 
 
 def texto_opciones(foto):
-    return ", ".join(o["n"] + (f" +{Decimal(o['p']):.2f}" if Decimal(o.get("p") or 0) else "") for o in foto or [])
+    return ", ".join(o["n"] + (f" +{Decimal(o['p']):.2f}" if Decimal(o.get("p") or 0) else "") for o in foto or [] if not o.get("c"))
 
 
 def descripcion_con_opciones(nombre, foto):
-    t = ", ".join(o["n"] for o in foto or [])
+    t = ", ".join(o["n"] for o in foto or [] if not o.get("c"))
     return f"{nombre} ({t})" if t else nombre
 
 

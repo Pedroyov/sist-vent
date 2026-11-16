@@ -51,7 +51,8 @@
       </ul>
       {% if p.descripcion %}<div class="card-body small border-top">{{ p.descripcion|linebreaksbr }}</div>{% endif %}
     </div>
-    {% if NEGOCIO.usa_lleva and not p.es_servicio %}{% if componentes or P.productos_editar %}
+    {% if p.es_combo %}<div class="card mb-4" id="combo">{% include "productos/partials/combo.html" %}</div>{% endif %}
+    {% if NEGOCIO.usa_lleva and not p.es_servicio and not p.es_combo %}{% if componentes or P.productos_editar %}
     <div class="card mb-4" id="componentes">{% include "productos/partials/componentes.html" %}</div>
     {% endif %}{% endif %}
   </div>

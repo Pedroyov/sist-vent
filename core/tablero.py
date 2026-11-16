@@ -45,6 +45,8 @@ class Tablero:
             self._mesas()
         if puede(self.user, "ventas.vender", "ventas.ver"):
             self._ventas()
+        if puede(self.user, "cobranzas.ver"):
+            self._cobranzas()
         if puede(self.user, "clientes.ver"):
             self._clientes()
         if puede(self.user, "productos.ver"):
@@ -57,6 +59,10 @@ class Tablero:
             a.append({"texto": "Pantalla de cocina", "url": reverse("mesas:cocina"), "icono": "bi-fire", "color": "warning"})
         if puede(u, "mesas.atender", "mesas.cobrar"):
             a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
+        if puede(u, "cobranzas.ver"):
+            a.append({"texto": "Cobranzas", "url": reverse("cobranzas:inicio"), "icono": "bi-calendar-check", "color": "primary"})
+        if puede(u, "cobranzas.inscribir"):
+            a.append({"texto": "Inscribir", "url": reverse("cobranzas:inscribir"), "icono": "bi-person-plus", "color": "info"})
         if puede(u, "ventas.vender"):
             a.append({"texto": "Vender", "url": reverse("ventas:pos"), "icono": "bi-cart-plus", "color": "success"})
         if puede(u, "ventas.vender", "ventas.ver"):
@@ -134,6 +140,30 @@ class Tablero:
         self.tarjetas.append({"titulo": f"Venta{'s' if r['n'] != 1 else ''} hoy", "valor": r["n"], "icono": "bi-receipt",
                               "color": "info", "url": reverse("ventas:lista")})
         self.caja = r if todas and r["n"] else None
+
+    def _cobranzas(self):
+        from cobranzas.models import Plan
+        from cobranzas.servicios import al_dia, resumen
+
+        from .templatetags.sis import soles
+
+        if not Plan.objects.exists():
+            if puede(self.user, "cobranzas.gestionar"):
+                self.pendientes.append(_pend("Crea tus planes de cobranza", reverse("cobranzas:planes"), "bi-calendar-check", "primary",
+                                             "El precio y cada cuánto se paga (mensual, por curso, pago único)."))
+            return
+        al_dia()
+        r = resumen()
+        self.tarjetas.append({"titulo": "Cobrado este mes (cuotas)", "valor": soles(r["cobrado_mes"]), "icono": "bi-cash-coin",
+                              "color": "success", "url": reverse("cobranzas:inicio")})
+        self.tarjetas.append({"titulo": "Cuotas vencidas", "valor": soles(r["vencido"]), "icono": "bi-exclamation-circle",
+                              "color": "danger" if r["vencido"] else "secondary", "url": reverse("cobranzas:morosos")})
+        if r["morosos"]:
+            self.pendientes.append(_pend(f"{_plural(r['morosos'], 'persona')} con cuotas vencidas ({soles(r['vencido'])})",
+                                         reverse("cobranzas:morosos"), "bi-calendar-x", "danger", "Mándales el recordatorio por WhatsApp."))
+        if r["por_vencer"]:
+            self.pendientes.append(_pend(f"Cuotas por vencer: {soles(r['por_vencer'])}", reverse("cobranzas:morosos") + "?ver=proximos",
+                                         "bi-hourglass-split", "warning"))
 
     def _clientes(self):
         from clientes.servicios import total_por_cobrar

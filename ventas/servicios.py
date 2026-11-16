@@ -5,7 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from productos.models import MovimientoStock, Variante
-from productos.servicios import OpcionInvalida, descripcion_con_opciones, mover_stock, resolver_opciones
+from productos.servicios import OpcionInvalida, consumo, descripcion_con_opciones, mover_stock, resolver_opciones
 
 from .models import CERO, Correlativo, MetodoPago, Pago, Venta, VentaItem
 
@@ -165,8 +165,9 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                                          cortesia_motivo=(cortesia or {}).get("motivo", "")[:120], cortesia_por_id=(cortesia or {}).get("por"),
                                          precio_unitario=precio, precio_lista=lista, costo_unitario=v.costo_efectivo,
                                          subtotal=importe)
-                if v.producto.maneja_stock:
-                    mover_stock(v, -cantidad, MovimientoStock.Tipo.VENTA, usuario, referencia=f"Venta {venta.numero_str}")
+                for vs, q in consumo(v, cantidad, foto):  # el producto, lo que trae el combo y las opciones que se cuentan
+                    mover_stock(vs, -q, MovimientoStock.Tipo.VENTA, usuario, referencia=f"Venta {venta.numero_str}",
+                                nota="" if vs.pk == v.pk else f"En {v.nombre_completo}"[:200])
             for metodo, m in por_metodo.items():
                 monto = m["monto"] - (vuelto if metodo == MetodoPago.EFECTIVO else CERO)
                 if monto > 0:
@@ -192,8 +193,8 @@ def anular_venta(venta, usuario, motivo):
         if v.anulada:
             raise VentaInvalida("Esta venta ya estaba anulada.")
         for item in v.items.select_related("variante__producto"):
-            if item.variante.producto.maneja_stock:
-                mover_stock(item.variante, item.cantidad, MovimientoStock.Tipo.DEVOLUCION, usuario,
+            for vs, q in consumo(item.variante, item.cantidad, item.opciones):
+                mover_stock(vs, q, MovimientoStock.Tipo.DEVOLUCION, usuario,
                             nota=f"Anulación: {motivo}", referencia=f"Venta {v.numero_str}")
         _devolver_efectivo(v, usuario, motivo)
         from mesas.servicios import reabrir_por_anulacion

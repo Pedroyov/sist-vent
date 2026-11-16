@@ -8,5 +8,6 @@ urlpatterns = [
     path("", views.lista, name="lista"),
     path("reenviar/", views.reenviar, name="reenviar"),
     path("configurar/", views.configurar, name="configurar"),
+    path("excel/", views.excel_contador, name="excel"),
     path("venta/<int:pk>/emitir/", views.emitir_venta, name="emitir_venta"),
 ]

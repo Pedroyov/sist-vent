@@ -9,6 +9,7 @@ Uso desde una venta (punto de venta o mesas):
     enviar_seguro(comp)                               # fuera de la transacción: si no hay internet, queda pendiente
 """
 import logging
+from datetime import date as date_cls, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
@@ -47,8 +48,18 @@ def solicitud(datos):
     if tipo not in ("B", "F"):
         return None
     doc = "".join(ch for ch in str(datos.get("doc") or "") if ch.isalnum()).upper()[:15]
+    from datetime import date
+
+    try:
+        vence = date.fromisoformat(str(datos.get("vence") or "")) if datos.get("vence") else None
+    except ValueError:
+        vence = "mal"
+    try:
+        cuotas = max(1, min(int(datos.get("cuotas") or 1), 12))
+    except (TypeError, ValueError):
+        cuotas = 1
     return {"tipo": tipo, "doc": doc, "nombre": " ".join(str(datos.get("nombre") or "").split())[:150],
-            "direccion": " ".join(str(datos.get("direccion") or "").split())[:200]}
+            "direccion": " ".join(str(datos.get("direccion") or "").split())[:200], "vence": vence, "cuotas": cuotas}
 
 
 def tipo_documento(doc):
@@ -87,7 +98,10 @@ def revisar_antes(sol, credito=False):
         if not sol["direccion"]:
             raise ComprobanteError("Para la factura escribe la dirección fiscal del cliente.")
         if credito:
-            raise ComprobanteError("La factura al fiado (crédito) todavía no está disponible: emite boleta o cobra al contado.")
+            if not Config.cargar().credito_activo:
+                raise ComprobanteError("La factura al crédito no está activada (Configuración → Facturación). Emite boleta o cobra al contado.")
+            if sol.get("vence") == "mal" or (sol.get("vence") and sol["vence"] <= timezone.localdate()):
+                raise ComprobanteError("La fecha de pago de la factura al crédito tiene que ser posterior a hoy.")
     elif sol["doc"] and tipo_documento(sol["doc"]) == "1" and len(sol["doc"]) != 8:
         raise ComprobanteError("El DNI tiene 8 dígitos.")
 
@@ -115,6 +129,13 @@ def lineas(venta, config):
                     "valor_unitario": f"{(precio / (1 + tasa)).quantize(Decimal('0.0000000001')):f}",
                     "subtotal": f"{sub:.2f}", "igv": f"{t - sub:.2f}", "total": f"{t:.2f}", "afectacion": config.afectacion})
     return out
+
+
+def serie_para(venta, campo, config):
+    """La serie de la caja donde se cobró la venta (Caja 1 → B001, Barra → B002) o la general."""
+    sesion = getattr(venta, "sesion_caja", None)
+    punto = sesion.punto if sesion and sesion.punto_id else None
+    return punto.serie(campo, config) if punto else getattr(config, campo)
 
 
 def _numerar(codigo):
@@ -150,18 +171,30 @@ def crear(venta, sol, usuario):
     if sol["tipo"] == "B" and tipo_doc != "-" and not sol["nombre"]:
         raise ComprobanteError("Escribe el nombre del cliente junto con su documento.")
     detalle = lineas(venta, config)
-    serie = config.serie_factura if sol["tipo"] == "F" else config.serie_boleta
-    return Comprobante.objects.create(
+    serie = serie_para(venta, "serie_factura" if sol["tipo"] == "F" else "serie_boleta", config)
+    credito = {}
+    fiado = _r(sum((p.monto for p in venta.pagos.filter(metodo="CRE")), Decimal("0")))
+    if sol["tipo"] == "F" and fiado > 0:
+        vence = sol.get("vence") if isinstance(sol.get("vence"), date_cls) else timezone.localdate() + timedelta(days=config.credito_dias)
+        credito = {"forma_pago": "CRE", "pendiente": fiado, "cuotas": plan_cuotas(fiado, vence, sol.get("cuotas") or 1)}
+    return Comprobante.objects.create(**credito,
         venta=venta, tipo=Comprobante.Tipo.FACTURA if sol["tipo"] == "F" else Comprobante.Tipo.BOLETA, serie=serie,
         numero=_numerar(serie), fecha=timezone.localdate(venta.fecha), cliente_tipo_doc=tipo_doc, cliente_doc=sol["doc"],
         cliente_nombre=sol["nombre"], cliente_direccion=sol["direccion"], igv_pct=config.igv, detalle=detalle,
         proveedor=config.proveedor, usuario=usuario, **_totales(detalle, config.afectacion))
 
 
+def plan_cuotas(monto, primera, n=1, cada_dias=30):
+    """Reparte lo que se fió en n cuotas iguales (la última cuadra los céntimos), una cada `cada_dias` desde `primera`."""
+    base = (monto / n).quantize(Decimal("0.01"), rounding="ROUND_DOWN")
+    return [{"n": i + 1, "fecha": (primera + timedelta(days=cada_dias * i)).isoformat(),
+             "monto": f"{(monto - base * (n - 1)) if i == n - 1 else base:.2f}"} for i in range(n)]
+
+
 def nota_credito(original, motivo, usuario):
     """Anula un comprobante con una nota de crédito por el total (motivo SUNAT 01: anulación de la operación)."""
     config = Config.cargar()
-    serie = config.serie_nc_factura if original.tipo == Comprobante.Tipo.FACTURA else config.serie_nc_boleta
+    serie = serie_para(original.venta, "serie_nc_factura" if original.tipo == Comprobante.Tipo.FACTURA else "serie_nc_boleta", config)
     campos = {k: getattr(original, k) for k in ("cliente_tipo_doc", "cliente_doc", "cliente_nombre", "cliente_direccion", "igv_pct",
                                                 "gravada", "exonerada", "inafecta", "igv", "total", "detalle")}
     return Comprobante.objects.create(venta=original.venta, tipo=Comprobante.Tipo.NOTA_CREDITO, serie=serie, numero=_numerar(serie),

@@ -1,0 +1,17 @@
+{% load sis %}
+{% if grupos %}
+<ul class="list-group list-group-flush">
+  {% for g in grupos %}
+  <li class="list-group-item d-flex align-items-center gap-2">
+    <a href="{% url 'cobranzas:cuenta' g.cliente.pk %}" class="flex-grow-1 text-body text-decoration-none" style="min-width: 0">
+      <div class="fw-semibold text-truncate">{{ g.cliente.nombre }}</div>
+      <div class="small text-body-secondary text-truncate">{% if g.quienes|length > 1 or g.quienes.0 != g.cliente.nombre %}{{ g.quienes|join:", " }} · {% endif %}{% for c in g.cuotas %}{{ c.concepto }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+      {% if vencidos %}<div class="small text-danger">{{ g.atraso }} día{{ g.atraso|pluralize }} de atraso</div>
+      {% else %}<div class="small text-body-secondary">vence {% with c=g.cuotas.0 %}{% if c.vence == hoy %}hoy{% else %}el {{ c.vence|date:"d/m" }}{% endif %}{% endwith %}</div>{% endif %}
+    </a>
+    <strong class="text-nowrap {% if vencidos %}text-danger{% endif %}">{{ g.total|soles }}</strong>
+    {% if g.wa %}<a href="{{ g.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="Recordar por WhatsApp" aria-label="Recordar por WhatsApp"><i class="bi bi-whatsapp"></i></a>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}<div class="card-body small text-body-secondary">{{ vacio }}</div>{% endif %}

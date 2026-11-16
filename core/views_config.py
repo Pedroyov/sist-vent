@@ -210,6 +210,10 @@ def datos_negocio(request):
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "mesas"]
             a.save(update_fields=["modulos_inactivos"])
             messages.info(request, "Se activó el módulo Mesas, porque el negocio es un restaurante.")
+        if a.rubro == Rubro.ACADEMIA and ("cobranzas" in a.modulos_inactivos or "clientes" in a.modulos_inactivos):
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m not in ("cobranzas", "clientes")]
+            a.save(update_fields=["modulos_inactivos"])
+            messages.info(request, "Se activó el módulo Cobranzas (mensualidades), porque el negocio es una academia o gimnasio.")
         messages.success(request, "Datos del negocio guardados. Si instalaste la app en el celular, el ícono nuevo puede tardar en aparecer (o reinstálala).")
         return redirect("core:datos_negocio")
     return render(request, "core/config/negocio.html", {"form": form, "c": ajustes})

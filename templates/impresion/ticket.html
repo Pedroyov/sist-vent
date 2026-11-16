@@ -49,6 +49,11 @@
   {% for p in v.pagos.all %}<tr><td>{{ p.get_metodo_display }}{% if p.metodo == "EFE" and v.recibido %} (recibido {{ v.recibido }}){% endif %}</td><td class="r">{{ p.monto }}</td></tr>{% endfor %}
   {% if v.vuelto %}<tr><td>Vuelto</td><td class="r">{{ v.vuelto }}</td></tr>{% endif %}
 </table>
+{% if cp and cp.al_credito %}<div class="linea"></div>
+<div class="b">FORMA DE PAGO: CRÉDITO</div>
+<table><tr><td>Monto pendiente</td><td class="r">{{ cp.pendiente }}</td></tr>
+{% for q in cp.cuotas %}<tr><td>Cuota {{ q.n }} · vence {{ q.fecha|slice:"8:10" }}/{{ q.fecha|slice:"5:7" }}/{{ q.fecha|slice:":4" }}</td><td class="r">{{ q.monto }}</td></tr>{% endfor %}</table>
+{% endif %}
 {% if deuda is not None %}<div class="linea"></div><table><tr class="b"><td>DEUDA TOTAL S/</td><td class="r">{{ deuda }}</td></tr></table>{% endif %}
 {% if cp %}
 <div class="linea"></div>

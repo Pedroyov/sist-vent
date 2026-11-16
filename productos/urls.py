@@ -13,6 +13,7 @@ urlpatterns = [
     path("<int:pk>/eliminar/", views.producto_eliminar, name="eliminar"),
     path("<int:pk>/stock/", views.movimiento, name="movimiento"),
     path("<int:pk>/lleva/", views.componentes, name="componentes"),
+    path("<int:pk>/combo/", views.combo, name="combo"),
     path("<int:pk>/variantes/generar/", views.variantes_generar, name="variantes_generar"),
     path("variantes/<int:pk>/editar/", views.variante_editar, name="variante_editar"),
     path("variantes/<int:pk>/eliminar/", views.variante_eliminar, name="variante_eliminar"),

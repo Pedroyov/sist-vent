@@ -1,7 +1,7 @@
 """Datos de ejemplo para probar el sistema:
 
     python manage.py datos_demo                # bodega / tienda
-    python manage.py datos_demo --rubro ROP    # TIE, RES, ROP, LIB, PEL
+    python manage.py datos_demo --rubro ROP    # TIE, RES, ROP, LIB, PEL, ACA
 
 Crea los datos del negocio, usuarios de prueba (clave demo1234) y un catálogo de
 ejemplo según el rubro. Cada app nueva agrega aquí sus propios datos de ejemplo.
@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--rubro", default=Rubro.TIENDA, choices=Rubro.values,
-                            help="TIE tienda, RES restaurante, ROP ropa, LIB librería, PEL peluquería")
+                            help="TIE tienda, RES restaurante, ROP ropa, LIB librería, PEL peluquería, ACA academia o gimnasio")
 
     @transaction.atomic
     def handle(self, *args, **opciones):
@@ -47,6 +47,10 @@ class Command(BaseCommand):
         inactivos = [m for m in (a.modulos_inactivos or []) if m not in restaurante]
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + list(restaurante)
         a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "facturacion"]  # la demo la trae en modo prueba
+        if rubro == Rubro.ACADEMIA:
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m not in ("cobranzas", "clientes")]
+        elif "cobranzas" not in a.modulos_inactivos:
+            a.modulos_inactivos.append("cobranzas")
         a.razon_social = a.razon_social or f"{nombre.upper()} S.A.C."
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
@@ -90,9 +94,19 @@ class Command(BaseCommand):
 
             marcar_agotados_demo()
             nv = Venta.objects.count()
+        if rubro == Rubro.ACADEMIA:
+            from cobranzas.demo import cargar_cobranzas
+
+            cargar_cobranzas()
         from facturacion.demo import cargar_comprobantes
 
         cargar_comprobantes()
+        if rubro == Rubro.RESTAURANTE:  # dos cajas: la principal (series generales) y la barra con su propia serie
+            from caja.models import PuntoCaja, SesionCaja
+
+            principal, _ = PuntoCaja.objects.get_or_create(nombre="Caja principal", defaults={"orden": 10})
+            PuntoCaja.objects.get_or_create(nombre="Barra", defaults={"orden": 20, "serie_boleta": "B002", "serie_nc_boleta": "BC02"})
+            SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA, punto__isnull=True).update(punto=principal)
         self.stdout.write(self.style.SUCCESS(
             f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)}"
             f"{', mozo' if rubro == Rubro.RESTAURANTE else ''} (clave {CLAVE})."))

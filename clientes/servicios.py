@@ -73,6 +73,56 @@ def resolver_cliente(cliente_id=None, nombre="", documento="", crear=True):
     return None
 
 
+INCOBRABLE = "INC"  # «método» de un Abono que no es dinero: deuda que el negocio da por perdida
+
+
+def deudas(cliente, hoy=None):
+    """Cuenta corriente: cada venta al fiado con lo que falta pagar. Los pagos se aplican primero a lo más antiguo.
+    Si la venta tiene factura al crédito, sus cuotas dicen qué parte ya venció."""
+    from datetime import date
+
+    from ventas.models import MetodoPago, Pago, Venta
+
+    hoy = hoy or timezone.localdate()
+    por_venta = {}
+    for p in (Pago.objects.filter(venta__cliente=cliente, metodo=MetodoPago.CREDITO, venta__estado=Venta.Estado.PAGADA)
+              .select_related("venta").order_by("venta__fecha", "venta_id")):
+        por_venta.setdefault(p.venta_id, {"venta": p.venta, "monto": CERO})["monto"] += p.monto
+    comprobantes = {}
+    try:
+        from facturacion.models import Comprobante
+
+        for c in (Comprobante.objects.filter(venta_id__in=list(por_venta)).exclude(tipo=Comprobante.Tipo.NOTA_CREDITO)
+                  .exclude(estado=Comprobante.Estado.RECHAZADO)):
+            comprobantes[c.venta_id] = c
+    except LookupError:
+        pass
+    disponible = cliente.total_abonado
+    filas = []
+    for vid, d in por_venta.items():
+        pagado = min(disponible, d["monto"])
+        disponible -= pagado
+        c = comprobantes.get(vid)
+        cuotas = c.cuotas if c and c.al_credito else []
+        vencido, atraso, cubre, vence = CERO, 0, pagado, None
+        for q in cuotas:
+            monto, fecha = Decimal(q["monto"]), date.fromisoformat(q["fecha"])
+            falta = max(CERO, monto - cubre)
+            cubre = max(CERO, cubre - monto)
+            if falta and vence is None:
+                vence = fecha
+            if falta and fecha < hoy:
+                vencido += falta
+                atraso = max(atraso, (hoy - fecha).days)
+        filas.append({**d, "pagado": pagado, "pendiente": d["monto"] - pagado, "comprobante": c, "vence": vence,
+                      "vencido": vencido, "dias_atraso": atraso})
+    return filas
+
+
+def vencido(cliente):
+    return sum((f["vencido"] for f in deudas(cliente)), CERO)
+
+
 def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
     if not monto:
         return
@@ -87,6 +137,11 @@ def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
         if saldo + monto > cliente.limite_credito:
             raise ClienteError(f"{cliente.nombre} ya debe S/ {saldo:.2f} y su límite es S/ {cliente.limite_credito:.2f}. "
                                f"Puede fiársele hasta S/ {max(CERO, cliente.limite_credito - saldo):.2f}.")
+    if not puede_exceder:
+        atrasado = vencido(cliente)
+        if atrasado:
+            raise ClienteError(f"{cliente.nombre} tiene S/ {atrasado:.2f} vencido (facturas al crédito sin pagar). "
+                               "No se le puede dar más crédito sin autorización.")
 
 
 def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
@@ -112,6 +167,24 @@ def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
             raise ClienteError(f"{cliente.nombre} solo debe S/ {saldo:.2f}.")
         return Abono.objects.create(cliente=cliente, monto=monto, metodo=metodo, usuario=usuario, sesion_caja=sesion,
                                     nota=str(nota or "")[:200], referencia=str(referencia or "")[:60])
+
+
+def marcar_incobrable(cliente, monto, motivo, usuario):
+    """El negocio da por perdida (toda o parte de) la deuda: deja de salir como pendiente, sin mover la caja.
+    Lo que hace el contador con esa pérdida es aparte."""
+    motivo = " ".join(str(motivo or "").split())[:200]
+    if not motivo:
+        raise ClienteError("Indica el motivo.")
+    try:
+        monto = Decimal(str(monto)).quantize(Decimal("0.01"))
+    except (InvalidOperation, TypeError):
+        raise ClienteError("Monto no válido.")
+    with transaction.atomic():
+        Cliente.objects.select_for_update().get(pk=cliente.pk)
+        saldo = cliente.saldo
+        if monto <= 0 or monto > saldo:
+            raise ClienteError(f"El monto tiene que ser mayor que cero y hasta S/ {saldo:.2f}.")
+        return Abono.objects.create(cliente=cliente, monto=monto, metodo=INCOBRABLE, usuario=usuario, nota=f"Incobrable: {motivo}"[:200])
 
 
 def anular_abono(abono, usuario, motivo):

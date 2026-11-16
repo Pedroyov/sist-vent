@@ -31,10 +31,19 @@ def sesion_para_vender(usuario):
     return sesion
 
 
-def abrir(usuario, monto_inicial, nota=""):
+def abrir(usuario, monto_inicial, nota="", punto=None):
+    from .models import PuntoCaja
+
+    activos = PuntoCaja.objects.filter(activo=True)
+    if punto is None and activos.count() == 1:
+        punto = activos.first()
+    if punto is None and activos.exists():
+        raise CajaError("Elige en qué caja estás.")
+    if punto is not None and not punto.activo:
+        raise CajaError("Esa caja está desactivada.")
     try:
         with transaction.atomic():
-            return SesionCaja.objects.create(usuario=usuario, monto_inicial=monto_inicial, nota_apertura=nota[:200])
+            return SesionCaja.objects.create(usuario=usuario, monto_inicial=monto_inicial, nota_apertura=nota[:200], punto=punto)
     except IntegrityError:
         raise CajaError("Ya tienes una caja abierta.")
 
@@ -47,7 +56,7 @@ def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.
 
 
 def calcular(sesion):
-    """Resumen del turno. El efectivo esperado = inicial + efectivo de ventas + ingresos − egresos."""
+    """Resumen del turno. El efectivo esperado = inicial + efectivo de ventas, pagos de deudas y de cuotas + ingresos − egresos."""
     from ventas.models import MetodoPago, Pago, Venta
 
     ventas = Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.PAGADA)
@@ -63,6 +72,10 @@ def calcular(sesion):
 
     abonos = {a["metodo"]: a["t"] for a in Abono.objects.filter(sesion_caja=sesion, anulado=False).values("metodo").annotate(t=Sum("monto"))}
     abonos_efectivo = abonos.get(MetodoPago.EFECTIVO, CERO)
+    from cobranzas.models import Pago as PagoCuotas
+
+    cuotas = {p["metodo"]: p["t"] for p in PagoCuotas.objects.filter(sesion_caja=sesion, anulado=False).values("metodo").annotate(t=Sum("monto"))}
+    cuotas_efectivo = cuotas.get(MetodoPago.EFECTIVO, CERO)
     movs = sesion.movimientos.values("tipo").annotate(t=Sum("monto"))
     ingresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.INGRESO), CERO)
     egresos = sum((m["t"] for m in movs if m["tipo"] == MovimientoCaja.Tipo.EGRESO), CERO)
@@ -70,11 +83,13 @@ def calcular(sesion):
         "inicial": sesion.monto_inicial, "n_ventas": v["n"] or 0, "total_ventas": v["total"] or CERO,
         "propinas": v["propinas"] or CERO, "metodos": metodos, "efectivo_ventas": efectivo_ventas,
         "otros_medios": sum((m["total"] for m in metodos if m["codigo"] not in (MetodoPago.EFECTIVO, MetodoPago.CREDITO)), CERO)
-                        + sum((t for k, t in abonos.items() if k != MetodoPago.EFECTIVO), CERO),
+                        + sum((t for k, t in abonos.items() if k != MetodoPago.EFECTIVO), CERO)
+                        + sum((t for k, t in cuotas.items() if k != MetodoPago.EFECTIVO), CERO),
         "fiado": sum((m["total"] for m in metodos if m["codigo"] == MetodoPago.CREDITO), CERO),
         "abonos": sum(abonos.values(), CERO), "abonos_efectivo": abonos_efectivo,
+        "cuotas": sum(cuotas.values(), CERO), "cuotas_efectivo": cuotas_efectivo,
         "ingresos": ingresos, "egresos": egresos,
-        "esperado": sesion.monto_inicial + efectivo_ventas + abonos_efectivo + ingresos - egresos,
+        "esperado": sesion.monto_inicial + efectivo_ventas + abonos_efectivo + cuotas_efectivo + ingresos - egresos,
         "anuladas": Venta.objects.filter(sesion_caja=sesion, estado=Venta.Estado.ANULADA).count(),
     }
     # Las sumas de la base de datos pueden traer decimales de más (357.2000000): todo a céntimos

@@ -3,6 +3,7 @@
 {% block titulo %}Cierre de caja {{ s.numero }}{% endblock %}
 {% block contenido %}
 <div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">{% if s.abierta %}CORTE DE CAJA (PARCIAL){% else %}CIERRE DE CAJA{% endif %} N° {{ s.numero }}</span></div>
+{% if s.punto %}<div>Caja: {{ s.punto.nombre }}</div>{% endif %}
 <div>Cajero: {{ s.usuario|nombre }}</div>
 <div>Abrió: {{ s.abierta_en|date:"d/m/Y H:i" }}</div>
 {% if s.cerrada_en %}<div>Cerró: {{ s.cerrada_en|date:"d/m/Y H:i" }}</div>{% else %}<div>Impreso: {% now "d/m/Y H:i" %}</div>{% endif %}
@@ -20,6 +21,7 @@
   <tr><td>Monto inicial</td><td class="r">{{ r.inicial }}</td></tr>
   <tr><td>+ Ventas efectivo</td><td class="r">{{ r.efectivo_ventas }}</td></tr>
   {% if r.abonos_efectivo %}<tr><td>+ Pagos de fiado</td><td class="r">{{ r.abonos_efectivo }}</td></tr>{% endif %}
+  {% if r.cuotas_efectivo %}<tr><td>+ Cuotas</td><td class="r">{{ r.cuotas_efectivo }}</td></tr>{% endif %}
   {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="r">{{ r.ingresos }}</td></tr>{% endif %}
   {% if r.egresos %}<tr><td>- Egresos</td><td class="r">{{ r.egresos }}</td></tr>{% endif %}
   <tr class="b"><td>Debe haber</td><td class="r">{{ r.esperado }}</td></tr>

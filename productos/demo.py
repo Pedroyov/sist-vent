@@ -12,6 +12,7 @@ NEGOCIOS = {
     Rubro.ROPA: ("Moda Urbana", "Viste a tu estilo"),
     Rubro.LIBRERIA: ("Librería El Estudiante", "Todo para el cole y la oficina"),
     Rubro.PELUQUERIA: ("Estilo & Belleza", "Peluquería y spa"),
+    Rubro.ACADEMIA: ("Centro Vida Activa", "Gimnasio, natación e idiomas"),
 }
 
 # (categoría, nombre, precio, costo, stock, unidad, código, {opciones: (lista1, lista2)} o servicio en minutos)
@@ -103,6 +104,15 @@ CATALOGOS = {
         ("Productos de venta", "Shampoo profesional 500 ml", "45.00", "28.00", 6, "UND", "", None),
         ("Productos de venta", "Cera para cabello", "25.00", "14.00", 2, "UND", "", None),
     ],
+    Rubro.ACADEMIA: [
+        ("Bebidas", "Agua San Luis sin gas 625 ml", "2.00", "0.90", 40, "UND", "", None),
+        ("Bebidas", "Bebida rehidratante 500 ml", "3.50", "2.20", 24, "UND", "", None),
+        ("Tienda", "Barra de proteína", "6.00", "3.80", 15, "UND", "", None),
+        ("Tienda", "Polo deportivo", "35.00", "18.00", 3, "UND", "", ("S, M, L", "")),
+        ("Tienda", "Gorro de natación", "15.00", "7.00", 10, "UND", "", None),
+        ("Servicios", "Clase suelta", "15.00", None, None, "SRV", "", 60),
+        ("Servicios", "Evaluación física", "30.00", None, None, "SRV", "", 30),
+    ],
 }
 
 
@@ -153,7 +163,7 @@ def _opciones_restaurante():
     lleva = {
         "Pollo a la brasa": [("Pollo", False, None), ("Papas fritas", False, "Acompañamiento"), ("Ensalada", True, None)],
         "Alitas BBQ": [("Alitas", False, None), ("Salsa BBQ", True, None), ("Papas fritas", False, "Acompañamiento")],
-        "Combo familiar": [("Pollo entero", False, None), ("Papas familiares", True, None), ("Ensalada", True, None), ("Inca Kola 1.5 L", True, None)],
+        "Combo familiar": [("Pollo entero", False, None), ("Papas familiares", True, None), ("Ensalada", True, None)],
         "Parrilla personal": [("Bife", False, None), ("Chorizo", True, None), ("Anticucho", True, None),
                               ("Papas fritas", False, "Acompañamiento"), ("Ensalada", True, None)],
         "Lomo saltado": [("Lomo de res", False, None), ("Cebolla", True, None), ("Tomate", True, None), ("Papas fritas", True, None), ("Arroz", True, None)],
@@ -225,7 +235,29 @@ def cargar_catalogo(rubro, usuario=None):
                                 costo_unitario=p.costo)
     if rubro == Rubro.RESTAURANTE:
         _opciones_restaurante()
+        _combo_demo()
     return Producto.objects.count()
+
+
+def _combo_demo():
+    """«Combo familiar» como combo de verdad: pollo entero + ensalada fija y la bebida a elegir (descuenta su stock)."""
+    from .models import ComboItem, GrupoOpciones, Opcion
+
+    combo = Producto.objects.filter(nombre="Combo familiar").first()
+    pollo = Variante.objects.filter(producto__nombre="Pollo a la brasa", nombre="Entero").first()
+    bebidas = [v for v in [Variante.objects.filter(producto__nombre="Inca Kola 1.5 L").first(),
+                           Variante.objects.filter(producto__nombre="Chicha morada", nombre="Jarra 1 L").first()] if v]
+    if not combo or not pollo:
+        return
+    combo.tipo, combo.costo = Producto.Tipo.COMBO, None
+    combo.descripcion = "Pollo entero con papas, ensalada y cremas, más una bebida para compartir."
+    combo.save()
+    ComboItem.objects.create(combo=combo, variante=pollo, cantidad=1)
+    if len(bebidas) == 2:
+        g = GrupoOpciones.objects.create(nombre="Combo familiar: Bebida", minimo=1, maximo=1)
+        for i, v in enumerate(bebidas):
+            Opcion.objects.create(grupo=g, nombre=v.nombre_completo, variante=v, orden=i, por_defecto=i == 0)
+        combo.grupos.add(g)
 
 
 def marcar_agotados_demo():

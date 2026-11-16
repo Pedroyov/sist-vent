@@ -100,4 +100,6 @@ class Abono(models.Model):
     def get_metodo_display(self):
         from ventas.models import MetodoPago
 
+        if self.metodo == "INC":
+            return "Incobrable"
         return dict(MetodoPago.choices).get(self.metodo, self.metodo)

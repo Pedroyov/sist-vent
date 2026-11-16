@@ -135,9 +135,21 @@ window.Cobro = (function () {
     $("c-comp-doc").placeholder = t === "F" ? "RUC" : "DNI (opcional)";
     $("c-comp-nombre").placeholder = t === "F" ? "Razón social" : "Nombre";
   }
+  var DIAS_CREDITO = COMP && COMP.dataset.credito ? parseInt(COMP.dataset.credito, 10) : 0;
+  function hoyMas(dias) { var d = new Date(); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); }
+  function hayFiado() { return pagos().some(function (p) { return p.metodo === "CRE" && p.c > 0; }); }
+  function alCredito() { return !!DIAS_CREDITO && tipoComp() === "F" && hayFiado(); }
+  function pintarCredito() {
+    if (!COMP || !$("c-comp-credito")) return;
+    var si = alCredito();
+    $("c-comp-credito").classList.toggle("d-none", !si);
+    if (si && !$("c-comp-vence").value) $("c-comp-vence").value = hoyMas(DIAS_CREDITO);
+  }
   function datosComp() {
     if (!COMP || tipoComp() === "N") return null;
-    return {tipo: tipoComp(), doc: $("c-comp-doc").value.trim(), nombre: $("c-comp-nombre").value.trim(), direccion: $("c-comp-dir").value.trim()};
+    var d = {tipo: tipoComp(), doc: $("c-comp-doc").value.trim(), nombre: $("c-comp-nombre").value.trim(), direccion: $("c-comp-dir").value.trim()};
+    if (alCredito()) { d.vence = $("c-comp-vence").value; d.cuotas = $("c-comp-cuotas").value; }
+    return d;
   }
   function rucValido(r) {  // dígito verificador (módulo 11), igual que en el servidor
     if (!/^(10|15|16|17|20)\d{9}$/.test(r)) return false;
@@ -153,7 +165,8 @@ window.Cobro = (function () {
       if (!rucValido(d.doc)) return "Para la factura escribe un RUC válido (11 dígitos).";
       if (!d.nombre) return "Escribe la razón social.";
       if (!d.direccion) return "Escribe la dirección fiscal.";
-      if (hayFiado) return "La factura al fiado aún no está disponible: elige boleta.";
+      if (hayFiado && !DIAS_CREDITO) return "La factura al crédito no está activada: elige boleta o cobra al contado.";
+      if (hayFiado && !(d.vence > hoyMas(0))) return "Pon la fecha de pago de la factura al crédito (después de hoy).";
     } else {
       if (totalCent > 70000 && !d.doc) return "Boleta de más de S/ 700: escribe el DNI del cliente.";
       if (d.doc && !d.nombre) return "Escribe el nombre del cliente.";
@@ -181,6 +194,7 @@ window.Cobro = (function () {
       sugeridos.map(function (b) { return '<button type="button" class="btn btn-sm btn-outline-success" data-billete="' + b * 100 + '">S/ ' + b + "</button>"; }).join("");
   }
   function estado() {
+    pintarCredito();
     var t = aCobrar(), ps = pagos(), e = $("c-estado");
     $("c-total").textContent = soles(t);
     var partes = [];
@@ -257,6 +271,7 @@ window.Cobro = (function () {
       var def = $("c-comp-" + (opciones.comprobante || COMP.dataset.defecto || "N"));
       if (def) def.checked = true;
       $("c-comp-doc").value = ""; $("c-comp-nombre").value = ""; $("c-comp-dir").value = "";
+      if ($("c-comp-vence")) { $("c-comp-vence").value = ""; $("c-comp-cuotas").value = "1"; }
       pintarComp();
       if (cliente) compDesdeCliente(cliente);
     }

@@ -3,7 +3,7 @@
 
 {% block title %}Caja {{ s.numero }}{% endblock %}
 {% block page_title %}{% if s.abierta and es_mia %}Mi caja{% else %}Caja {{ s.numero }}{% endif %}
-  <small class="text-body-secondary fs-6">{{ s.usuario|nombre }}</small>
+  <small class="text-body-secondary fs-6">{% if s.punto %}{{ s.punto.nombre }} · {% endif %}{{ s.usuario|nombre }}</small>
   {% if s.abierta %}<span class="badge text-bg-success fs-6 align-middle">Abierta</span>{% else %}<span class="badge text-bg-secondary fs-6 align-middle">Cerrada</span>{% endif %}{% endblock %}
 {% block breadcrumb %}{% if P.caja_ver %}<li class="breadcrumb-item"><a href="{% url 'caja:historial' %}">Cajas</a></li>{% else %}<li class="breadcrumb-item">Caja</li>{% endif %}<li class="breadcrumb-item active">{{ s.numero }}</li>{% endblock %}
 
@@ -38,6 +38,7 @@
         <tr><td>Abrió el {{ s.abierta_en|date:"d/m/Y H:i" }} con</td><td class="text-end">{{ r.inicial|soles }}</td></tr>
         <tr><td>+ Ventas en efectivo</td><td class="text-end text-success">{{ r.efectivo_ventas|soles }}</td></tr>
         {% if r.abonos_efectivo %}<tr><td>+ Pagos de deudas (fiado) en efectivo</td><td class="text-end text-success">{{ r.abonos_efectivo|soles }}</td></tr>{% endif %}
+        {% if r.cuotas_efectivo %}<tr><td>+ Cuotas y mensualidades en efectivo</td><td class="text-end text-success">{{ r.cuotas_efectivo|soles }}</td></tr>{% endif %}
         {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="text-end text-success">{{ r.ingresos|soles }}</td></tr>{% endif %}
         {% if r.egresos %}<tr><td>− Egresos</td><td class="text-end text-danger">{{ r.egresos|soles }}</td></tr>{% endif %}
         <tr class="total"><td>Debe haber</td><td class="text-end">{{ r.esperado|soles }}</td></tr>
@@ -61,6 +62,7 @@
         {% for m in r.metodos %}<tr><td>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></td><td class="text-end">{{ m.total|soles }}</td></tr>{% endfor %}
         <tr class="total"><td>Total vendido ({{ r.n_ventas }})</td><td class="text-end">{{ r.total_ventas|soles }}</td></tr>
         {% if r.abonos %}<tr><td>Cobrado de deudas (fiado)</td><td class="text-end">{{ r.abonos|soles }}</td></tr>{% endif %}
+        {% if r.cuotas %}<tr><td>Cobrado de cuotas y mensualidades</td><td class="text-end">{{ r.cuotas|soles }}</td></tr>{% endif %}
         {% if r.propinas %}<tr><td>Propinas (incluidas en los pagos)</td><td class="text-end">{{ r.propinas|soles }}</td></tr>{% endif %}
         {% if r.anuladas %}<tr><td class="text-danger">Ventas anuladas</td><td class="text-end text-danger">{{ r.anuladas }}</td></tr>{% endif %}
       </table>

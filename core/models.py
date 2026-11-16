@@ -14,12 +14,13 @@ class Rubro(models.TextChoices):
     ROPA = "ROP", "Tienda de ropa y calzado"
     LIBRERIA = "LIB", "Librería / útiles escolares"
     PELUQUERIA = "PEL", "Peluquería / barbería / spa"
+    ACADEMIA = "ACA", "Academia / gimnasio / taller"
     OTRO = "OTR", "Otro"
 
 
 def modulos_inactivos_iniciales():
     """Lo de restaurante empieza apagado (Mesas se activa al elegir ese rubro)."""
-    return ["mesas", "cocina", "delivery", "facturacion"]
+    return ["mesas", "cocina", "delivery", "facturacion", "cobranzas"]
 
 
 class Ajustes(models.Model):

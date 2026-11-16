@@ -106,6 +106,64 @@ class ServicioTests(Base):
         self.assertTrue(Producto.objects.filter(pk=p.pk).exists())
 
 
+class CombosTests(Base):
+    def setUp(self):
+        super().setUp()
+        from productos.models import ComboItem, GrupoOpciones, Opcion
+
+        mover_stock(self.va, 20, MovimientoStock.Tipo.INGRESO)
+        self.agua = Producto.objects.create(nombre="Agua", precio=D("2"), costo=D("0.80"))
+        self.vagua = asegurar_variante_unica(self.agua)
+        mover_stock(self.vagua, 10, MovimientoStock.Tipo.INGRESO)
+        self.combo = Producto.objects.create(nombre="Combo", precio=D("12"), tipo="C", maneja_stock=True)
+        self.vcombo = asegurar_variante_unica(self.combo)
+        ComboItem.objects.create(combo=self.combo, variante=self.va, cantidad=D("2"))
+        g = GrupoOpciones.objects.create(nombre="Combo: Bebida", minimo=1, maximo=1)
+        self.op_gas = Opcion.objects.create(grupo=g, nombre="Gaseosa", variante=self.vg, por_defecto=True, orden=0)
+        self.op_agua = Opcion.objects.create(grupo=g, nombre="Agua", variante=self.vagua, orden=1)
+        self.combo.grupos.add(g)
+
+    def test_vender_y_anular_combo(self):
+        from productos.models import Variante
+
+        self.combo.refresh_from_db()
+        self.assertFalse(self.combo.maneja_stock)  # el combo no tiene stock propio
+        venta = registrar_venta(self.admin, [{"variante": self.vcombo.pk, "cantidad": "3", "opciones": [self.op_agua.pk]}],
+                                [{"metodo": "EFE", "monto": "36"}])
+        stock = lambda v: Variante.objects.get(pk=v.pk).stock
+        self.assertEqual((stock(self.va), stock(self.vagua), stock(self.vg)), (D("14"), D("7"), D("10")))  # 2 kg × 3 y 1 agua × 3
+        item = venta.items.get()
+        self.assertEqual(item.descripcion, "Combo (Agua)")  # el ticket no lista lo que trae
+        self.assertEqual(item.costo_unitario, None)  # el arroz no tiene costo: no se inventa
+        anular_venta(venta, self.admin, "prueba")
+        self.assertEqual((stock(self.va), stock(self.vagua)), (D("20"), D("10")))
+
+    def test_sin_elegir_va_lo_incluido_y_costo(self):
+        from productos.models import Variante
+
+        self.arroz.costo = D("3")
+        self.arroz.save()
+        venta = registrar_venta(self.admin, [{"variante": self.vcombo.pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "12"}])
+        self.assertEqual(Variante.objects.get(pk=self.vg.pk).stock, D("9"))  # la gaseosa viene incluida
+        self.assertEqual(venta.items.get().costo_unitario, D("6.00"))  # 2 kg × 3.00
+
+    def test_armar_combo_desde_la_pantalla(self):
+        from productos.models import ComboItem
+
+        self.client.force_login(self.admin)
+        url = reverse("productos:combo", args=[self.combo.pk])
+        self.client.post(url, {"accion": "agregar", "variante": self.vg.pk, "cantidad": "1"})
+        self.assertTrue(ComboItem.objects.filter(combo=self.combo, variante=self.vg).exists())
+        self.client.post(url, {"accion": "parte", "nombre": "Postre", "variantes": [self.vg.pk, self.vagua.pk]})
+        self.assertTrue(self.combo.grupos.filter(nombre="Combo: Postre", opciones__variante=self.vagua).exists())
+        r = self.client.get(reverse("productos:detalle", args=[self.combo.pk]))
+        self.assertContains(r, "Qué trae el combo")
+        self.assertContains(r, "Por separado")
+        # un combo no puede traer otro combo
+        self.client.post(url, {"accion": "agregar", "variante": self.vcombo.pk, "cantidad": "1"})
+        self.assertFalse(ComboItem.objects.filter(combo=self.combo, variante=self.vcombo).exists())
+
+
 class ReglasCobroTests(Base):
     def test_metodos_descuentos_y_propina(self):
         from core.models import Ajustes

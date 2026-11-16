@@ -9,8 +9,8 @@ from django.utils import timezone
 from core.permisos import permiso_requerido, puede
 from core.utils import entero, url_segura
 
-from .forms import AbrirForm, CerrarForm, MovimientoForm
-from .models import DENOMINACIONES, MovimientoCaja, SesionCaja
+from .forms import AbrirForm, CerrarForm, MovimientoForm, PuntoCajaForm
+from .models import DENOMINACIONES, MovimientoCaja, PuntoCaja, SesionCaja
 from .servicios import CajaError, abrir, calcular, cerrar, movimiento, resumen_guardado, total_conteo
 
 User = get_user_model()
@@ -30,7 +30,7 @@ def mi_caja(request):
         form = AbrirForm(request.POST or None, initial={"monto_inicial": ultima.contado if ultima and ultima.contado is not None else None})
         if request.method == "POST" and form.is_valid():
             try:
-                abrir(request.user, form.cleaned_data["monto_inicial"], form.cleaned_data["nota"])
+                abrir(request.user, form.cleaned_data["monto_inicial"], form.cleaned_data["nota"], form.cleaned_data.get("punto"))
                 messages.success(request, "Caja abierta. ¡Buenas ventas!")
             except CajaError as e:
                 messages.error(request, str(e))
@@ -114,7 +114,7 @@ def cerrar_caja(request, pk):
 
 @permiso_requerido("caja.ver")
 def historial(request):
-    cajas = SesionCaja.objects.select_related("usuario")
+    cajas = SesionCaja.objects.select_related("usuario", "punto")
     usuario = entero(request.GET.get("usuario"))
     if usuario:
         cajas = cajas.filter(usuario_id=usuario)
@@ -128,6 +128,43 @@ def historial(request):
     return render(request, "caja/historial.html", {
         "pagina": pagina, "query": query, "usuario": usuario, "estado": request.GET.get("estado", ""),
         "usuarios": User.objects.filter(cajas__isnull=False).distinct().order_by("first_name"),
-        "abiertas": SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA).select_related("usuario"),
+        "abiertas": SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA).select_related("usuario", "punto"),
         "hoy": timezone.localdate(),
+    })
+
+
+# --- Cajas (puntos de cobro) y sus series -------------------------------------------------
+
+@permiso_requerido("config.negocio")
+def puntos(request):
+    from facturacion.models import Config
+
+    form = PuntoCajaForm(request.POST or None, initial={"activo": True})
+    if request.method == "POST" and form.is_valid():
+        p = form.save(commit=False)
+        p.orden = (PuntoCaja.objects.count() + 1) * 10
+        p.save()
+        messages.success(request, f"Caja «{p.nombre}» creada.")
+        return redirect("caja:puntos")
+    config = Config.cargar()
+    lista = list(PuntoCaja.objects.all())
+    for p in lista:
+        p.series = [(nombre, p.serie(campo, config), bool(getattr(p, campo))) for nombre, campo in
+                    [("Boletas", "serie_boleta"), ("Facturas", "serie_factura"), ("NC boletas", "serie_nc_boleta"), ("NC facturas", "serie_nc_factura")]]
+        p.abierta_por = [s.usuario.first_name or s.usuario.username for s in p.sesiones.filter(estado=SesionCaja.Estado.ABIERTA).select_related("usuario")]
+    return render(request, "caja/puntos.html", {"form": form, "puntos": lista, "config": config})
+
+
+@permiso_requerido("config.negocio")
+def punto_editar(request, pk):
+    p = get_object_or_404(PuntoCaja, pk=pk)
+    form = PuntoCajaForm(request.POST or None, instance=p)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Caja guardada.")
+        return redirect("caja:puntos")
+    return render(request, "core/form.html", {
+        "form": form, "titulo": f"Caja {p.nombre}", "cancelar": reverse("caja:puntos"),
+        "breadcrumb": [("Caja", reverse("caja:historial")), ("Cajas y series", reverse("caja:puntos"))],
+        "ayuda": "Las series vacías usan las generales de Facturación. Las series nuevas también hay que registrarlas en tu proveedor (Nubefact).",
     })

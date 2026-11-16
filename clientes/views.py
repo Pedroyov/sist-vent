@@ -14,7 +14,7 @@ from core.permisos import permiso_requerido, puede
 
 from .forms import AbonoForm, ClienteForm
 from .models import Abono, Cliente
-from .servicios import ClienteError, anular_abono, con_saldo, estado_de_cuenta, registrar_abono, total_por_cobrar
+from .servicios import ClienteError, anular_abono, con_saldo, deudas, estado_de_cuenta, marcar_incobrable, registrar_abono, total_por_cobrar
 
 
 def _filtrar(request):
@@ -90,15 +90,49 @@ def detalle(request, pk):
     from core.models import Ajustes
 
     negocio = Ajustes.cargar()
+    pendientes = [d for d in deudas(c) if d["pendiente"] > 0]
+    con_factura = [d for d in pendientes if d["comprobante"]]
+    vencido = sum((d["vencido"] for d in pendientes), 0)
     texto = (f"Hola {c.nombre.split()[0].title()}, te saludamos de {negocio.nombre_mostrar}. "
-             f"Te recordamos que tienes un saldo pendiente de S/ {saldo:.2f}. ¡Gracias!")
+             f"Te recordamos que tienes un saldo pendiente de S/ {saldo:.2f}.")
+    if con_factura:
+        texto += " Facturas: " + "; ".join(f"{d['comprobante'].numero_str} S/ {d['pendiente']:.2f}"
+                                           + (f" (vence {d['vence']:%d/%m})" if d["vence"] else "") for d in con_factura) + "."
+    texto += " ¡Gracias!"
     return render(request, "clientes/detalle.html", {
         "c": c, "saldo": saldo, "movimientos": estado_de_cuenta(c, 100),
         "compras": c.ventas.select_related("usuario").prefetch_related("pagos").order_by("-fecha")[:15],
         "form_abono": AbonoForm(initial={"monto": saldo if saldo > 0 else None, "metodo": "EFE"}),
         "wa": f"https://wa.me/{c.whatsapp}?text={quote(texto)}" if c.whatsapp else "",
         "anulados": c.abonos.filter(anulado=True)[:10],
+        "pendientes": pendientes, "con_factura": bool(con_factura), "vencido": vencido,
+        **_cobranzas(request.user, c),
     })
+
+
+def _cobranzas(user, c):
+    """Resumen de sus mensualidades para la ficha (si el módulo Cobranzas está activo)."""
+    if not puede(user, "cobranzas.ver"):
+        return {}
+    from django.db.models import Sum
+
+    from cobranzas.models import Inscripcion
+    from cobranzas.servicios import pendientes
+
+    return {"inscripciones": [str(i) for i in c.inscripciones.filter(estado=Inscripcion.Estado.ACTIVA).select_related("plan", "cliente")],
+            "cuotas_debe": pendientes(c).aggregate(t=Sum("falta"))["t"] or 0}
+
+
+@permiso_requerido("clientes.limite")
+@require_POST
+def incobrable(request, pk):
+    c = get_object_or_404(Cliente, pk=pk)
+    try:
+        a = marcar_incobrable(c, request.POST.get("monto"), request.POST.get("motivo"), request.user)
+        messages.success(request, f"S/ {a.monto:.2f} marcados como incobrables. Ahora debe S/ {c.saldo:.2f}.")
+    except ClienteError as e:
+        messages.error(request, str(e))
+    return redirect("clientes:detalle", pk=pk)
 
 
 @permiso_requerido("clientes.cobrar")
@@ -138,7 +172,7 @@ def imprimir(request, pk):
                                                              "movimientos": estado_de_cuenta(c, 15)})
 
 
-@permiso_requerido("clientes.ver", "ventas.vender", "mesas.cobrar")
+@permiso_requerido("clientes.ver", "ventas.vender", "mesas.cobrar", "cobranzas.inscribir")
 def buscar(request):
     """Para el cuadro de cobro: busca por nombre, DNI o RUC."""
     q = request.GET.get("q", "").strip()

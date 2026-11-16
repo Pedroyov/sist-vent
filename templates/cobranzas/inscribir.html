@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Inscribir{% endblock %}
+{% block page_title %}Inscribir{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Inscribir</li>{% endblock %}
+{% block content %}
+<div class="row"><div class="col-lg-8 col-xl-6">
+<form method="post" novalidate class="card card-outline card-primary mb-4">{% csrf_token %}
+  <div class="card-body">
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    {{ form.cliente_id }}
+    <h6 class="text-body-secondary">¿Quién paga?</h6>
+    <div class="position-relative mb-2">
+      <label class="form-label" for="id_nombre">Cliente</label>
+      <input type="text" name="nombre" id="id_nombre" class="form-control" value="{{ form.nombre.value|default:'' }}" maxlength="150" autocomplete="off"
+             placeholder="Busca por nombre o DNI, o escribe uno nuevo">
+      <div id="sug" class="list-group position-absolute w-100 shadow-sm" style="z-index: 1050"></div>
+      <div class="form-text" id="cli-estado">{% if cliente %}Cliente registrado.{% endif %}</div>
+    </div>
+    <div class="row g-2 mb-3" id="cli-nuevo">
+      <div class="col-6">{{ form.documento|as_crispy_field }}</div>
+      <div class="col-6">{{ form.telefono|as_crispy_field }}</div>
+    </div>
+    {{ form.alumno|as_crispy_field }}
+    <h6 class="text-body-secondary mt-3">Plan</h6>
+    <select name="plan" id="id_plan" class="form-select mb-1">
+      {% for p in planes %}<option value="{{ p.pk }}" data-precio="{{ p.precio|stringformat:'.2f' }}" data-frec="{{ p.frecuencia }}" data-matricula="{{ p.matricula|stringformat:'.2f' }}"
+        {% if form.plan.value|stringformat:'s' == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }} · {{ p.resumen }}{% if p.matricula %} + matrícula S/ {{ p.matricula }}{% endif %}</option>{% endfor %}
+    </select>
+    <div class="row g-2 mt-1">
+      <div class="col-6">{{ form.inicio|as_crispy_field }}</div>
+      <div class="col-6">{{ form.precio|as_crispy_field }}</div>
+      <div class="col-6" id="caja-dia">{{ form.dia_pago|as_crispy_field }}</div>
+      <div class="col-6 d-flex align-items-center" id="caja-mat">{{ form.cobrar_matricula|as_crispy_field }}</div>
+    </div>
+    {{ form.nota|as_crispy_field }}
+  </div>
+  <div class="card-footer d-flex gap-2 justify-content-end">
+    <a href="{% url 'cobranzas:inicio' %}" class="btn btn-outline-secondary">Cancelar</a>
+    <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Inscribir</button>
+  </div>
+</form>
+</div></div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var nombre = document.getElementById("id_nombre"), id = document.getElementById("id_cliente_id"), sug = document.getElementById("sug"),
+      estado = document.getElementById("cli-estado"), plan = document.getElementById("id_plan"), precio = document.getElementById("id_precio"), t;
+  function elegido(on) { estado.textContent = on ? "Cliente registrado." : (nombre.value.trim() ? "Cliente nuevo: se registra al inscribir." : ""); }
+  nombre.addEventListener("input", function () {
+    id.value = ""; elegido(false);
+    clearTimeout(t);
+    var q = nombre.value.trim();
+    if (q.length < 2) { sug.innerHTML = ""; return; }
+    t = setTimeout(function () {
+      fetch("{% url 'clientes:buscar' %}?q=" + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (d) {
+        sug.innerHTML = "";
+        d.resultados.forEach(function (c) {
+          var b = document.createElement("button");
+          b.type = "button"; b.className = "list-group-item list-group-item-action small";
+          b.textContent = c.n + (c.doc ? " · " + c.doc : "");
+          b.addEventListener("click", function () {
+            id.value = c.id; nombre.value = c.n; document.getElementById("id_documento").value = c.num || "";
+            sug.innerHTML = ""; elegido(true);
+          });
+          sug.appendChild(b);
+        });
+      });
+    }, 250);
+  });
+  document.addEventListener("click", function (e) { if (!sug.contains(e.target) && e.target !== nombre) sug.innerHTML = ""; });
+  function pintarPlan() {
+    var o = plan.options[plan.selectedIndex];
+    if (!o) return;
+    precio.placeholder = o.dataset.precio;
+    document.getElementById("caja-dia").classList.toggle("d-none", o.dataset.frec !== "MEN");
+    document.getElementById("caja-mat").classList.toggle("d-none", !(parseFloat(o.dataset.matricula) > 0));
+  }
+  plan.addEventListener("change", pintarPlan);
+  pintarPlan();
+})();
+</script>
+{% endblock %}

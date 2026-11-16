@@ -222,10 +222,10 @@
 <section id="deudores">
 <div class="card mb-3">
   <div class="card-header d-flex align-items-center flex-wrap gap-2"><h3 class="card-title mb-0"><i class="bi bi-journal-text me-1"></i> Deudores (fiado)</h3>
-    <span class="ms-auto small">Por cobrar: <strong>{{ deudores.total|soles }}</strong> · {{ deudores.n }} cliente{{ deudores.n|pluralize }}{% if deudores.antiguos %} · <span class="text-danger">{{ deudores.antiguos }} sin pagar hace más de 30 días</span>{% endif %}</span></div>
+    <span class="ms-auto small">Por cobrar: <strong>{{ deudores.total|soles }}</strong> · {{ deudores.n }} cliente{{ deudores.n|pluralize }}{% if deudores.vencido %} · <span class="text-danger fw-semibold">vencido {{ deudores.vencido|soles }}</span>{% endif %}{% if deudores.antiguos %} · <span class="text-danger">{{ deudores.antiguos }} sin pagar hace más de 30 días</span>{% endif %}</span></div>
   {% if deudores.filas %}
   <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th class="ps-3">Cliente</th><th class="text-end">Debe</th><th class="text-end">Último pago</th><th class="text-end pe-3">Días sin pagar</th></tr></thead>
-    <tbody>{% for f in deudores.filas %}<tr><td class="ps-3"><a href="{% url 'clientes:detalle' f.cliente.pk %}">{{ f.cliente.nombre }}</a>{% if f.excede %} <span class="badge text-bg-danger">pasó su límite</span>{% endif %}</td>
+    <tbody>{% for f in deudores.filas %}<tr><td class="ps-3"><a href="{% url 'clientes:detalle' f.cliente.pk %}">{{ f.cliente.nombre }}</a>{% if f.excede %} <span class="badge text-bg-danger">pasó su límite</span>{% endif %}{% if f.vencido %} <span class="badge text-bg-danger">vencido {{ f.vencido|soles }}</span>{% endif %}</td>
       <td class="text-end fw-semibold">{{ f.saldo|soles }}</td><td class="text-end small">{{ f.ultimo_pago|date:"d/m/Y"|default:"nunca" }}</td>
       <td class="text-end pe-3 {% if f.dias > 30 %}text-danger fw-semibold{% endif %}">{{ f.dias|default_if_none:"—" }}</td></tr>{% endfor %}</tbody></table></div>
   {% else %}<div class="card-body small text-body-secondary">Nadie debe. 🎉</div>{% endif %}

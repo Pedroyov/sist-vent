@@ -36,6 +36,9 @@ MODULOS = [
     ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control.", None),
     ("facturacion", "Facturación electrónica", "bi-receipt-cutoff",
      "Boletas y facturas electrónicas enviadas a SUNAT por medio de un proveedor (Nubefact); notas de crédito al anular.", None),
+    ("cobranzas", "Cobranzas (mensualidades)", "bi-calendar-check",
+     "Para academias, gimnasios y talleres: planes, inscripciones, cuotas que se generan solas, cobro en caja y morosos por WhatsApp.",
+     "clientes"),
 ]
 MODULOS_BASE = ("config", "productos", "ventas")
 NECESITA = {m[0]: m[4] for m in MODULOS}
@@ -58,6 +61,11 @@ PERMISOS = [
     ("clientes.fiar", "clientes", "Vender al fiado", [CAJERO]),
     ("clientes.cobrar", "clientes", "Registrar pagos de deudas", [CAJERO]),
     ("clientes.limite", "clientes", "Fiar por encima del límite, cambiar límites y anular pagos de deudas", []),
+
+    ("cobranzas.ver", "cobranzas", "Ver inscritos, sus cuotas, morosos y por vencer", [CAJERO, VENDEDOR]),
+    ("cobranzas.cobrar", "cobranzas", "Cobrar cuotas y mensualidades", [CAJERO]),
+    ("cobranzas.inscribir", "cobranzas", "Inscribir, adelantar periodos, cambiar el precio y dar de baja", [CAJERO]),
+    ("cobranzas.gestionar", "cobranzas", "Planes, configuración, exonerar cuotas o mora, anular cobros y ver el reporte", []),
 
     ("reportes.ver", "reportes", "Ver los reportes del negocio", []),
 

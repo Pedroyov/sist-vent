@@ -2,7 +2,9 @@ from decimal import Decimal
 
 from django import forms
 
-from .models import MovimientoCaja
+import re
+
+from .models import MovimientoCaja, PuntoCaja, SesionCaja
 
 DINERO = {"step": "0.10", "min": "0", "inputmode": "decimal"}
 
@@ -11,6 +13,50 @@ class AbrirForm(forms.Form):
     monto_inicial = forms.DecimalField(label="Efectivo con el que empiezas (sencillo)", min_value=Decimal("0"), decimal_places=2,
                                        widget=forms.NumberInput(attrs={**DINERO, "autofocus": True, "class": "form-control-lg"}))
     nota = forms.CharField(label="Nota", max_length=200, required=False)
+    punto = forms.ModelChoiceField(label="¿En qué caja estás?", queryset=PuntoCaja.objects.none(), required=False,
+                                   widget=forms.RadioSelect, empty_label=None)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        activos = PuntoCaja.objects.filter(activo=True)
+        if activos.count() > 1:
+            self.fields["punto"].queryset = activos
+            self.fields["punto"].required = True
+            ocupadas = {s.punto_id: s.usuario for s in SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA, punto__isnull=False)
+                        .select_related("usuario")}
+            self.fields["punto"].label_from_instance = lambda p: p.nombre + (
+                f" (abierta por {ocupadas[p.pk].first_name or ocupadas[p.pk].username})" if p.pk in ocupadas else "")
+        else:
+            del self.fields["punto"]  # una sola caja (o ninguna): se usa sola
+
+
+class PuntoCajaForm(forms.ModelForm):
+    class Meta:
+        model = PuntoCaja
+        fields = ["nombre", "serie_boleta", "serie_factura", "serie_nc_boleta", "serie_nc_factura", "activo"]
+        widgets = {c: forms.TextInput(attrs={"maxlength": 4, "style": "text-transform: uppercase", "placeholder": "General"})
+                   for c in ["serie_boleta", "serie_factura", "serie_nc_boleta", "serie_nc_factura"]}
+
+    def _serie(self, campo, letra):
+        v = self.cleaned_data.get(campo, "").strip().upper()
+        if v and not re.fullmatch(rf"{letra}[A-Z0-9]{{3}}", v):
+            raise forms.ValidationError(f"4 caracteres que empiezan con {letra} (ej.: {letra}002).")
+        return v
+
+    def clean_serie_boleta(self):
+        return self._serie("serie_boleta", "B")
+
+    def clean_serie_factura(self):
+        return self._serie("serie_factura", "F")
+
+    def clean_serie_nc_boleta(self):
+        return self._serie("serie_nc_boleta", "B")
+
+    def clean_serie_nc_factura(self):
+        return self._serie("serie_nc_factura", "F")
+
+    def clean_nombre(self):
+        return " ".join(self.cleaned_data["nombre"].split())
 
 
 class MovimientoForm(forms.ModelForm):

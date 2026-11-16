@@ -4,7 +4,7 @@ REM Tu base real (db.sqlite3) no se toca.
 REM   demo.bat          solo en esta PC
 REM   demo.bat red      tambien desde celulares conectados al mismo WiFi
 REM   demo.bat nuevo    vuelve a generar los datos de ejemplo (se puede combinar: demo.bat nuevo red)
-REM   demo.bat nuevo res   ejemplo de restaurante (tie tienda, res restaurante, rop ropa, lib libreria, pel peluqueria)
+REM   demo.bat nuevo res   ejemplo de restaurante (tie tienda, res restaurante, rop ropa, lib libreria, pel peluqueria, aca academia o gimnasio)
 cd /d "%~dp0"
 if exist .venv\Scripts\activate.bat call .venv\Scripts\activate.bat
 set DATABASE_URL=sqlite:///db_demo.sqlite3
@@ -19,6 +19,7 @@ for %%a in (%*) do (
   if /i "%%a"=="rop" set RUBRO=ROP
   if /i "%%a"=="lib" set RUBRO=LIB
   if /i "%%a"=="pel" set RUBRO=PEL
+  if /i "%%a"=="aca" set RUBRO=ACA
 )
 if defined NUEVO if exist db_demo.sqlite3 del db_demo.sqlite3
 if not exist db_demo.sqlite3 (

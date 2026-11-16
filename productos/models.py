@@ -91,6 +91,9 @@ class Opcion(models.Model):
     agotada_en = models.DateTimeField(null=True, blank=True)
     por_defecto = models.BooleanField("viene incluida", default=False,
                                       help_text="Ya aparece elegida al pedir (ej.: las alitas vienen con papas); se puede cambiar.")
+    variante = models.ForeignKey("Variante", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+                                 verbose_name="descuenta del stock de",
+                                 help_text="Si al elegirla se usa un producto que se cuenta (la gaseosa de un combo, el huevo de un adicional).")
 
     class Meta:
         verbose_name = "opción"
@@ -126,6 +129,7 @@ class Producto(models.Model):
     class Tipo(models.TextChoices):
         PRODUCTO = "P", "Producto"
         SERVICIO = "S", "Servicio"
+        COMBO = "C", "Combo"
 
     tipo = models.CharField(max_length=1, choices=Tipo.choices, default=Tipo.PRODUCTO,
                             help_text="Un servicio (corte, manicure, delivery…) no maneja stock.")
@@ -167,6 +171,9 @@ class Producto(models.Model):
         if self.tipo == self.Tipo.SERVICIO:
             self.maneja_stock = False
             self.unidad = Unidad.SERVICIO
+        elif self.tipo == self.Tipo.COMBO:  # el combo no tiene stock propio: se descuenta lo que trae
+            self.maneja_stock = False
+            self.unidad = Unidad.UNIDAD
         elif self.unidad == Unidad.SERVICIO:
             self.unidad = Unidad.UNIDAD
         super().save(*args, **kwargs)
@@ -182,6 +189,10 @@ class Producto(models.Model):
     @property
     def es_servicio(self):
         return self.tipo == self.Tipo.SERVICIO
+
+    @property
+    def es_combo(self):
+        return self.tipo == self.Tipo.COMBO
 
     @property
     def fraccionable(self):
@@ -245,6 +256,24 @@ class Componente(models.Model):
         return self.nombre
 
 
+class ComboItem(models.Model):
+    """Lo que trae un combo, fijo (1 pollo entero, 1 papas familiares). Lo que se elige (la gaseosa) va en un grupo
+    de opciones cuyas opciones apuntan a una variante."""
+
+    combo = models.ForeignKey("Producto", on_delete=models.CASCADE, related_name="combo_items")
+    variante = models.ForeignKey("Variante", on_delete=models.PROTECT, related_name="en_combos")
+    cantidad = models.DecimalField(max_digits=8, decimal_places=3, default=Decimal("1"), validators=[MinValueValidator(Decimal("0.001"))])
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "producto del combo"
+        verbose_name_plural = "productos del combo"
+        ordering = ["combo", "orden", "id"]
+
+    def __str__(self):
+        return f"{self.cantidad.normalize()} × {self.variante.nombre_completo}"
+
+
 class Variante(models.Model):
     """Lo que realmente se vende y se cuenta. Un producto sin tallas ni colores tiene una sola variante sin nombre."""
 
@@ -282,7 +311,14 @@ class Variante(models.Model):
 
     @property
     def costo_efectivo(self):
-        return self.costo if self.costo is not None else self.producto.costo
+        if self.costo is not None:
+            return self.costo
+        if self.producto.es_combo and self.producto.costo is None:  # lo que cuesta lo que trae
+            costos = [(i.variante.costo_efectivo, i.cantidad) for i in self.producto.combo_items.select_related("variante__producto")]
+            if costos and all(c is not None for c, _ in costos):
+                return sum((c * q for c, q in costos), CERO).quantize(Decimal("0.01"))
+            return None
+        return self.producto.costo
 
     @property
     def por_reponer(self):

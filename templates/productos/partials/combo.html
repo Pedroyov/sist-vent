@@ -1,0 +1,57 @@
+{% load sis %}
+<div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-collection me-1"></i> Qué trae el combo</h3>
+  {% if combo_separado %}<span class="ms-auto small text-body-secondary text-end">Por separado {{ combo_separado|soles }}{% if combo_ahorro %} · <span class="text-success fw-semibold">ahorra {{ combo_ahorro|soles }}</span>{% endif %}</span>{% endif %}</div>
+{% if error %}<div class="alert alert-warning py-2 small m-2 mb-0">{{ error }}</div>{% endif %}
+{% if combo_items %}
+<ul class="list-group list-group-flush">
+  {% for i in combo_items %}
+  <li class="list-group-item py-2 d-flex align-items-center gap-2">
+    <span class="fw-semibold">{{ i.cantidad|cantidad }} ×</span>
+    <span class="flex-grow-1 min-w-0 text-truncate">{{ i.variante.nombre_completo }}{% if i.variante.producto.maneja_stock %} <span class="small text-body-secondary">(stock {{ i.variante.stock|cantidad }})</span>{% endif %}</span>
+    {% if P.productos_editar %}
+    <form hx-post="{% url 'productos:combo' p.pk %}" hx-target="#combo" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="item" value="{{ i.pk }}">
+      <button name="accion" value="menos" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Uno menos">−</button>
+      <button name="accion" value="mas" class="btn btn-sm btn-outline-secondary py-0 px-2" aria-label="Uno más">+</button>
+      <button name="accion" value="quitar" class="btn btn-sm btn-link px-1 text-danger" aria-label="Quitar"><i class="bi bi-x-lg"></i></button>
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card-body small text-body-secondary pb-0">Agrega lo que trae el combo. Al venderlo se descuenta el stock de cada producto.</div>
+{% endif %}
+{% for g in combo_partes %}
+<div class="border-top px-3 py-2">
+  <div class="d-flex align-items-center"><span class="small fw-semibold"><i class="bi bi-ui-radios me-1"></i>A elegir: {{ g.nombre|cut:p.nombre|cut:": " }}</span>
+    {% if P.productos_editar %}<form hx-post="{% url 'productos:combo' p.pk %}" hx-target="#combo" class="ms-auto">{% csrf_token %}<input type="hidden" name="grupo" value="{{ g.pk }}">
+      <button name="accion" value="quitar_parte" class="btn btn-sm btn-link px-1 text-danger" aria-label="Quitar esta parte" onclick="return confirm('¿Quitar esta parte del combo?')"><i class="bi bi-x-lg"></i></button></form>{% endif %}</div>
+  <div class="small text-body-secondary">{% for o in g.opciones.all %}{{ o.nombre }}{% if o.precio %} (+{{ o.precio|soles }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+</div>
+{% endfor %}
+{% if P.productos_editar %}
+<form hx-post="{% url 'productos:combo' p.pk %}" hx-target="#combo" class="card-body border-top">{% csrf_token %}<input type="hidden" name="accion" value="agregar">
+  <label class="form-label small mb-1">Agregar producto fijo</label>
+  <div class="input-group input-group-sm">
+    <input type="number" name="cantidad" value="1" min="0.001" step="any" class="form-control" style="max-width: 4.5rem" aria-label="Cantidad">
+    <select name="variante" class="form-select" required aria-label="Producto">
+      <option value="">Elige un producto…</option>
+      {% regroup combo_elegibles by producto.categoria as cats %}
+      {% for c in cats %}<optgroup label="{{ c.grouper|default:'Sin categoría' }}">{% for v in c.list %}<option value="{{ v.pk }}">{{ v.nombre_completo }} · {{ v.precio_venta|soles }}</option>{% endfor %}</optgroup>{% endfor %}
+    </select>
+    <button class="btn btn-primary" aria-label="Agregar"><i class="bi bi-plus-lg"></i></button>
+  </div>
+</form>
+<details class="card-body border-top pt-2">
+  <summary class="small fw-semibold">Agregar una parte a elegir (ej.: la gaseosa)</summary>
+  <form hx-post="{% url 'productos:combo' p.pk %}" hx-target="#combo" class="mt-2">{% csrf_token %}<input type="hidden" name="accion" value="parte">
+    <input type="text" name="nombre" class="form-control form-control-sm mb-2" maxlength="40" placeholder="Nombre de la parte: Gaseosa, Postre…" required>
+    <select name="variantes" class="form-select form-select-sm" multiple size="6" aria-label="Productos para elegir" required>
+      {% regroup combo_elegibles by producto.categoria as cats2 %}
+      {% for c in cats2 %}<optgroup label="{{ c.grouper|default:'Sin categoría' }}">{% for v in c.list %}<option value="{{ v.pk }}">{{ v.nombre_completo }}</option>{% endfor %}</optgroup>{% endfor %}
+    </select>
+    <div class="form-text">Marca dos o más con Ctrl (en el celular, tócalos uno por uno). El primero viene elegido; al pedir se puede cambiar.</div>
+    <button class="btn btn-sm btn-primary mt-2">Agregar parte</button>
+  </form>
+</details>
+{% endif %}

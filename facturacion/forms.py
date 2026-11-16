@@ -11,7 +11,7 @@ class ConfigForm(forms.ModelForm):
     class Meta:
         model = Config
         fields = ["proveedor", "ruta", "token", "igv", "afectacion", "por_defecto", "serie_boleta", "serie_factura", "serie_nc_boleta",
-                  "serie_nc_factura"]
+                  "serie_nc_factura", "credito_activo", "credito_dias"]
         widgets = {"token": forms.PasswordInput(render_value=True, attrs={"autocomplete": "new-password"}),
                    "proveedor": forms.RadioSelect, "por_defecto": forms.RadioSelect}
 

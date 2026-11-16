@@ -1,0 +1,7 @@
+<ul class="nav nav-pills small mb-3 flex-nowrap overflow-auto text-nowrap">
+  <li class="nav-item"><a class="nav-link py-1 {% if activo == 'inicio' %}active{% endif %}" href="{% url 'cobranzas:inicio' %}"><i class="bi bi-house me-1"></i>Inicio</a></li>
+  <li class="nav-item"><a class="nav-link py-1 {% if activo == 'morosos' %}active{% endif %}" href="{% url 'cobranzas:morosos' %}"><i class="bi bi-exclamation-circle me-1"></i>Morosos</a></li>
+  <li class="nav-item"><a class="nav-link py-1 {% if activo == 'inscritos' %}active{% endif %}" href="{% url 'cobranzas:inscritos' %}"><i class="bi bi-people me-1"></i>Inscritos</a></li>
+  {% if P.cobranzas_gestionar %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'planes' %}active{% endif %}" href="{% url 'cobranzas:planes' %}"><i class="bi bi-card-list me-1"></i>Planes</a></li>{% endif %}
+  {% if P.cobranzas_gestionar or P.reportes_ver %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'reporte' %}active{% endif %}" href="{% url 'cobranzas:reporte' %}"><i class="bi bi-bar-chart me-1"></i>Reporte</a></li>{% endif %}
+</ul>

@@ -159,6 +159,8 @@ def opciones(desde, hasta):
     agrupado = defaultdict(lambda: {"veces": Decimal(0), "ingreso": CERO})
     for item in VentaItem.objects.filter(venta__in=ventas(desde, hasta)).exclude(opciones=[]).values("opciones", "cantidad"):
         for o in item["opciones"] or []:
+            if o.get("c"):  # lo que trae un combo no es una opción elegida
+                continue
             g = agrupado[(o.get("g", ""), o.get("n", ""))]
             g["veces"] += item["cantidad"]
             g["ingreso"] += Decimal(o.get("p") or 0) * item["cantidad"]
@@ -281,7 +283,7 @@ def inventario(desde, hasta):
 
 def deudores(limite=20):
     from clientes.models import Abono
-    from clientes.servicios import con_saldo, total_por_cobrar
+    from clientes.servicios import con_saldo, total_por_cobrar, vencido
     from ventas.models import MetodoPago, Pago, Venta
 
     hoy = timezone.localdate()
@@ -295,10 +297,12 @@ def deudores(limite=20):
                                 .order_by("venta__fecha").values_list("venta__fecha", flat=True).first())
         dias = (hoy - timezone.localtime(desde).date()).days if desde else None
         filas.append({"cliente": cl, "saldo": saldo, "ultimo_pago": ultimo_pago, "ultimo_fiado": ultimo_fiado, "dias": dias,
+                      "vencido": vencido(cl),
                       "excede": bool(cl.limite_credito and saldo > cl.limite_credito)})
     filas.sort(key=lambda f: -f["saldo"])
     return {"total": total_por_cobrar(), "filas": filas[:limite], "n": len(filas),
-            "antiguos": sum(1 for f in filas if f["dias"] is not None and f["dias"] > 30)}
+            "antiguos": sum(1 for f in filas if f["dias"] is not None and f["dias"] > 30),
+            "vencido": sum((f["vencido"] for f in filas), CERO)}
 
 
 def cajas(desde, hasta):

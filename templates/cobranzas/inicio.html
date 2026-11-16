@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Cobranzas{% endblock %}
+{% block page_title %}Cobranzas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Cobranzas</li>{% endblock %}
+{% block content %}
+{% include "cobranzas/partials/menu.html" with activo="inicio" %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-start">
+  <div class="flex-grow-1 position-relative" style="min-width: 240px">
+    <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="search" name="q" class="form-control" placeholder="Buscar alumno, socio, DNI o celular" autocomplete="off"
+             hx-get="{% url 'cobranzas:buscar' %}" hx-trigger="input changed delay:250ms, search" hx-target="#resultados"></div>
+    <div id="resultados" class="position-absolute w-100" style="z-index: 1050"></div>
+  </div>
+  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Inscribir</a>{% endif %}
+</div>
+
+<div class="row g-2 g-md-3 mb-3">
+  <div class="col-6 col-lg-3"><a href="{% url 'cobranzas:morosos' %}" class="small-box {% if r.vencido %}text-bg-danger{% else %}text-bg-light border{% endif %} mb-0 d-block text-decoration-none h-100">
+    <div class="inner"><h3>{{ r.vencido|soles }}</h3><p class="mb-0">Vencido · {{ r.morosos }} moroso{{ r.morosos|pluralize }}</p></div><i class="small-box-icon bi bi-exclamation-circle"></i></a></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'cobranzas:morosos' %}?ver=proximos" class="small-box {% if r.por_vencer %}text-bg-warning{% else %}text-bg-light border{% endif %} mb-0 d-block text-decoration-none h-100">
+    <div class="inner"><h3>{{ r.por_vencer|soles }}</h3><p class="mb-0">Vence en {{ cfg.dias_aviso }} día{{ cfg.dias_aviso|pluralize }}</p></div><i class="small-box-icon bi bi-hourglass-split"></i></a></div>
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100">
+    <div class="inner"><h3>{{ r.cobrado_mes|soles }}</h3><p class="mb-0">Cobrado este mes{% if r.cobrado_hoy %} · hoy {{ r.cobrado_hoy|soles }}{% endif %}</p></div><i class="small-box-icon bi bi-cash-coin"></i></div></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'cobranzas:inscritos' %}" class="small-box text-bg-light border mb-0 d-block text-decoration-none h-100">
+    <div class="inner"><h3>{{ r.activos }}</h3><p class="mb-0">Inscrito{{ r.activos|pluralize }} activo{{ r.activos|pluralize }}</p></div><i class="small-box-icon bi bi-people"></i></a></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-exclamation-circle text-danger me-1"></i> Deben</h3>
+        {% if n_morosos > morosos|length %}<a href="{% url 'cobranzas:morosos' %}" class="ms-auto small">Ver los {{ n_morosos }}</a>{% endif %}</div>
+      {% include "cobranzas/partials/lista_grupos.html" with grupos=morosos vacio="Nadie tiene cuotas vencidas." vencidos=True %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-hourglass-split text-warning me-1"></i> Vencen pronto</h3>
+        {% if n_proximos > proximos|length %}<a href="{% url 'cobranzas:morosos' %}?ver=proximos" class="ms-auto small">Ver los {{ n_proximos }}</a>{% endif %}</div>
+      {% include "cobranzas/partials/lista_grupos.html" with grupos=proximos vacio="Nada vence en los próximos días." %}
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Últimos cobros</h3></div>
+      {% if ultimos %}
+      <ul class="list-group list-group-flush small">
+        {% for p in ultimos %}<li class="list-group-item d-flex gap-2 align-items-center">
+          <a href="{% url 'cobranzas:cuenta' p.cliente_id %}" class="text-truncate">{{ p.cliente.nombre }}</a>
+          <span class="text-body-secondary text-nowrap">{{ p.fecha|date:"d/m H:i" }}</span>
+          <span class="badge text-bg-light border">{{ p.get_metodo_display }}</span>
+          <strong class="ms-auto text-nowrap">{{ p.monto|soles }}</strong></li>{% endfor %}
+      </ul>
+      {% else %}<div class="card-body small text-body-secondary">Todavía no hay cobros.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

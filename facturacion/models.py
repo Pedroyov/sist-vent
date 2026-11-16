@@ -33,6 +33,11 @@ class Config(models.Model):
     serie_nc_factura = models.CharField("serie de notas de crédito de facturas", max_length=4, default="FC01")
     por_defecto = models.CharField("al cobrar, proponer", max_length=1, default="B",
                                    choices=[("N", "Nota de venta (sin comprobante)"), ("B", "Boleta"), ("F", "Factura")])
+    credito_activo = models.BooleanField("permitir facturas al crédito", default=False,
+                                        help_text="Para empresas que pagan después (a 30 días, a fin de mes). Necesita el módulo Clientes y fiado.")
+    credito_dias = models.PositiveSmallIntegerField("plazo habitual (días)", default=30,
+                                                    validators=[MinValueValidator(1), MaxValueValidator(365)],
+                                                    help_text="Se propone al cobrar; se puede cambiar en cada factura.")
 
     class Meta:
         verbose_name = "configuración de facturación"
@@ -86,6 +91,10 @@ class Comprobante(models.Model):
     igv = models.DecimalField(max_digits=12, decimal_places=2, default=CERO)
     total = models.DecimalField(max_digits=12, decimal_places=2)
     detalle = models.JSONField(default=list, help_text="Líneas tal como se enviaron.")
+    forma_pago = models.CharField("forma de pago", max_length=3, default="CON", choices=[("CON", "Contado"), ("CRE", "Crédito")])
+    pendiente = models.DecimalField("monto pendiente de pago", max_digits=12, decimal_places=2, default=CERO,
+                                    help_text="Al crédito: lo que se pagará después (lo que se fió).")
+    cuotas = models.JSONField(default=list, blank=True, help_text='Al crédito: [{"n": 1, "fecha": "2026-12-31", "monto": "120.00"}].')
     modifica = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="notas",
                                  help_text="Para notas de crédito: el comprobante que anula.")
     motivo = models.CharField(max_length=200, blank=True)
@@ -114,6 +123,17 @@ class Comprobante(models.Model):
     @property
     def numero_str(self):
         return f"{self.serie}-{self.numero:08d}"
+
+    @property
+    def al_credito(self):
+        return self.forma_pago == "CRE"
+
+    @property
+    def vence(self):
+        """La fecha de la última cuota (cuándo termina de pagarse)."""
+        from datetime import date
+
+        return date.fromisoformat(self.cuotas[-1]["fecha"]) if self.cuotas else None
 
     @property
     def es_nota(self):

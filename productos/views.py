@@ -180,12 +180,88 @@ def detalle(request, pk):
         "etiqueta_variantes": f"{e1} y {e2.lower()}" if e2 else e1,
         "ver_costos": puede(request.user, "productos.costos"),
         **_datos_componentes(producto),
+        **(_datos_combo(producto) if producto.es_combo else {}),
     })
 
 
 def _datos_componentes(producto):
     return {"componentes": list(producto.componentes.select_related("cambiar_con")),
             "grupos_cambio": GrupoOpciones.objects.filter(activo=True, diario=False, maximo=1).order_by("orden", "nombre")}
+
+
+def _datos_combo(combo):
+    """Lo que trae el combo, las partes a elegir y cuánto costaría todo por separado."""
+    items = list(combo.combo_items.select_related("variante__producto"))
+    partes = [g for g in combo.grupos.filter(activo=True).prefetch_related("opciones__variante__producto")
+              if any(o.variante_id for o in g.opciones.all())]
+    separado = sum((i.variante.precio_venta * i.cantidad for i in items), CERO)
+    for g in partes:
+        precios = [o.variante.precio_venta for o in g.opciones.all() if o.activa and o.variante_id]
+        if precios:
+            separado += min(precios)
+    elegibles = (Variante.objects.filter(activa=True, producto__activo=True).exclude(producto__tipo=Producto.Tipo.COMBO)
+                 .select_related("producto__categoria").order_by("producto__categoria__orden", "producto__categoria__nombre", "producto__nombre", "orden"))
+    return {"combo_items": items, "combo_partes": partes, "combo_separado": separado,
+            "combo_ahorro": separado - combo.precio if separado > combo.precio else None, "combo_elegibles": elegibles}
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def combo(request, pk):
+    """Arma el combo: agregar o quitar productos fijos, y partes a elegir (gaseosa: Inca o Coca)."""
+    from .models import ComboItem, Opcion
+
+    p = get_object_or_404(Producto, pk=pk, tipo=Producto.Tipo.COMBO)
+    accion = request.POST.get("accion")
+    error = ""
+    try:
+        if accion == "agregar":
+            v = get_object_or_404(Variante.objects.select_related("producto"), pk=entero(request.POST.get("variante")))
+            if v.producto.es_combo:
+                raise ValueError("Un combo no puede traer otro combo.")
+            cantidad = Decimal(str(request.POST.get("cantidad") or "1").replace(",", "."))
+            if not cantidad.is_finite() or cantidad <= 0 or cantidad > 99:
+                raise ValueError("Cantidad no válida.")
+            item = p.combo_items.filter(variante=v).first()
+            if item:
+                item.cantidad += cantidad
+                item.save(update_fields=["cantidad"])
+            else:
+                orden = (p.combo_items.order_by("-orden").values_list("orden", flat=True).first() or 0) + 1
+                ComboItem.objects.create(combo=p, variante=v, cantidad=cantidad, orden=orden)
+        elif accion in ("mas", "menos", "quitar"):
+            item = get_object_or_404(ComboItem, pk=entero(request.POST.get("item")), combo=p)
+            if accion == "quitar" or (accion == "menos" and item.cantidad <= 1):
+                item.delete()
+            else:
+                item.cantidad += 1 if accion == "mas" else -1
+                item.save(update_fields=["cantidad"])
+        elif accion == "parte":
+            nombre = " ".join(request.POST.get("nombre", "").split())[:40]
+            vs = list(Variante.objects.filter(pk__in=[entero(x) for x in request.POST.getlist("variantes") if entero(x)])
+                      .exclude(producto__tipo=Producto.Tipo.COMBO).select_related("producto"))
+            if not nombre or len(vs) < 2:
+                raise ValueError("Escribe el nombre de la parte (ej.: Gaseosa) y marca al menos dos productos para elegir.")
+            base = f"{p.nombre}: {nombre}"[:60]
+            titulo, n = base, 2
+            while GrupoOpciones.objects.filter(nombre=titulo).exists():
+                titulo, n = f"{base[:56]} ({n})", n + 1
+            g = GrupoOpciones.objects.create(nombre=titulo, minimo=1, maximo=1, orden=0)
+            for i, v in enumerate(vs):
+                Opcion.objects.create(grupo=g, nombre=v.nombre_completo[:60], variante=v, orden=i, por_defecto=i == 0)
+            p.grupos.add(g)
+        elif accion == "quitar_parte":
+            g = get_object_or_404(GrupoOpciones, pk=entero(request.POST.get("grupo")))
+            p.grupos.remove(g)
+            if not g.productos.exists():
+                g.delete()
+    except (ValueError, ArithmeticError) as e:
+        error = str(e) if str(e) else "Dato no válido."
+        if not request.htmx:
+            messages.error(request, error)
+    if request.htmx:
+        return render(request, "productos/partials/combo.html", {"p": p, "error": error, **_datos_combo(p)})
+    return redirect("productos:detalle", pk=pk)
 
 
 @permiso_requerido("productos.editar")

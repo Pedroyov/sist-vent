@@ -27,9 +27,13 @@
       <div class="card-body"><div class="row">
         <div class="col-6">{{ form.serie_boleta|as_crispy_field }}</div><div class="col-6">{{ form.serie_factura|as_crispy_field }}</div>
         <div class="col-6">{{ form.serie_nc_boleta|as_crispy_field }}</div><div class="col-6">{{ form.serie_nc_factura|as_crispy_field }}</div></div>
-        <p class="small text-body-secondary mb-0">Tienen que ser las mismas que registraste con tu proveedor. Si usas dos cajas, cada una puede tener su serie más adelante.</p></div></div>
+        <p class="small text-body-secondary mb-0">Tienen que ser las mismas que registraste con tu proveedor. Si cobran en más de una caja, cada una puede tener su propia serie en <a href="{% url 'caja:puntos' %}">Cajas y series</a>.</p></div></div>
     <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Al cobrar</h3></div>
-      <div class="card-body">{{ form.por_defecto|as_crispy_field }}</div></div>
+      <div class="card-body">{{ form.por_defecto|as_crispy_field }}
+        {% if P.mod_clientes %}{{ form.credito_activo|as_crispy_field }}
+        <div class="row"><div class="col-sm-6">{{ form.credito_dias|as_crispy_field }}</div></div>
+        <p class="small text-body-secondary mb-0">Al cobrar con Factura y método Fiado, la factura sale «al crédito» con su fecha de pago y se envía a SUNAT ese día. La deuda queda en la ficha del cliente.</p>
+        {% else %}<p class="small text-body-secondary mb-0">Para facturar al crédito hace falta el módulo Clientes y fiado.</p>{% endif %}</div></div>
   </div>
 </div>
 <div class="card sticky-bottom mb-4"><div class="card-body d-flex gap-2 py-2">

@@ -8,12 +8,14 @@
   {% if saldo > 0 and P.clientes_cobrar %}<button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#m-abono"><i class="bi bi-cash-coin me-1"></i>Registrar pago</button>{% endif %}
   {% if saldo > 0 and wa %}<a href="{{ wa }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp me-1"></i>Recordar deuda</a>{% endif %}
   <a href="{% url 'clientes:imprimir' c.pk %}" data-imprimir="{% url 'clientes:imprimir' c.pk %}" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Estado de cuenta</a>
+  {% if saldo > 0 and P.clientes_limite %}<button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#m-incobrable"><i class="bi bi-x-octagon me-1"></i>Incobrable</button>{% endif %}
   {% if P.clientes_editar %}<a href="{% url 'clientes:editar' c.pk %}" class="btn btn-outline-primary ms-sm-auto"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
 </div>
 <div class="row g-3">
   <div class="col-lg-4">
     <div class="small-box {% if saldo > 0 %}text-bg-warning{% else %}text-bg-success{% endif %} mb-3">
-      <div class="inner"><h3>{{ saldo|soles }}</h3><p class="mb-0">{% if saldo > 0 %}Debe{% else %}No debe nada{% endif %}{% if c.limite_credito %} · límite {{ c.limite_credito|soles }}{% endif %}</p></div>
+      <div class="inner"><h3>{{ saldo|soles }}</h3><p class="mb-0">{% if saldo > 0 %}Debe{% else %}No debe nada{% endif %}{% if c.limite_credito %} · límite {{ c.limite_credito|soles }}{% endif %}</p>
+      {% if vencido %}<p class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle"></i> Vencido: {{ vencido|soles }}</p>{% endif %}</div>
       <i class="small-box-icon bi bi-journal-text"></i>
     </div>
     <div class="card mb-3">
@@ -28,6 +30,34 @@
     </div>
   </div>
   <div class="col-lg-8">
+    {% if P.cobranzas_ver %}
+    <a href="{% url 'cobranzas:cuenta' c.pk %}" class="card mb-3 text-decoration-none text-body">
+      <div class="card-body py-2 d-flex align-items-center gap-2"><i class="bi bi-calendar-check fs-4 text-primary"></i>
+        <div><div class="fw-semibold">Cobranzas</div><div class="small text-body-secondary">{% if inscripciones %}{{ inscripciones|join:", " }}{% else %}No está inscrito en ningún plan{% endif %}</div></div>
+        {% if cuotas_debe %}<strong class="ms-auto text-danger text-nowrap">Debe {{ cuotas_debe|soles }}</strong>{% else %}<i class="bi bi-chevron-right ms-auto"></i>{% endif %}</div>
+    </a>
+    {% endif %}
+    {% if con_factura %}
+    <div class="card mb-3 {% if vencido %}border-danger{% endif %}">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Cuenta corriente: lo que falta pagar</h3></div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th class="ps-3">Comprobante</th><th class="d-none d-sm-table-cell">Fecha</th><th>Vence</th><th class="text-end pe-3">Falta</th></tr></thead>
+          <tbody>
+            {% for d in pendientes %}
+            <tr>
+              <td class="ps-3 text-nowrap"><a href="{% url 'ventas:ticket' d.venta.pk %}">{% if d.comprobante %}{{ d.comprobante.numero_str }}{% else %}Venta {{ d.venta.numero_str }}{% endif %}</a>{% if d.vencido %}<br><span class="badge text-bg-danger">Vencida · {{ d.dias_atraso }} día{{ d.dias_atraso|pluralize }}</span>{% elif d.pagado %}<br><span class="badge text-bg-info">Pagó una parte</span>{% endif %}</td>
+              <td class="small d-none d-sm-table-cell">{{ d.venta.fecha|date:"d/m/Y" }}</td>
+              <td class="small">{{ d.vence|date:"d/m/Y"|default:"—" }}</td>
+              <td class="text-end fw-semibold text-nowrap pe-3">{{ d.pendiente|soles }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer small text-body-secondary">Los pagos se aplican primero a lo más antiguo.</div>
+    </div>
+    {% endif %}
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-journal-text me-1"></i> Estado de cuenta (fiado)</h3></div>
       {% if movimientos %}
@@ -83,6 +113,23 @@
       <div class="modal-body"><p class="small">La deuda vuelve a subir. Si fue en efectivo y su caja ya cerró, sale de tu caja abierta.</p>
         <input type="text" name="motivo" class="form-control" required maxlength="200" placeholder="Motivo"></div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger">Anular pago</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% if saldo > 0 and P.clientes_limite %}
+<div class="modal fade" id="m-incobrable" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'clientes:incobrable' c.pk %}" class="modal-content">{% csrf_token %}
+      <div class="modal-header"><h5 class="modal-title">Marcar como incobrable</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p class="small">Úsalo cuando el negocio ya no va a cobrar esta deuda. Deja de salir como pendiente; no mueve la caja y las facturas siguen siendo válidas. Cómo se registra la pérdida lo ve el contador.</p>
+        <label class="form-label" for="inc-monto">Monto</label>
+        <div class="input-group mb-2"><span class="input-group-text">S/</span><input type="number" name="monto" id="inc-monto" class="form-control" step="0.01" min="0.01" max="{{ saldo|stringformat:'.2f' }}" value="{{ saldo|stringformat:'.2f' }}" required></div>
+        <label class="form-label" for="inc-motivo">Motivo</label>
+        <input type="text" name="motivo" id="inc-motivo" class="form-control" maxlength="200" required placeholder="Ej.: la empresa cerró, no se ubica al cliente">
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-danger">Marcar incobrable</button></div>
     </form>
   </div>
 </div>

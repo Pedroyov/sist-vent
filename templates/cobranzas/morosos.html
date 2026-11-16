@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}{% if ver == "proximos" %}Por vencer{% else %}Morosos{% endif %}{% endblock %}
+{% block page_title %}{% if ver == "proximos" %}Por vencer{% else %}Morosos{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Morosos</li>{% endblock %}
+{% block content %}
+{% include "cobranzas/partials/menu.html" with activo="morosos" %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="btn-group">
+    <a href="?plan={{ plan }}" class="btn btn-sm {% if ver == 'vencidos' %}btn-danger{% else %}btn-outline-danger{% endif %}">Vencidos</a>
+    <a href="?ver=proximos&plan={{ plan }}" class="btn btn-sm {% if ver == 'proximos' %}btn-warning{% else %}btn-outline-warning{% endif %}">Vencen en {{ cfg.dias_aviso }} día{{ cfg.dias_aviso|pluralize }}</a>
+  </div>
+  <form method="get" class="d-inline">{% if ver == "proximos" %}<input type="hidden" name="ver" value="proximos">{% endif %}
+    <select name="plan" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Plan">
+      <option value="">Todos los planes</option>{% for p in planes %}<option value="{{ p.pk }}" {% if plan == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></form>
+  <a href="?ver={{ ver }}&plan={{ plan }}&excel=1" class="btn btn-sm btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
+</div>
+<div class="card mb-4">
+  <div class="card-header d-flex"><span>{{ grupos|length }} cliente{{ grupos|length|pluralize }}</span><strong class="ms-auto {% if ver == 'vencidos' %}text-danger{% endif %}">{{ total|soles }}</strong></div>
+  {% include "cobranzas/partials/lista_grupos.html" with vencidos=es_vencidos vacio="Nadie en esta lista." %}
+  {% if grupos %}<div class="card-footer small text-body-secondary"><i class="bi bi-whatsapp text-success"></i> abre WhatsApp con el mensaje listo: solo pulsa enviar.</div>{% endif %}
+</div>
+{% endblock %}

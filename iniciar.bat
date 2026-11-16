@@ -3,9 +3,10 @@ REM Abre el sistema con la base REAL del negocio (db.sqlite3) para esta PC y los
 REM Deja esta ventana abierta mientras se trabaja. Para apagar: Ctrl+C o cerrar la ventana.
 cd /d "%~dp0"
 if exist .venv\Scripts\activate.bat call .venv\Scripts\activate.bat
+echo Copia de seguridad antes de empezar...
+python manage.py respaldo || echo (No se pudo hacer la copia de seguridad, revisa el mensaje de arriba)
 echo Revisando la base de datos...
 python manage.py migrate -v0 || goto :error
-python manage.py respaldo || echo (No se pudo hacer la copia de seguridad, revisa el mensaje de arriba)
 set ALLOWED_HOSTS=*
 set IP=
 for /f "usebackq tokens=*" %%i in (`powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' } | Select-Object -First 1).IPv4Address.IPAddress"`) do set IP=%%i

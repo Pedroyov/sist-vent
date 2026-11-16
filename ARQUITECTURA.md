@@ -39,7 +39,10 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Anular una venta** emite su **nota de crédito** (motivo 01) por la señal `ventas.senales.venta_anulada`: ventas no depende de facturación.
 - **Después de cobrar** con nota de venta, desde el ticket se puede emitir la boleta o factura (ventas de los últimos días).
 - **Ticket** (`impresion/ticket.html`): nombre y número del comprobante, cliente, op. gravada, IGV, QR en SVG (librería `qrcode`), hash y leyenda de representación impresa.
-- **Pendiente:** factura al crédito (cuotas), cortesías como transferencia gratuita, resumen de anulaciones por comunicación de baja, una serie por caja.
+- **Factura al crédito** (apagada: `Config.credito_activo`, plazo `credito_dias`). Si la factura lleva pagos Fiado, `crear()` guarda `forma_pago="CRE"`, `pendiente` y `cuotas` (`plan_cuotas`: cuotas iguales, la última absorbe el redondeo). `revisar_antes` exige que esté activada y una fecha de pago posterior a hoy. Nubefact recibe `medio_de_pago`, `condiciones_de_pago` y `venta_al_credito` (**verificar los nombres de campo en una prueba real con Nubefact**). La factura se envía a SUNAT al emitirse, no al cobrarse.
+- **Excel para el contador** (`facturacion:excel?mes=AAAA-MM`): registro de ventas del mes (notas de crédito en negativo, forma de pago, vence, pendiente) y hoja de incobrables.
+- **Series por caja**: `caja.PuntoCaja` puede tener series propias; `serie_para()` las usa (también para notas de crédito) y si están vacías usa las de Config.
+- **Pendiente:** cortesías como transferencia gratuita, resumen de anulaciones por comunicación de baja.
 
 ## Módulos y menú
 
@@ -56,6 +59,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Producto** guarda lo común: tipo (producto o servicio), categoría, unidad, precio, costo, si controla stock y el stock mínimo. Un servicio nunca controla stock.
 - **Variante** es lo que realmente se vende y se cuenta: tiene su código de barras, su stock y, si hace falta, su propio precio y costo (vacío = los del producto). Un producto sin tallas ni colores tiene **una sola variante sin nombre**, que la interfaz no muestra. Así, ventas siempre trabaja con variantes.
 - **MovimientoStock** es el kardex. El stock **solo cambia** con `productos.servicios.mover_stock()` o `ajustar_a()`, que bloquean la fila y anotan el saldo. Las ventas usarán `mover_stock(variante, -cantidad, Tipo.VENTA, referencia="Venta 000123")`. Se permite stock negativo para no trabar la caja.
+- **Combos** (`Producto.tipo = C`): no tienen stock propio. `ComboItem` guarda lo que traen fijo (variante + cantidad); lo que se elige (la gaseosa) es un grupo de opciones cuyas `Opcion.variante` apuntan a un producto. `foto_combo()` mete lo que trae en la foto del pedido/venta marcado `"c": True` (la cocina y la comanda lo ven; el ticket, `texto_opciones` y el reporte de opciones no) con `"v"` y `"q"`. Al vender y anular, `consumo(variante, cantidad, foto)` dice qué stock mover, a partir de la foto: si el combo cambia después, las ventas viejas se devuelven bien. Una opción con `variante` también descuenta stock fuera de los combos (ej.: adicional huevo). El costo del combo, si no se escribe, es la suma de lo que trae. Pantalla: tarjeta "Qué trae el combo" en el detalle del producto (`productos:combo`).
 - `productos/rubros.py` tiene lo que cambia por rubro: categorías sugeridas, nombres de las variantes y valores por defecto.
 - Permisos: `productos.ver`, `productos.editar`, `productos.stock` y `productos.costos`. Quien no tiene `productos.costos` no ve los costos en pantallas ni en el Excel.
 - Pruebas: `python manage.py test productos ventas caja mesas`.
@@ -98,6 +102,8 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - Al **cerrar** se guarda una foto del resumen (`esperado`, `contado`, `diferencia`, `conteo`, `resumen`), así el cierre ya no cambia. Si luego se anula una venta de una caja cerrada, el efectivo devuelto sale como egreso automático de la caja abierta de quien anula.
 - Permisos: `caja.usar` (su propia caja) y `caja.ver` (todas, historial, cerrar la de otro).
 
+- **Cajas (puntos de cobro)**: `caja.PuntoCaja` (Caja 1, Barra) con series opcionales de boleta, factura y notas de crédito (vacías = las de `facturacion.Config`). `SesionCaja.punto` dice en cuál se abrió el turno: con varias cajas activas hay que elegir al abrir; con una sola se pone sola; sin ninguna, todo sigue como antes. `facturacion.servicios.serie_para(venta, campo, config)` toma la serie de la caja de la venta, también para la nota de crédito. Pantalla: `caja:puntos` (permiso `config.negocio`).
+
 ## Mesas (cómo está pensado)
 
 - **Cuenta** es lo que va consumiendo una mesa (o un pedido para llevar, sin mesa). Solo puede haber una cuenta abierta por mesa. **ItemCuenta** guarda el plato, la cantidad, el precio de ese momento, la nota ("sin cebolla"), cuándo se envió a cocina, si se quitó (con motivo) y con qué venta se cobró.
@@ -128,6 +134,18 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Saldo** = fiado de ventas pagadas − pagos (`Abono`) no anulados. Se calcula siempre, no se guarda: anular una venta o un pago lo corrige solo. Para listas usa `clientes.servicios.con_saldo()`, que lo calcula en la base de datos.
 - **Pagos de deudas** (`registrar_abono`): necesitan caja abierta. Si son en efectivo, suman al efectivo esperado de esa caja. El fiado no suma (no hay dinero). Anular un pago de una caja ya cerrada saca el efectivo de la caja abierta de quien anula.
 - En el cuadro de cobro, el método "Fiado" solo aparece a quien puede fiar. Ahí mismo se busca el cliente (`clientes:buscar`) o se escribe uno nuevo.
+- **Cuenta corriente** (`clientes.servicios.deudas`): reparte lo pagado en orden FIFO entre las ventas al fiado y, si la venta tiene factura al crédito, usa sus cuotas para saber qué está vencido y con cuántos días de atraso. `validar_fiado` no deja fiar a quien tiene algo vencido salvo con `clientes.limite`.
+- **Incobrable** (`marcar_incobrable`): un `Abono` con método `"INC"`, sin caja, que baja la deuda sin sumar dinero. Sale en el estado de cuenta y en el Excel del contador.
+
+## Cobranzas (cómo está pensado)
+
+- **App `cobranzas`**, módulo apagado por defecto; necesita Clientes. Se enciende solo al elegir el rubro "Academia / gimnasio / taller". No depende del punto de venta: un negocio puede usar solo Cobranzas, Clientes y Caja.
+- **Plan** (precio, frecuencia MEN/QUI/SEM/UNI, `num_cuotas` 0 = sin fin, matrícula) → **Inscripción** (cliente que paga, `alumno` opcional, precio propio, inicio, día de pago, estado ACT/TER/BAJ) → **Cuota** (número 0 = matrícula, concepto, vence, monto, mora, pagado, `anulada` = exonerada) ← **Pago** + **PagoCuota** (cuánto de cada pago fue a cada cuota).
+- **Generación sin tareas programadas:** `servicios.al_dia()` se llama al abrir las pantallas de cobranza y el inicio. Crea las cuotas de los planes sin fin hasta hoy + días de aviso y pone la mora (si está activa) a las cuotas atrasadas pasados los días de gracia. Los planes con número fijo crean todas sus cuotas al inscribir. `generar()` es idempotente (restricción única inscripción + número).
+- **Cobro** (`cobrar`): el pago se reparte entre las cuotas marcadas, la más antigua primero; puede ser menos que el total (a cuenta). Usa `sesion_para_vender`: entra a la caja abierta y `caja.servicios.calcular` lo suma (`cuotas`, `cuotas_efectivo`). Anular un recibo devuelve la deuda y, si su caja ya cerró y era efectivo, saca el dinero de la caja abierta de quien anula.
+- **Baja:** quita (marca exoneradas con nota "Por baja") las cuotas que aún no vencen y no tienen pagos; lo vencido se sigue debiendo. Reactivar las devuelve. Un plan con número fijo pasa a Terminada cuando no queda nada por pagar.
+- **Recordatorios:** `mensaje()` arma el texto y `enlace_whatsapp()` el enlace wa.me (no envía nada solo).
+- **Pendiente:** boleta electrónica del pago de cuotas (hoy se entrega un recibo interno), congelar una membresía por unos días.
 
 ## Reportes
 

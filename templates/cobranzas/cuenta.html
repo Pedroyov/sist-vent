@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}{{ c.nombre }} · Cobranzas{% endblock %}
+{% block page_title %}{{ c.nombre }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">{{ c.nombre|truncatechars:30 }}</li>{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if wa %}<a href="{{ wa }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp me-1"></i>Recordar</a>{% endif %}
+  {% if P.cobranzas_inscribir and planes_activos %}<a href="{% url 'cobranzas:inscribir' %}?cliente={{ c.pk }}" class="btn btn-outline-primary"><i class="bi bi-plus-lg me-1"></i>Inscribir en otro plan</a>{% endif %}
+  {% if P.clientes_ver %}<a href="{% url 'clientes:detalle' c.pk %}" class="btn btn-outline-secondary ms-sm-auto"><i class="bi bi-person me-1"></i>Ficha del cliente</a>{% endif %}
+</div>
+<div class="small text-body-secondary mb-3">{% if c.numero_documento %}{{ c.documento }} · {% endif %}{% if c.telefono %}<i class="bi bi-phone"></i> {{ c.telefono }}{% else %}Sin celular{% if P.clientes_editar %} (<a href="{% url 'clientes:editar' c.pk %}">agregar</a>){% endif %}{% endif %}</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    {% if pendientes %}
+    <div class="card mb-3 {% if vencido %}border-danger{% else %}border-warning{% endif %}">
+      <div class="card-header d-flex align-items-center">
+        <h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Debe {{ total|soles }}</h3>
+        {% if vencido %}<span class="badge text-bg-danger ms-auto">Vencido {{ vencido|soles }}</span>{% endif %}
+      </div>
+      {% if P.cobranzas_cobrar %}
+      <form method="post" action="{% url 'cobranzas:cobrar' c.pk %}" id="f-cobro" novalidate>{% csrf_token %}
+      {% endif %}
+        <ul class="list-group list-group-flush">
+          {% for q in pendientes %}
+          <li class="list-group-item">
+            <label class="d-flex gap-2 align-items-start mb-0 {% if P.cobranzas_cobrar %}cursor-pointer{% endif %}">
+              {% if P.cobranzas_cobrar %}<input type="checkbox" class="form-check-input mt-1 c-cuota" name="cuota" value="{{ q.pk }}" data-falta="{{ q.falta|stringformat:'.2f' }}"
+                {% if q.vence <= hoy or forloop.first %}checked{% endif %}>{% endif %}
+              <span class="flex-grow-1" style="min-width: 0">
+                <span class="fw-semibold">{{ q.concepto }}</span>
+                <span class="d-block small text-body-secondary text-truncate">{% if q.inscripcion.alumno %}{{ q.inscripcion.alumno }} · {% endif %}{{ q.inscripcion.plan.nombre }}</span>
+                <span class="d-block small {% if q.vence < hoy %}text-danger{% else %}text-body-secondary{% endif %}">
+                  {% if q.vence < hoy %}Venció el {{ q.vence|date:"d/m/Y" }}{% elif q.vence == hoy %}Vence hoy{% else %}Vence el {{ q.vence|date:"d/m/Y" }}{% endif %}
+                  {% if q.pagado %} · pagó {{ q.pagado|soles }}{% endif %}{% if q.mora %} · incluye mora {{ q.mora|soles }}{% endif %}</span>
+              </span>
+              <strong class="text-nowrap">{{ q.falta|soles }}</strong>
+            </label>
+          </li>
+          {% endfor %}
+        </ul>
+      {% if P.cobranzas_cobrar %}
+        <div class="card-body border-top">
+          <label class="form-label small mb-1" for="c-monto">Monto que paga</label>
+          <div class="input-group input-group-lg mb-1"><span class="input-group-text">S/</span>
+            <input type="number" name="monto" id="c-monto" class="form-control" step="0.10" min="0.01" inputmode="decimal" required></div>
+          <div class="form-text mb-2" id="c-ayuda">Puede pagar una parte: se aplica primero a la cuota más antigua.</div>
+          <div class="small mb-1">Cómo paga</div>
+          <div class="d-flex flex-wrap gap-1 mb-2">
+            {% for k, v in metodos %}<input type="radio" class="btn-check" name="metodo" id="m-{{ k }}" value="{{ k }}" {% if forloop.first %}checked{% endif %}>
+            <label class="btn btn-sm btn-outline-primary" for="m-{{ k }}">{{ v }}</label>{% endfor %}
+          </div>
+          <input type="text" name="nota" class="form-control form-control-sm mb-2" maxlength="200" placeholder="Nota u operación (opcional)">
+          <button class="btn btn-success w-100 btn-lg" id="c-boton"><i class="bi bi-check-lg me-1"></i>Cobrar <span id="c-total"></span></button>
+          <div class="small text-body-secondary mt-1 text-center">El efectivo entra a tu caja abierta. Se imprime el recibo.</div>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="small-box text-bg-success mb-3"><div class="inner"><h3>Al día</h3><p class="mb-0">No debe ninguna cuota.</p></div><i class="small-box-icon bi bi-check-circle"></i></div>
+    {% endif %}
+
+  </div>
+
+  <div class="col-lg-7">
+    {% for i in inscripciones %}
+    <div class="card mb-3 {% if not i.activa %}opacity-75{% endif %}">
+      <div class="card-header d-flex align-items-center gap-2">
+        <div class="flex-grow-1" style="min-width: 0">
+          <h3 class="card-title mb-0">{{ i.plan.nombre }}{% if i.alumno %} <small class="text-body-secondary">· {{ i.alumno }}</small>{% endif %}</h3>
+          <div class="small text-body-secondary">S/ {{ i.precio }} {% if i.plan.frecuencia == "UNI" %}pago único{% else %}{{ i.plan.get_frecuencia_display|lower }}{% endif %}{% if i.precio != i.plan.precio %} (plan: {{ i.plan.precio|soles }}){% endif %}
+            · desde {{ i.inicio|date:"d/m/Y" }}{% if i.plan.frecuencia == "MEN" and i.dia_pago != i.inicio.day %} · paga los días {{ i.dia_pago }}{% endif %}</div>
+        </div>
+        <span class="ms-auto badge {% if i.estado == 'ACT' %}text-bg-success{% elif i.estado == 'TER' %}text-bg-secondary{% else %}text-bg-dark{% endif %}">{{ i.get_estado_display }}</span>
+        {% if P.cobranzas_inscribir %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Opciones"><i class="bi bi-three-dots-vertical"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'cobranzas:editar_inscripcion' i.pk %}"><i class="bi bi-pencil me-1"></i>Editar precio, día o alumno</a></li>
+            {% if i.activa and i.plan.es_indefinido %}<li><form method="post" action="{% url 'cobranzas:accion_inscripcion' i.pk 'adelantar' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-fast-forward me-1"></i>Adelantar un periodo</button></form></li>{% endif %}
+            {% if i.estado == "BAJ" %}<li><form method="post" action="{% url 'cobranzas:accion_inscripcion' i.pk 'reactivar' %}">{% csrf_token %}<button class="dropdown-item"><i class="bi bi-arrow-counterclockwise me-1"></i>Reactivar</button></form></li>
+            {% else %}<li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#m-baja" data-url="{% url 'cobranzas:accion_inscripcion' i.pk 'baja' %}" data-nombre="{{ i.quien }} de {{ i.plan.nombre }}"><i class="bi bi-person-x me-1"></i>Dar de baja</button></li>{% endif %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+      {% if i.estado == "BAJ" %}<div class="card-body py-2 small text-body-secondary border-bottom">De baja desde el {{ i.fin|date:"d/m/Y" }}{% if i.motivo_baja %}: {{ i.motivo_baja }}{% endif %}</div>{% endif %}
+      {% if i.nota %}<div class="card-body py-2 small border-bottom"><i class="bi bi-sticky me-1"></i>{{ i.nota }}</div>{% endif %}
+      {% if i.lista_cuotas %}
+      <ul class="list-group list-group-flush small">
+        {% for q in i.lista_cuotas %}
+        <li class="list-group-item d-flex align-items-center gap-2 py-2 {% if q.anulada %}text-body-tertiary{% endif %} {% if q.oculta %}d-none cuota-vieja-{{ i.pk }}{% endif %}">
+          <div class="flex-grow-1" style="min-width: 0">
+            <div>{{ q.concepto }}</div>
+            <div class="text-body-secondary">vence {{ q.vence|date:"d/m/y" }}{% if q.mora %} · <span class="text-danger">mora {{ q.mora|soles }}</span>{% endif %}{% if q.anulada and q.nota %} · {{ q.nota }}{% endif %}</div>
+          </div>
+          <span class="text-nowrap {% if q.anulada %}text-decoration-line-through{% endif %}">{{ q.total|soles }}</span>
+          {% with e=q.estado %}
+          {% if e == "pagada" %}<span class="badge text-bg-success">Pagada</span>
+          {% elif e == "vencida" %}<span class="badge text-bg-danger">Vencida</span>
+          {% elif e == "parcial" %}<span class="badge text-bg-info">Pagó {{ q.pagado|soles }}</span>
+          {% elif e == "exonerada" %}<span class="badge text-bg-secondary">Exonerada</span>
+          {% else %}<span class="badge text-bg-light border">Pendiente</span>{% endif %}
+          {% endwith %}
+          {% if P.cobranzas_gestionar and not q.anulada and not q.pagada %}
+          <div class="dropdown">
+            <button class="btn btn-sm btn-link text-body-secondary p-0" data-bs-toggle="dropdown" aria-label="Opciones de la cuota"><i class="bi bi-three-dots-vertical"></i></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {% if q.mora %}<li><form method="post" action="{% url 'cobranzas:accion_cuota' q.pk 'mora' %}">{% csrf_token %}<button class="dropdown-item">Quitar la mora</button></form></li>{% endif %}
+              <li><button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#m-exonerar" data-url="{% url 'cobranzas:accion_cuota' q.pk 'exonerar' %}" data-nombre="{{ q.concepto }}">Exonerar</button></li>
+            </ul>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if i.n_ocultas %}<div class="card-footer py-1 text-center"><button type="button" class="btn btn-link btn-sm" onclick="document.querySelectorAll('.cuota-vieja-{{ i.pk }}').forEach(function (e) { e.classList.remove('d-none'); }); this.parentNode.remove();">Ver {{ i.n_ocultas }} cuota{{ i.n_ocultas|pluralize }} anterior{{ i.n_ocultas|pluralize:"es" }}</button></div>{% endif %}
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="card"><div class="card-body text-center text-body-secondary py-5"><i class="bi bi-calendar-check display-6"></i>
+      <p class="mt-2 mb-0">No está inscrito en ningún plan.{% if P.cobranzas_inscribir and planes_activos %} <a href="{% url 'cobranzas:inscribir' %}?cliente={{ c.pk }}">Inscribir</a>{% endif %}</p></div></div>
+    {% endfor %}
+    {% if pagos %}
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Pagos</h3></div>
+      <ul class="list-group list-group-flush small">
+        {% for p in pagos %}
+        <li class="list-group-item {% if p.anulado %}text-body-tertiary{% endif %} {% if forloop.counter > 5 %}d-none pago-extra{% endif %}">
+          <div class="d-flex gap-2 align-items-start">
+            <div class="flex-grow-1" style="min-width: 0">
+              <div><span class="fw-semibold">{{ p.numero }}</span> <span class="text-body-secondary">· {{ p.fecha|date:"d/m/Y H:i" }} · {{ p.get_metodo_display }}</span></div>
+              <div class="text-body-secondary">{% for d in p.detalles.all %}{{ d.cuota.concepto }}{% if d.monto != d.cuota.total %} ({{ d.monto|soles }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+                · {{ p.usuario|nombre }}{% if p.nota %} · {{ p.nota }}{% endif %}</div>
+              {% if p.anulado %}<div class="text-danger">Anulado: {{ p.motivo_anulacion }}</div>{% endif %}
+            </div>
+            <div class="text-end text-nowrap">
+              <strong class="{% if p.anulado %}text-decoration-line-through{% endif %}">{{ p.monto|soles }}</strong>
+              {% if not p.anulado %}<div class="mt-1">
+                <a href="{% url 'cobranzas:recibo' p.pk %}" data-imprimir="{% url 'cobranzas:recibo' p.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Imprimir recibo" aria-label="Imprimir recibo"><i class="bi bi-printer"></i></a>
+                {% if P.cobranzas_gestionar %}<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" data-bs-toggle="modal" data-bs-target="#m-anular" data-url="{% url 'cobranzas:anular' p.pk %}" data-nombre="{{ p.numero }}" title="Anular" aria-label="Anular"><i class="bi bi-x-lg"></i></button>{% endif %}
+              </div>{% endif %}
+            </div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if pagos|length > 5 %}<div class="card-footer py-1 text-center"><button type="button" class="btn btn-link btn-sm" onclick="document.querySelectorAll('.pago-extra').forEach(function (e) { e.classList.remove('d-none'); }); this.parentNode.remove();">Ver todos los pagos</button></div>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% include "cobranzas/partials/modal_motivo.html" with id="m-anular" titulo="Anular recibo" texto="Las cuotas vuelven a quedar pendientes. Si fue en efectivo y su caja ya cerró, sale de tu caja abierta." boton="Anular recibo" %}
+{% include "cobranzas/partials/modal_motivo.html" with id="m-baja" titulo="Dar de baja" texto="Se quitan las cuotas que aún no vencen. Lo vencido se sigue debiendo. Se puede reactivar después." boton="Dar de baja" opcional=True %}
+{% include "cobranzas/partials/modal_motivo.html" with id="m-exonerar" titulo="Exonerar" texto="La cuota deja de cobrarse (beca, cortesía, error). Queda registrado quién lo hizo y por qué." boton="Exonerar" %}
+{% endblock %}
+{% block extra_js %}
+<script>
+  ["m-anular", "m-baja", "m-exonerar"].forEach(function (id) {
+    var m = document.getElementById(id);
+    if (m) m.addEventListener("show.bs.modal", function (e) {
+      m.querySelector("form").action = e.relatedTarget.dataset.url;
+      m.querySelector(".m-nombre").textContent = e.relatedTarget.dataset.nombre;
+    });
+  });
+  (function () {
+    var f = document.getElementById("f-cobro");
+    if (!f) return;
+    var monto = document.getElementById("c-monto"), total = document.getElementById("c-total"), boton = document.getElementById("c-boton");
+    function suma() {
+      var s = 0;
+      f.querySelectorAll(".c-cuota:checked").forEach(function (c) { s += parseFloat(c.dataset.falta); });
+      return Math.round(s * 100) / 100;
+    }
+    function pintar(cambiarMonto) {
+      var s = suma();
+      if (cambiarMonto) monto.value = s ? s.toFixed(2) : "";
+      var m = parseFloat(monto.value) || 0;
+      total.textContent = m ? "S/ " + m.toFixed(2) : "";
+      boton.disabled = !m || m > s + 0.001;
+      monto.classList.toggle("is-invalid", m > s + 0.001);
+    }
+    f.addEventListener("change", function (e) { if (e.target.classList.contains("c-cuota")) pintar(true); });
+    monto.addEventListener("input", function () { pintar(false); });
+    f.addEventListener("submit", function () { boton.disabled = true; });
+    pintar(true);
+  })();
+  {% if request.GET.recibo %}window.addEventListener("load", function () { window.imprimir("{% url 'cobranzas:recibo' 0 %}".replace("/0/", "/{{ request.GET.recibo|urlencode }}/")); });{% endif %}
+</script>
+{% endblock %}

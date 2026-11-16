@@ -12,6 +12,31 @@ CERO = Decimal("0")
 DENOMINACIONES = ["200", "100", "50", "20", "10", "5", "2", "1", "0.50", "0.20", "0.10"]
 
 
+class PuntoCaja(models.Model):
+    """Una caja física o punto de cobro (Caja 1, Barra). Puede tener sus propias series de boletas y facturas;
+    vacías = las generales de Facturación."""
+
+    nombre = models.CharField(max_length=40, unique=True, help_text='Ej.: "Caja 1", "Barra", "Segundo piso".')
+    serie_boleta = models.CharField("serie de boletas", max_length=4, blank=True)
+    serie_factura = models.CharField("serie de facturas", max_length=4, blank=True)
+    serie_nc_boleta = models.CharField("serie de notas de crédito de boletas", max_length=4, blank=True)
+    serie_nc_factura = models.CharField("serie de notas de crédito de facturas", max_length=4, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "caja (punto de cobro)"
+        verbose_name_plural = "cajas (puntos de cobro)"
+        ordering = ["orden", "nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+    def serie(self, campo, config):
+        """La serie de este punto para `campo` (serie_boleta…), o la general si no tiene."""
+        return getattr(self, campo) or getattr(config, campo)
+
+
 class SesionCaja(models.Model):
     """Un turno de caja: desde que el cajero la abre con su sencillo hasta que la cierra y cuenta el efectivo."""
 
@@ -20,6 +45,7 @@ class SesionCaja(models.Model):
         CERRADA = "CER", "Cerrada"
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cajas", verbose_name="cajero")
+    punto = models.ForeignKey(PuntoCaja, on_delete=models.PROTECT, null=True, blank=True, related_name="sesiones", verbose_name="caja")
     estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.ABIERTA)
     abierta_en = models.DateTimeField(default=timezone.now)
     monto_inicial = models.DecimalField("monto inicial (sencillo)", max_digits=12, decimal_places=2, default=CERO,

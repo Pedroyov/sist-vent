@@ -10,7 +10,7 @@ services:
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
       python manage.py migrate --noinput &&
-      python manage.py datos_demo
+      python manage.py datos_demo --rubro "${DEMO_RUBRO:-RES}"
     startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
     envVars:
       - key: PYTHON_VERSION
@@ -23,7 +23,9 @@ services:
         generateValue: true
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "RES"   # RES restaurante, TIE tienda, ROP ropa, LIB librería, PEL peluquería, ACA academia o gimnasio
       - key: NEGOCIO_NOMBRE
-        value: "Bazar Demo"
+        value: "Demo"
       - key: NEGOCIO_NOMBRE_CORTO
-        value: "Bazar Demo"
+        value: "Demo"

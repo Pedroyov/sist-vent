@@ -210,7 +210,7 @@ class ItemCuenta(models.Model):
 
     @property
     def texto_opciones(self):
-        return ", ".join(o["n"] for o in self.opciones or [])
+        return ", ".join(o["n"] for o in self.opciones or [] if not o.get("c"))
 
     @property
     def enviado(self):

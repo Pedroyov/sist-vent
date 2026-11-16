@@ -62,6 +62,7 @@
         <div><span class="badge {% if cp.estado == 'ACE' %}text-bg-success{% elif cp.estado == 'REC' %}text-bg-danger{% else %}text-bg-warning{% endif %}">{{ cp.get_estado_display }}</span>
           {% if cp.prueba %}<span class="badge text-bg-secondary">modo prueba</span>{% endif %}</div>
         {% if cp.mensaje %}<div class="text-body-secondary mt-1">{{ cp.mensaje }}</div>{% endif %}
+        {% if cp.al_credito %}<div class="mt-1"><span class="badge text-bg-info">Al crédito</span> pendiente {{ cp.pendiente }}{% for q in cp.cuotas %} · cuota {{ q.n }} vence {{ q.fecha|slice:"8:10" }}/{{ q.fecha|slice:"5:7" }}{% endfor %}</div>{% endif %}
         {% for n in cp.notas.all %}<div class="mt-1 text-danger"><i class="bi bi-arrow-return-left"></i> Anulada con {{ n.get_tipo_display|lower }} {{ n.numero_str }} ({{ n.get_estado_display|lower }})</div>{% endfor %}
         <div class="d-flex flex-wrap gap-2 mt-2">
           {% if cp.enlace_pdf %}<a href="{{ cp.enlace_pdf }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">PDF</a>{% endif %}

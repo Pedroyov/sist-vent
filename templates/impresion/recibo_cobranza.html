@@ -1,0 +1,24 @@
+{% extends "impresion/base.html" %}
+{% load sis %}
+{% block titulo %}Recibo {{ p.numero }}{% endblock %}
+{% block contenido %}
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br>{% if NEGOCIO.ruc %}RUC {{ NEGOCIO.ruc }}<br>{% endif %}{% if NEGOCIO.direccion %}{{ NEGOCIO.direccion }}<br>{% endif %}
+  <span class="b">RECIBO DE PAGO {{ p.numero }}</span><br>{{ p.fecha|date:"d/m/Y H:i" }}</div>
+{% if p.anulado %}<div class="c b">*** ANULADO ***</div>{% endif %}
+<div class="linea"></div>
+<div>Cliente: {{ p.cliente.nombre }}</div>
+{% if p.cliente.numero_documento %}<div>{{ p.cliente.documento }}</div>{% endif %}
+<div class="linea"></div>
+<table>
+  {% for d in detalles %}<tr><td>{{ d.cuota.concepto }}{% if d.cuota.inscripcion.alumno %} - {{ d.cuota.inscripcion.alumno }}{% endif %}<br><small>{{ d.cuota.inscripcion.plan.nombre }}{% if d.monto < d.cuota.total %} (a cuenta){% endif %}</small></td><td class="r">{{ d.monto }}</td></tr>{% endfor %}
+</table>
+<div class="linea"></div>
+<table>
+  <tr class="grande"><td>PAGÓ S/</td><td class="r">{{ p.monto }}</td></tr>
+  <tr><td>{{ p.get_metodo_display }}</td><td class="r">{{ p.usuario|nombre }}</td></tr>
+  {% if queda %}<tr><td>Queda por pagar</td><td class="r">{{ queda }}</td></tr>{% endif %}
+</table>
+{% if p.nota %}<div>{{ p.nota }}</div>{% endif %}
+<div class="linea"></div>
+<div class="c">Recibo interno. {{ NEGOCIO.nota_ticket|default:"¡Gracias!" }}</div>
+{% endblock %}

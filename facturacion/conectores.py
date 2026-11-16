@@ -109,6 +109,13 @@ class Nubefact:
                        "descuento": "", "subtotal": i["subtotal"], "tipo_de_igv": self.IGV[i["afectacion"]], "igv": i["igv"],
                        "total": i["total"], "anticipo_regularizacion": False} for i in c.detalle],
         }
+        if c.al_credito:  # SUNAT: forma de pago al crédito, monto pendiente y cada cuota con su fecha
+            from datetime import date
+
+            d.update({"condiciones_de_pago": f"CRÉDITO - {len(c.cuotas)} CUOTA{'S' if len(c.cuotas) > 1 else ''}",
+                      "medio_de_pago": "CREDITO",
+                      "venta_al_credito": [{"cuota": q["n"], "fecha_de_pago": date.fromisoformat(q["fecha"]).strftime("%d-%m-%Y"),
+                                            "importe": q["monto"]} for q in c.cuotas]})
         if c.es_nota:
             d.update({"documento_que_se_modifica_tipo": self.TIPOS[c.modifica.tipo], "documento_que_se_modifica_serie": c.modifica.serie,
                       "documento_que_se_modifica_numero": c.modifica.numero, "tipo_de_nota_de_credito": 1, "observaciones": c.motivo})

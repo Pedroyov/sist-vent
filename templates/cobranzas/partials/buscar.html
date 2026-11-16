@@ -1,0 +1,13 @@
+{% load sis %}
+{% if q|length >= 2 %}
+<div class="list-group shadow-sm">
+  {% for i in resultados %}
+  <a href="{% url 'cobranzas:cuenta' i.cliente_id %}" class="list-group-item list-group-item-action">
+    <div class="fw-semibold">{{ i.cliente.nombre }}</div>
+    <div class="small text-body-secondary">{% if i.alumno %}{{ i.alumno }} · {% endif %}{{ i.plan.nombre }}{% if i.estado != "ACT" %} · {{ i.get_estado_display }}{% endif %}</div>
+  </a>
+  {% empty %}
+  <div class="list-group-item small text-body-secondary">Nadie inscrito con «{{ q }}».{% if P.cobranzas_inscribir %} <a href="{% url 'cobranzas:inscribir' %}">Inscribir</a>{% endif %}</div>
+  {% endfor %}
+</div>
+{% endif %}
