@@ -9,20 +9,26 @@
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0">{{ z.nombre }} <small class="text-body-secondary">({{ z.n }} mesas)</small></h3>
         {% if not z.n %}<form method="post" class="ms-auto">{% csrf_token %}<input type="hidden" name="accion" value="borrar_zona"><input type="hidden" name="pk" value="{{ z.pk }}"><button class="btn btn-sm btn-link text-danger">Eliminar zona</button></form>{% endif %}</div>
+      <form method="post" class="form-zona" data-zona="{{ z.nombre }}">{% csrf_token %}<input type="hidden" name="accion" value="guardar_zona"><input type="hidden" name="pk" value="{{ z.pk }}">
       <ul class="list-group list-group-flush">
-        {% for m in z.mesas.all %}
-        <li class="list-group-item">
-          <form method="post" class="row g-2 align-items-center">{% csrf_token %}<input type="hidden" name="accion" value="mesa"><input type="hidden" name="pk" value="{{ m.pk }}">
-            <div class="col-3 col-md-2"><input name="nombre" value="{{ m.nombre }}" class="form-control form-control-sm" maxlength="20" aria-label="Nombre"></div>
-            <div class="col-3 col-md-2"><div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-people"></i></span><input name="capacidad" type="number" min="1" value="{{ m.capacidad }}" class="form-control" aria-label="Capacidad"></div></div>
-            <div class="col-6 col-md-3"><select name="zona" class="form-select form-select-sm" aria-label="Zona">{% for zz in zonas %}<option value="{{ zz.pk }}" {% if zz.pk == m.zona_id %}selected{% endif %}>{{ zz.nombre }}</option>{% endfor %}</select></div>
-            <div class="col-6 col-md-2"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="activa" id="act{{ m.pk }}" {% if m.activa %}checked{% endif %}><label class="form-check-label small" for="act{{ m.pk }}">Activa</label></div></div>
-            <div class="col-6 col-md-3 text-end"><button class="btn btn-sm btn-outline-primary">Guardar</button>
-              <button name="accion" value="borrar_mesa" class="btn btn-sm btn-link text-danger" onclick="return confirm('¿Quitar la mesa {{ m.nombre|escapejs }}?')"><i class="bi bi-trash"></i></button></div>
-          </form>
+        {% for f in z.filas %}{% with m=f.mesa %}
+        <li class="list-group-item fila-mesa">
+          <div class="row g-2 align-items-center">
+            <div class="col-3 col-md-2"><input name="nombre_{{ m.pk }}" value="{{ f.nombre }}" class="form-control form-control-sm" maxlength="20" required aria-label="Nombre de la mesa {{ m.nombre }}"></div>
+            <div class="col-3 col-md-2"><div class="input-group input-group-sm"><span class="input-group-text"><i class="bi bi-people"></i></span><input name="capacidad_{{ m.pk }}" type="number" min="1" value="{{ f.capacidad }}" class="form-control" aria-label="Personas"></div></div>
+            <div class="col-6 col-md-3"><select name="zona_{{ m.pk }}" class="form-select form-select-sm" aria-label="Zona">{% for zz in zonas %}<option value="{{ zz.pk }}" {% if zz.pk == f.zona %}selected{% endif %}>{{ zz.nombre }}</option>{% endfor %}</select></div>
+            <div class="col-6 col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="activa_{{ m.pk }}" id="act{{ m.pk }}" {% if f.activa %}checked{% endif %}><label class="form-check-label small" for="act{{ m.pk }}">Activa</label></div></div>
+            <div class="col-6 col-md-2 text-end"><span class="badge text-bg-warning d-none marca-cambio">Sin guardar</span>
+              <button name="borrar" value="{{ m.pk }}" class="btn btn-sm btn-link text-danger" title="Quitar mesa" aria-label="Quitar la mesa {{ m.nombre }}" data-confirmar="¿Quitar la mesa {{ m.nombre }}? También se guardan los demás cambios de la zona."><i class="bi bi-trash"></i></button></div>
+          </div>
         </li>
-        {% empty %}<li class="list-group-item small text-body-secondary">Sin mesas.</li>{% endfor %}
+        {% endwith %}{% empty %}<li class="list-group-item small text-body-secondary">Sin mesas.</li>{% endfor %}
       </ul>
+      {% if z.filas %}<div class="card-footer d-flex align-items-center gap-2">
+        <span class="small text-body-secondary aviso-cambios">{% if z.con_error %}<span class="text-danger">No se guardó: corrige y vuelve a guardar.</span>{% else %}Edita las mesas que quieras y guarda todo junto.{% endif %}</span>
+        <button class="btn btn-primary btn-sm ms-auto btn-guardar" {% if not z.con_error %}disabled{% endif %}><i class="bi bi-check-lg me-1"></i> Guardar cambios de {{ z.nombre }}</button>
+      </div>{% endif %}
+      </form>
     </div>
     {% empty %}
     <div class="alert alert-info">Empieza creando una zona (por ejemplo «Salón») y luego sus mesas.</div>
@@ -53,4 +59,47 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var pendiente = false;
+  document.querySelectorAll(".form-zona").forEach(function (form) {
+    var btn = form.querySelector(".btn-guardar"), aviso = form.querySelector(".aviso-cambios");
+    function revisar() {
+      var n = 0;
+      form.querySelectorAll(".fila-mesa").forEach(function (fila) {
+        var cambio = Array.prototype.some.call(fila.querySelectorAll("input,select"), function (c) {
+          if (c.type === "checkbox") return c.checked !== c.defaultChecked;
+          if (c.tagName === "SELECT") return Array.prototype.some.call(c.options, function (o) { return o.selected !== o.defaultSelected; });
+          return c.value !== c.defaultValue;
+        });
+        fila.classList.toggle("bg-warning-subtle", cambio);
+        fila.querySelector(".marca-cambio").classList.toggle("d-none", !cambio);
+        n += cambio ? 1 : 0;
+      });
+      if (btn && !form.dataset.error) btn.disabled = n === 0;
+      if (aviso && n) aviso.textContent = n === 1 ? "1 mesa con cambios sin guardar" : n + " mesas con cambios sin guardar";
+      else if (aviso && !form.dataset.error) aviso.textContent = "Edita las mesas que quieras y guarda todo junto.";
+      form.dataset.cambios = n;
+      pendiente = Array.prototype.some.call(document.querySelectorAll(".form-zona"), function (f) { return +f.dataset.cambios > 0; });
+    }
+    if (form.querySelector(".aviso-cambios .text-danger")) { form.dataset.error = "1"; pendiente = true; }
+    form.addEventListener("input", revisar);
+    form.addEventListener("change", revisar);
+    form.addEventListener("submit", function (e) {
+      var b = e.submitter;
+      if (b && b.dataset.confirmar && !confirm(b.dataset.confirmar)) { e.preventDefault(); return; }
+      pendiente = false;
+    });
+  });
+  window.addEventListener("beforeunload", function (e) { if (pendiente) { e.preventDefault(); e.returnValue = ""; } });
+  document.querySelectorAll("form:not(.form-zona)").forEach(function (f) {
+    f.addEventListener("submit", function (e) {
+      if (pendiente && !confirm("Tienes cambios de mesas sin guardar. Si sigues, se pierden. ¿Continuar?")) e.preventDefault();
+      else pendiente = false;
+    });
+  });
+})();
+</script>
 {% endblock %}

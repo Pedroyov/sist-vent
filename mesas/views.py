@@ -438,26 +438,18 @@ def configurar(request):
                     _, nueva = Mesa.objects.get_or_create(nombre=f"{prefijo}{n}", defaults={"zona": zona, "capacidad": capacidad, "orden": n})
                     creadas += nueva
                 messages.success(request, f"Se crearon {creadas} mesas." + (" Algunas ya existían." if creadas < hasta - desde + 1 else ""))
-        elif accion == "mesa":
-            m = get_object_or_404(Mesa, pk=entero(request.POST.get("pk")))
-            nombre = request.POST.get("nombre", "").strip()[:20]
-            if nombre and not Mesa.objects.filter(nombre=nombre).exclude(pk=m.pk).exists():
-                m.nombre = nombre
-            m.capacidad = entero(request.POST.get("capacidad")) or m.capacidad
-            z = Zona.objects.filter(pk=entero(request.POST.get("zona"))).first()
-            m.zona = z or m.zona
-            m.activa = request.POST.get("activa") == "on"
-            m.save()
-            messages.success(request, f"Mesa {m.nombre} guardada.")
-        elif accion == "borrar_mesa":
-            m = get_object_or_404(Mesa, pk=entero(request.POST.get("pk")))
-            if m.cuentas.exists():
-                m.activa = False
-                m.save(update_fields=["activa"])
-                messages.info(request, f"La mesa {m.nombre} tiene historial: se desactivó.")
+        elif accion == "guardar_zona":
+            zona = get_object_or_404(Zona, pk=entero(request.POST.get("pk")))
+            filas, error = _filas_zona(zona, request.POST)
+            if error:
+                messages.error(request, error)
+                return _pantalla_configurar(request, {zona.pk: filas})
+            _guardar_filas(filas)
+            borrar = Mesa.objects.filter(pk=entero(request.POST.get("borrar")), zona=zona).first() if request.POST.get("borrar") else None
+            if borrar:
+                _borrar_mesa(request, borrar)
             else:
-                m.delete()
-                messages.success(request, "Mesa eliminada.")
+                messages.success(request, f"Zona «{zona.nombre}»: cambios guardados.")
         elif accion == "borrar_zona":
             z = get_object_or_404(Zona, pk=entero(request.POST.get("pk")))
             if z.mesas.exists():
@@ -466,8 +458,67 @@ def configurar(request):
                 z.delete()
                 messages.success(request, "Zona eliminada.")
         return redirect("mesas:configurar")
-    zonas = Zona.objects.prefetch_related("mesas").annotate(n=Count("mesas"))
-    return render(request, "mesas/configurar.html", {"zonas": zonas})
+    return _pantalla_configurar(request)
+
+
+def _pantalla_configurar(request, enviadas=None):
+    """Muestra zonas y mesas; `enviadas` = {zona_pk: filas} para volver a mostrar lo que se escribió si hubo un error."""
+    enviadas = enviadas or {}
+    zonas = list(Zona.objects.prefetch_related("mesas").annotate(n=Count("mesas")))
+    for z in zonas:
+        z.filas = enviadas.get(z.pk) or [{"mesa": m, "nombre": m.nombre, "capacidad": m.capacidad, "zona": m.zona_id, "activa": m.activa}
+                                         for m in z.mesas.all()]
+        z.con_error = z.pk in enviadas
+    return render(request, "mesas/configurar.html", {"zonas": zonas}, status=400 if enviadas else 200)
+
+
+def _filas_zona(zona, datos):
+    """Lee lo que se escribió para cada mesa de la zona y lo revisa. Devuelve (filas, mensaje de error o None)."""
+    zonas = set(Zona.objects.values_list("pk", flat=True))
+    filas, errores = [], []
+    for m in zona.mesas.all():
+        nombre = " ".join(datos.get(f"nombre_{m.pk}", m.nombre).split())[:20]
+        zona_id = entero(datos.get(f"zona_{m.pk}"))
+        filas.append({"mesa": m, "nombre": nombre, "capacidad": entero(datos.get(f"capacidad_{m.pk}")) or m.capacidad,
+                      "zona": zona_id if zona_id in zonas else m.zona_id, "activa": datos.get(f"activa_{m.pk}") == "on"})
+        if not nombre:
+            errores.append(f"la mesa {m.nombre} quedó sin nombre")
+    nombres = [f["nombre"].lower() for f in filas if f["nombre"]]
+    repetidos = sorted({f["nombre"] for f in filas if f["nombre"] and nombres.count(f["nombre"].lower()) > 1})
+    if repetidos:
+        errores.append("hay nombres repetidos en la zona: " + ", ".join(repetidos))
+    otras = {n.lower(): n for n in Mesa.objects.exclude(zona=zona).values_list("nombre", flat=True)}
+    choques = sorted({otras[f["nombre"].lower()] for f in filas if f["nombre"].lower() in otras})
+    if choques:
+        errores.append("ya existe en otra zona: " + ", ".join(choques))
+    if errores:
+        return filas, "No se guardó nada: " + "; ".join(errores) + ". Corrige y vuelve a guardar."
+    return filas, None
+
+
+def _guardar_filas(filas):
+    """Guarda todas las mesas juntas. Primero nombres temporales, para poder intercambiar nombres (T1 ↔ T2) sin chocar."""
+    from django.db import transaction
+
+    with transaction.atomic():
+        cambian = [f for f in filas if f["nombre"] != f["mesa"].nombre]
+        for f in cambian:
+            Mesa.objects.filter(pk=f["mesa"].pk).update(nombre=f"__{f['mesa'].pk}")
+        for f in filas:
+            m = f["mesa"]
+            m.nombre, m.capacidad, m.zona_id, m.activa = f["nombre"], f["capacidad"], f["zona"], f["activa"]
+            m.save()
+
+
+def _borrar_mesa(request, m):
+    if m.cuentas.exists():
+        m.activa = False
+        m.save(update_fields=["activa"])
+        messages.info(request, f"Cambios guardados. La mesa {m.nombre} tiene historial: se desactivó en vez de borrarse.")
+    else:
+        nombre = m.nombre
+        m.delete()
+        messages.success(request, f"Cambios guardados y mesa {nombre} eliminada.")
 
 
 # --- Pantalla de cocina ----------------------------------------------------------

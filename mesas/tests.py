@@ -119,6 +119,43 @@ class MesasTests(TestCase):
         self.client.force_login(self.mozo)
         self.assertEqual(self.client.get(reverse("mesas:configurar")).status_code, 403)
 
+    def test_guardar_zona_completa(self):
+        self.client.force_login(self.jefe)
+        z = Zona.objects.get()
+        url = reverse("mesas:configurar")
+        self.client.post(url, {"accion": "lote", "zona": z.pk, "prefijo": "T", "desde": 1, "hasta": 3, "capacidad": 2})
+        terraza = Zona.objects.create(nombre="Terraza", orden=20)
+        t1, t2, t3 = (Mesa.objects.get(nombre=n) for n in ("T1", "T2", "T3"))
+        datos = {"accion": "guardar_zona", "pk": z.pk}
+        for m in z.mesas.all():
+            datos.update({f"nombre_{m.pk}": m.nombre, f"capacidad_{m.pk}": m.capacidad, f"zona_{m.pk}": m.zona_id, f"activa_{m.pk}": "on"})
+        # Varias a la vez: se intercambian T1 y T2, T3 cambia capacidad y pasa a Terraza
+        datos.update({f"nombre_{t1.pk}": "T2", f"nombre_{t2.pk}": "T1", f"capacidad_{t3.pk}": 6, f"zona_{t3.pk}": terraza.pk})
+        r = self.client.post(url, datos)
+        self.assertEqual(r.status_code, 302)
+        t1.refresh_from_db(); t2.refresh_from_db(); t3.refresh_from_db()
+        self.assertEqual((t1.nombre, t2.nombre), ("T2", "T1"))
+        self.assertEqual((t3.capacidad, t3.zona_id), (6, terraza.pk))
+        # Nombre repetido: no se guarda nada y se vuelve a mostrar lo escrito
+        datos = {"accion": "guardar_zona", "pk": z.pk}
+        for m in z.mesas.all():
+            datos.update({f"nombre_{m.pk}": m.nombre, f"capacidad_{m.pk}": 9, f"zona_{m.pk}": z.pk, f"activa_{m.pk}": "on"})
+        datos[f"nombre_{t1.pk}"] = "T1"
+        r = self.client.post(url, datos)
+        self.assertEqual(r.status_code, 400)
+        self.assertContains(r, "No se guardó nada", status_code=400)
+        self.assertContains(r, 'value="9"', status_code=400)
+        t2.refresh_from_db()
+        self.assertEqual(t2.capacidad, 2)
+        # Quitar una mesa guarda también los demás cambios
+        datos = {"accion": "guardar_zona", "pk": z.pk, "borrar": t1.pk}
+        for m in z.mesas.all():
+            datos.update({f"nombre_{m.pk}": m.nombre, f"capacidad_{m.pk}": 5, f"zona_{m.pk}": z.pk, f"activa_{m.pk}": "on"})
+        self.client.post(url, datos)
+        self.assertFalse(Mesa.objects.filter(pk=t1.pk).exists())
+        t2.refresh_from_db()
+        self.assertEqual(t2.capacidad, 5)
+
     def test_modulo_apagado(self):
         Ajustes.objects.filter(pk=1).update(modulos_inactivos=["mesas"])
         self.client.force_login(self.jefe)
