@@ -278,13 +278,13 @@ def _libre(mesa, cuenta=None):
 
 
 def cambiar_personas(cuenta, personas):
-    """Corrige cuántas personas hay (0 = sin indicar). Sirve para el reparto en partes iguales y los reportes."""
+    """Corrige cuántas personas hay. Sirve para los cubiertos, el reparto en partes iguales y los reportes."""
     _abierta(cuenta)
     try:
         n = int(personas)
     except (TypeError, ValueError):
         raise MesaError("Número de personas no válido.")
-    if not 0 <= n <= 99:
+    if not 1 <= n <= 99:
         raise MesaError("Número de personas no válido.")
     cuenta.personas = n
     cuenta.save(update_fields=["personas"])

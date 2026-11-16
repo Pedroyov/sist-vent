@@ -118,12 +118,12 @@ class MesasTests(TestCase):
             self.assertIsNone(cuenta_de_mesa(Mesa.objects.get(pk=m.pk)))
         self.assertIsNotNone(abrir_cuenta(self.mozo, self.m2, 2))
 
-    def test_personas_opcionales_y_editables(self):
+    def test_personas_editables(self):
         self.client.force_login(self.mozo)
-        self.client.post(reverse("mesas:abrir"), {"mesa": self.m1.pk, "personas": 0})
+        self.client.post(reverse("mesas:abrir"), {"mesa": self.m1.pk, "personas": 5})
         c = Cuenta.objects.get(mesa=self.m1, estado=Cuenta.Estado.ABIERTA)
-        self.assertEqual(c.personas, 0)
-        self.assertContains(self.client.get(reverse("mesas:cuenta", args=[c.pk])), "sin indicar")
+        self.assertEqual(c.personas, 5)
+        self.assertContains(self.client.get(reverse("mesas:cuenta", args=[c.pk])), "m-personas")
         self.client.post(reverse("mesas:personas", args=[c.pk]), {"personas": 3})
         c.refresh_from_db()
         self.assertEqual(c.personas, 3)

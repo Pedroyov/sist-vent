@@ -32,12 +32,11 @@
     <form method="post" action="{% url 'mesas:personas' c.pk %}" class="modal-content">{% csrf_token %}
       <div class="modal-header py-2"><h5 class="modal-title fs-6">¿Cuántas personas?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
       <div class="modal-body">
-        <p class="small text-body-secondary mb-2">Cuenta solo a quienes comen o pagan. Sirve para el reparto en partes iguales y los reportes.</p>
+        <p class="small text-body-secondary mb-2">Para los cubiertos, el reparto en partes iguales y los reportes.</p>
         <div class="d-flex flex-wrap gap-2">
           {% for n in "123456789" %}<button name="personas" value="{{ n }}" class="btn {% if c.personas|stringformat:'s' == n %}btn-primary{% else %}btn-outline-primary{% endif %}" style="width: 3rem">{{ n }}</button>{% endfor %}
           <button name="personas" value="10" class="btn btn-outline-primary" style="width: 3rem">10</button>
           <button name="personas" value="12" class="btn btn-outline-primary" style="width: 3rem">12</button>
-          <button name="personas" value="0" class="btn btn-outline-secondary">Sin indicar</button>
         </div>
       </div>
     </form>
