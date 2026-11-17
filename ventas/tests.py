@@ -238,3 +238,32 @@ class VistasTests(Base):
         self.assertEqual(r.context["r"]["total"], D("5"))
         self.assertEqual(r.context["r"]["anuladas"], 1)
         self.assertContains(self.client.get(reverse("core:inicio")), "Cobrado hoy")
+
+
+class MasVendidosTests(TestCase):
+    """Lo que más se vende sale primero en Vender (y en mesas y delivery, que usan el mismo catálogo)."""
+
+    def test_orden(self):
+        from django.contrib.auth.models import User
+
+        from productos.models import Producto
+        from productos.servicios import asegurar_variante_unica
+
+        from .servicios import registrar_venta
+        from .views import _catalogo
+
+        from caja.servicios import abrir
+
+        u = User.objects.create_superuser("root", password="x-clave-123")
+        abrir(u, Decimal("0"))
+        nombres = ["Agua", "Bizcocho", "Chicha"]
+        v = {n: asegurar_variante_unica(Producto.objects.create(nombre=n, precio=Decimal("2"), maneja_stock=False)) for n in nombres}
+        self.assertEqual([p["n"] for p in _catalogo()], nombres)  # sin ventas: por nombre
+        for n, veces in (("Chicha", 3), ("Bizcocho", 1)):
+            for _ in range(veces):
+                registrar_venta(u, [{"variante": v[n].pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "2"}])
+        anulada = registrar_venta(u, [{"variante": v["Agua"].pk, "cantidad": "5"}], [{"metodo": "EFE", "monto": "10"}])
+        from .servicios import anular_venta
+
+        anular_venta(anulada, u, "error")
+        self.assertEqual([p["n"] for p in _catalogo()], ["Chicha", "Bizcocho", "Agua"])

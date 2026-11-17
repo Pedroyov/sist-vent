@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Prefetch, Q
+from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -26,8 +26,23 @@ User = get_user_model()
 MAX_CATALOGO = 5000
 
 
+DIAS_MAS_VENDIDOS = 60
+
+
+def mas_vendidos(dias=DIAS_MAS_VENDIDOS):
+    """{producto_id: en cuántas ventas salió} en los últimos días (sin anuladas). Sirve para mostrar primero lo que más
+    se vende: en Vender, en las mesas y en el delivery."""
+    from .models import VentaItem
+
+    desde = timezone.now() - timedelta(days=dias)
+    filas = (VentaItem.objects.filter(venta__fecha__gte=desde).exclude(venta__estado=Venta.Estado.ANULADA)
+             .values("variante__producto").annotate(n=Count("venta", distinct=True)))
+    return {f["variante__producto"]: f["n"] for f in filas}
+
+
 def _catalogo():
-    """Productos activos con sus variantes, para buscar y vender sin ir al servidor en cada tecla."""
+    """Productos activos con sus variantes, para buscar y vender sin ir al servidor en cada tecla.
+    Van primero los más vendidos de los últimos 60 días; luego el resto por nombre."""
     productos = (Producto.objects.filter(activo=True).select_related("categoria")
                  .prefetch_related(Prefetch("variantes", queryset=Variante.objects.filter(activa=True), to_attr="vars"), "componentes",
                                    Prefetch("grupos", queryset=GrupoOpciones.objects.filter(activo=True).prefetch_related(
@@ -36,8 +51,9 @@ def _catalogo():
     from core.models import Ajustes
 
     ajustes = Ajustes.cargar()
+    veces = mas_vendidos()
     datos = []
-    for p in productos:
+    for p in sorted(productos, key=lambda p: (-veces.get(p.pk, 0), p.nombre.lower())):
         if not p.vars:
             continue
         datos.append({
