@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Delivery{% endblock %}
+{% block page_title %}Delivery{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Delivery</li>{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <span class="small text-body-secondary">Pedidos por teléfono o WhatsApp: tómalos, despáchalos y cóbralos aquí.</span>
+  {% if P.delivery_atender and NEGOCIO.delivery_activo %}<button type="button" class="btn btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#m-delivery"><i class="bi bi-scooter me-1"></i>Nuevo pedido</button>{% endif %}
+</div>
+<div id="pedidos" hx-get="{% url 'mesas:pedidos' %}" hx-trigger="every 10s" hx-swap="innerHTML">
+  {% include "mesas/partials/delivery_lista.html" %}
+</div>
+{% if entregados %}
+<h5 class="mt-4 mb-2 text-body-secondary">Cerrados hoy</h5>
+<div class="list-group mb-3 small">
+  {% for c in entregados %}<a href="{% url 'mesas:cuenta' c.pk %}" class="list-group-item list-group-item-action d-flex gap-2 {% if c.estado == 'ANU' %}text-body-tertiary{% endif %}">
+    <span class="fw-semibold">#{{ c.pk }}</span><span class="text-truncate flex-grow-1">{{ c.nombre|default:"(sin nombre)" }} · {{ c.direccion|truncatechars:40 }}</span>
+    <span class="text-nowrap">{% if c.estado == "ANU" %}Anulado{% else %}{{ c.cerrada_en|date:"H:i" }}{% endif %}</span></a>{% endfor %}
+</div>
+{% endif %}
+{% if NEGOCIO.delivery_activo and P.delivery_atender %}{% include "mesas/partials/modal_delivery.html" %}{% endif %}
+{% endblock %}

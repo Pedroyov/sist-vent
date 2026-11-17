@@ -1,5 +1,6 @@
 from django.conf import settings
 
+from .glosario import palabras
 from .permisos import PermisosPlantilla
 from .roles import roles_de
 
@@ -14,6 +15,7 @@ def negocio(request):
         "NEGOCIO_NOMBRE": datos.nombre_mostrar,
         "NEGOCIO_NOMBRE_CORTO": datos.corto_mostrar,
         "DEMO": settings.DEMO,
+        "T": palabras(datos),
     }
     user = getattr(request, "user", None)
     if user is not None and user.is_authenticated:

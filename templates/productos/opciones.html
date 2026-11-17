@@ -6,7 +6,7 @@
 {% block content %}
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="{% url 'productos:grupo_nuevo' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nuevo grupo</a>
-  {% if P.productos_agotar %}<a href="{% url 'productos:agotados' %}" class="btn btn-outline-danger ms-sm-auto"><i class="bi bi-slash-circle me-1"></i>Agotados hoy</a>{% endif %}
+  {% if P.productos_agotar and NEGOCIO.usa_agotados %}<a href="{% url 'productos:agotados' %}" class="btn btn-outline-danger ms-sm-auto"><i class="bi bi-slash-circle me-1"></i>Agotados hoy</a>{% endif %}
 </div>
 <p class="text-body-secondary small">Lo que se elige al pedir: el término de la carne, el acompañamiento, adicionales que se cobran aparte, cremas… Cada grupo se puede usar en varios productos.</p>
 <div class="row g-3">
@@ -52,7 +52,7 @@
         <li><strong>Viene incluida</strong> <i class="bi bi-check2-circle text-success"></i> (asterisco: «Papas fritas *»): ya aparece elegida al pedir, el mozo no tiene que tocar nada; si el cliente quiere otra, la cambia.</li>
         <li>¿El cliente quiere <strong>más</strong> papas? Eso va en <strong>Adicionales</strong> con su precio («Porción de papas | 5»).</li>
         <li>Lo que tiene precio se suma solo al plato.</li>
-        <li>Si un día no hay algo, márcalo en <a href="{% url 'productos:agotados' %}">Agotados hoy</a>.</li>
+        {% if NEGOCIO.usa_agotados %}<li>Si un día no hay algo, márcalo en <a href="{% url 'productos:agotados' %}">Agotados hoy</a>.</li>{% endif %}
       </ul>
     </div></div>
   </div>

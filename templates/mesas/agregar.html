@@ -3,7 +3,7 @@
 
 {% block title %}Pedido · {{ c.titulo }}{% endblock %}
 {% block page_title %}{{ c.titulo }} <small class="text-body-secondary fs-6">tomar pedido</small>{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'mesas:mapa' %}">Mesas</a></li><li class="breadcrumb-item"><a href="{% url 'mesas:cuenta' c.pk %}">{{ c.titulo }}</a></li><li class="breadcrumb-item active">Agregar</li>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url volver %}">{% if volver == "mesas:pedidos" %}Delivery{% else %}Mesas{% endif %}</a></li><li class="breadcrumb-item"><a href="{% url 'mesas:cuenta' c.pk %}">{{ c.titulo }}</a></li><li class="breadcrumb-item active">Agregar</li>{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -20,7 +20,7 @@
 
 {% block content %}
 {% csrf_token %}
-<input type="search" id="buscar" class="form-control form-control-lg mb-2" placeholder="Buscar plato o bebida…" autocomplete="off">
+<input type="search" id="buscar" class="form-control form-control-lg mb-2" placeholder="{% if sin_cocina %}Buscar producto o código…{% else %}Buscar plato o bebida…{% endif %}" autocomplete="off">
 <div class="pos-chips mb-3" id="cats"></div>
 <div class="row g-2" id="grid"></div>
 
@@ -34,8 +34,8 @@
     <div class="alert alert-danger py-2 small d-none" id="error"></div>
     <div class="d-flex gap-2">
       <a href="{% url 'mesas:cuenta' c.pk %}" class="btn btn-outline-secondary">Volver</a>
-      <button type="button" class="btn btn-outline-primary flex-grow-1" id="btn-agregar" disabled>Agregar</button>
-      <button type="button" class="btn btn-primary flex-grow-1" id="btn-enviar" disabled><i class="bi bi-send me-1"></i>Agregar y enviar</button>
+      <button type="button" class="btn {% if sin_cocina %}btn-primary{% else %}btn-outline-primary{% endif %} flex-grow-1" id="btn-agregar" disabled>Agregar</button>
+      {% if not sin_cocina %}<button type="button" class="btn btn-primary flex-grow-1" id="btn-enviar" disabled><i class="bi bi-send me-1"></i>Agregar y enviar</button>{% endif %}
     </div>
   </div>
 </div>
@@ -92,12 +92,13 @@
         '<span class="ms-1 min-w-0 flex-grow-1"><span class="d-block text-truncate">' + esc(x.p.n) + (x.v.n ? " · " + esc(x.v.n) : "") + "</span>" +
         (l.txt ? '<span class="d-block small text-primary-emphasis text-truncate">' + esc(l.txt) + "</span>" : "") + "</span>" +
         '<span class="text-nowrap ps-1">' + soles(sub) + "</span></div>" +
-        '<input type="text" class="form-control form-control-sm mt-1" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="Nota para cocina (sin cebolla, bien caliente…)"></li>';
+        '<input type="text" class="form-control form-control-sm mt-1" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="{% if sin_cocina %}Nota (talla, color, marca…){% else %}Nota para cocina (sin cebolla, bien caliente…){% endif %}"></li>';
     }).join("");
     var n = lineas.reduce(function (a, l) { return a + l.cant; }, 0);
     $("n").textContent = n;
     $("total").textContent = soles(total);
-    $("btn-agregar").disabled = $("btn-enviar").disabled = !lineas.length;
+    $("btn-agregar").disabled = !lineas.length;
+    if ($("btn-enviar")) $("btn-enviar").disabled = !lineas.length;
     try { sessionStorage.setItem(GUARDADO, JSON.stringify(lineas)); } catch (e) {}
     grid();
   }
@@ -108,7 +109,8 @@
     pintar();
   }
   function guardar(enviar) {
-    $("btn-agregar").disabled = $("btn-enviar").disabled = true;
+    $("btn-agregar").disabled = true;
+    if ($("btn-enviar")) $("btn-enviar").disabled = true;
     $("error").classList.add("d-none");
     fetch("{% url 'mesas:agregar' c.pk %}", {method: "POST", credentials: "same-origin",
       headers: {"Content-Type": "application/json", "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
@@ -122,7 +124,8 @@
       .catch(function (e) {
         $("error").textContent = e.message === "Failed to fetch" ? "Sin conexión: el pedido sigue aquí, vuelve a intentar." : e.message;
         $("error").classList.remove("d-none");
-        $("btn-agregar").disabled = $("btn-enviar").disabled = false;
+        $("btn-agregar").disabled = false;
+        if ($("btn-enviar")) $("btn-enviar").disabled = false;
       });
   }
 
@@ -143,7 +146,7 @@
     if (e.target.dataset.nota !== undefined) { lineas[e.target.dataset.nota].nota = e.target.value.trim(); try { sessionStorage.setItem(GUARDADO, JSON.stringify(lineas)); } catch (x) {} }
   });
   $("btn-agregar").addEventListener("click", function () { guardar(false); });
-  $("btn-enviar").addEventListener("click", function () { guardar(true); });
+  if ($("btn-enviar")) $("btn-enviar").addEventListener("click", function () { guardar(true); });
   chips(); pintar();
 })();
 </script>

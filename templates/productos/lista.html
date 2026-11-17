@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}Productos{% endblock %}
-{% block page_title %}Productos{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item active">Productos</li>{% endblock %}
+{% block title %}{{ T.productos }}{% endblock %}
+{% block page_title %}{{ T.productos }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">{{ T.productos }}</li>{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap gap-2 mb-3">
@@ -39,13 +39,14 @@
           <option value="sin" {% if f.cat == "sin" %}selected{% endif %}>Sin categoría</option>
         </select>
       </div>
-      <div class="col-6 col-md-2">
+      {% if NEGOCIO.usa_servicios or NEGOCIO.usa_combos or f.tipo %}<div class="col-6 col-md-2">
         <select name="tipo" class="form-select" aria-label="Tipo">
-          <option value="">Productos y servicios</option>
+          <option value="">Todos</option>
           <option value="P" {% if f.tipo == "P" %}selected{% endif %}>Solo productos</option>
-          <option value="S" {% if f.tipo == "S" %}selected{% endif %}>Solo servicios</option>
+          {% if NEGOCIO.usa_servicios or f.tipo == "S" %}<option value="S" {% if f.tipo == "S" %}selected{% endif %}>Solo servicios</option>{% endif %}
+          {% if NEGOCIO.usa_combos or f.tipo == "C" %}<option value="C" {% if f.tipo == "C" %}selected{% endif %}>Solo combos</option>{% endif %}
         </select>
-      </div>
+      </div>{% endif %}
       <div class="col-12 col-md-2">
         <select name="estado" class="form-select" aria-label="Estado">
           <option value="activos" {% if f.estado == "activos" %}selected{% endif %}>Activos</option>

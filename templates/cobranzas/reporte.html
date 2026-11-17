@@ -2,7 +2,7 @@
 {% load sis %}
 {% block title %}Reporte de cobranzas{% endblock %}
 {% block page_title %}Reporte de cobranzas{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Reporte</li>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">Reporte</li>{% endblock %}
 {% block content %}
 {% include "cobranzas/partials/menu.html" with activo="reporte" %}
 <form method="get" class="d-flex flex-wrap gap-2 mb-3 align-items-center">

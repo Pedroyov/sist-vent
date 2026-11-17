@@ -2,7 +2,7 @@
 {% load sis %}
 {% block title %}{{ c.nombre }} · Cobranzas{% endblock %}
 {% block page_title %}{{ c.nombre }}{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">{{ c.nombre|truncatechars:30 }}</li>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">{{ c.nombre|truncatechars:30 }}</li>{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap gap-2 mb-3">
   {% if wa %}<a href="{{ wa }}" target="_blank" rel="noopener" class="btn btn-outline-success"><i class="bi bi-whatsapp me-1"></i>Recordar</a>{% endif %}

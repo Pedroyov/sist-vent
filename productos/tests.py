@@ -94,6 +94,9 @@ class VistasTests(TestCase):
             self.assertEqual(self.client.get(reverse(url, args=[p.pk])).status_code, 200)
 
     def test_servicio_no_maneja_stock(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"funciones_inactivas": []})
         self.client.force_login(self.admin)
         self.client.post(reverse("productos:nuevo"), {"tipo": "S", "nombre": "Corte", "unidad": "UND", "precio": "25",
                                                      "maneja_stock": "on", "stock_inicial": "5", "duracion_min": "30", "activo": "on"})
@@ -183,7 +186,7 @@ class OpcionesYAgotadosTests(TestCase):
 
         from .models import GrupoOpciones, Opcion
 
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": []})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "nivel_pedido": 2})
         self.jefe = crear_usuario("jefe", "Administración")
         self.mozo = crear_usuario("mozo", "Vendedor")
         self.chef = crear_usuario("chef", "Cocina")
@@ -285,7 +288,7 @@ class MenuDelDiaTests(TestCase):
     def setUp(self):
         from core.models import Ajustes
 
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES", "nombre": "El Buen Sabor"})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES", "nombre": "El Buen Sabor", "nivel_pedido": 2})
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
         self.cajero.groups.add(Group.objects.get(name="Cajero"))
         self.vendedor = User.objects.create_user("vendedor", password="x-clave-123")
@@ -357,8 +360,11 @@ class OpcionesIncluidasTests(TestCase):
     """Lo que viene con el plato (alitas con papas) ya va elegido; si el cliente quiere otra cosa, se cambia."""
 
     def setUp(self):
+        from core.models import Ajustes
+
         from .models import GrupoOpciones, Opcion
 
+        Ajustes.objects.update_or_create(pk=1, defaults={"nivel_pedido": 2})
         self.jefe = User.objects.create_user("jefe", password="x-clave-123")
         self.jefe.groups.add(Group.objects.get(name="Administración"))
         self.alitas = Producto.objects.create(nombre="Alitas", precio=Decimal("18"), maneja_stock=False)

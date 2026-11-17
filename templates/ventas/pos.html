@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Vender{% endblock %}
+{% block title %}{{ T.vender }}{% endblock %}
 {% block body_class %}layout-fixed sidebar-expand-lg sidebar-collapse bg-body-tertiary{% endblock %}
-{% block page_title %}Vender{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'ventas:lista' %}">Ventas</a></li><li class="breadcrumb-item active">Vender</li>{% endblock %}
+{% block page_title %}{{ T.vender }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'ventas:lista' %}">Ventas</a></li><li class="breadcrumb-item active">{{ T.vender }}</li>{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -67,6 +67,7 @@
         {% endif %}
         <div class="d-flex align-items-end mb-3"><span class="fw-semibold">Total</span><span class="ms-auto total-grande" id="total">S/ 0.00</span></div>
         <button type="button" class="btn btn-success btn-lg w-100" id="btn-cobrar" disabled><i class="bi bi-cash-coin me-1"></i>Cobrar <small class="opacity-75">(F9)</small></button>
+        {% if con_delivery %}<button type="button" class="btn btn-outline-primary w-100 mt-2" id="btn-delivery" disabled><i class="bi bi-scooter me-1"></i>Enviar por delivery</button>{% endif %}
       </div>
     </div>
   </div>
@@ -76,12 +77,14 @@
 <div class="d-lg-none fixed-bottom bg-body border-top barra-movil px-3 pt-2 no-print">
   <div class="d-flex align-items-center gap-2">
     <a href="#panel-carrito" class="text-body text-decoration-none"><i class="bi bi-cart3"></i> <span id="n-items-m">0</span> · <strong class="fs-5" id="total-m">S/ 0.00</strong></a>
-    <button type="button" class="btn btn-success ms-auto" id="btn-cobrar-m" disabled><i class="bi bi-cash-coin me-1"></i>Cobrar</button>
+    {% if con_delivery %}<button type="button" class="btn btn-outline-primary ms-auto" id="btn-delivery-m" disabled aria-label="Enviar por delivery"><i class="bi bi-scooter"></i></button>{% endif %}
+    <button type="button" class="btn btn-success {% if not con_delivery %}ms-auto{% endif %}" id="btn-cobrar-m" disabled><i class="bi bi-cash-coin me-1"></i>Cobrar</button>
   </div>
 </div>
 
 {% include "productos/partials/modal_opciones.html" %}
 {% include "ventas/partials/modal_cobro.html" %}
+{% if con_delivery %}{% include "mesas/partials/modal_delivery.html" %}{% endif %}
 
 {{ catalogo|json_script:"datos-catalogo" }}
 {{ categorias|json_script:"datos-categorias" }}
@@ -224,6 +227,7 @@
     $("n-items").textContent = n;
     $("n-items-m").textContent = n;
     $("btn-cobrar").disabled = $("btn-cobrar-m").disabled = !n;
+    if ($("btn-delivery")) $("btn-delivery").disabled = $("btn-delivery-m").disabled = !n;
   }
 
   // ---------------- cobro ----------------
@@ -301,6 +305,14 @@
     pintar(); $("buscar").focus();
   });
   $("btn-cobrar").addEventListener("click", abrirCobro);
+  // Delivery: el carrito pasa a un pedido de delivery (dirección, "paga con", repartidor) y se cobra ahí
+  function abrirDelivery() {
+    if (!carrito.length) return;
+    $("dl-items").value = JSON.stringify(carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null, opciones: l.ops}; }));
+    $("dl-boton").textContent = "Crear el pedido (" + soles(totales().total) + " + envío)";
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("m-delivery")).show();
+  }
+  if ($("btn-delivery")) { $("btn-delivery").addEventListener("click", abrirDelivery); $("btn-delivery-m").addEventListener("click", abrirDelivery); }
   $("btn-cobrar-m").addEventListener("click", abrirCobro);
   $("m-cobro").addEventListener("hidden.bs.modal", function () { $("buscar").focus(); });
   document.addEventListener("keydown", function (e) {

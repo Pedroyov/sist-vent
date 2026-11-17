@@ -49,7 +49,7 @@ def _catalogo():
             "k": [{"id": c.pk, "n": c.nombre, "q": c.quitable, "g": c.cambiar_con_id} for c in p.componentes.all()] if ajustes.usa_lleva else [],
             "g": [{"id": g.pk, "n": g.nombre.removeprefix(f"{p.nombre}: "), "min": minimo_disponible(g), "max": g.maximo, "r": g.regla,
                    "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada, "d": o.por_defecto} for o in g.opciones.all()]}
-                  for g in ordenar_grupos(p.grs)] if ajustes.usa_opciones else [],
+                  for g in ordenar_grupos(p.grs)] if ajustes.usa_opciones or p.es_combo else [],
         })
     return datos
 
@@ -58,6 +58,7 @@ def _catalogo():
 def pos(request):
     categorias = Categoria.objects.filter(activa=True, productos__activo=True).distinct()
     from caja.servicios import CajaError, sesion_para_vender
+    from core.models import Ajustes
 
     try:
         sesion_para_vender(request.user)
@@ -69,6 +70,7 @@ def pos(request):
         "catalogo": _catalogo(),
         "categorias": [{"id": c.pk, "n": c.nombre} for c in categorias],
         "puede_precio": puede(request.user, "ventas.precio"),
+        "con_delivery": Ajustes.cargar().delivery_activo and puede(request.user, "delivery.atender"),
     })
 
 

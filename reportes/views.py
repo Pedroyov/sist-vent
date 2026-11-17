@@ -20,10 +20,11 @@ def _datos(request):
         "anuladas": s.anuladas(desde, hasta), "rebajas": s.cortesias_descuentos(desde, hasta), "cajas": s.cajas(desde, hasta),
         "ver_costos": puede(request.user, "productos.costos"),
         "con_mesas": modulo_activo(request.user, "mesas"), "con_clientes": modulo_activo(request.user, "clientes"),
-        "con_productos": modulo_activo(request.user, "productos"),
+        "con_productos": modulo_activo(request.user, "productos"), "con_delivery": modulo_activo(request.user, "delivery"),
     }
     if d["con_mesas"]:
         d["mozos"] = s.por_usuario(desde, hasta, "atendio")
+    if d["con_mesas"] or d["con_delivery"]:
         d["mesas"] = s.mesas(desde, hasta)
     if d["con_clientes"]:
         d["deudores"] = s.deudores()

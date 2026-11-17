@@ -122,10 +122,20 @@ def poner_envio(cuenta, monto, usuario):
                                          agregado_por=usuario, es_envio=True, enviado_en=ahora, listo_en=ahora, servido_en=ahora)
 
 
+def sin_cocina(cuenta):
+    """Un delivery de un negocio sin mesas (una tienda): no hay cocina; el pedido se arma y sale."""
+    from core.permisos import modulos_activos
+
+    return cuenta.es_delivery and "mesas" not in modulos_activos()
+
+
 def salio_delivery(cuenta, repartidor=""):
     _abierta(cuenta)
     cuenta.estado_envio, cuenta.repartidor, cuenta.salio_en = Cuenta.Envio.EN_CAMINO, _limpio(repartidor, 60), timezone.now()
-    cuenta.save(update_fields=["estado_envio", "repartidor", "salio_en"])
+    with transaction.atomic():
+        cuenta.save(update_fields=["estado_envio", "repartidor", "salio_en"])
+        if sin_cocina(cuenta):  # lo que salió ya no se cambia con + y −
+            cuenta.items.filter(anulado=False, enviado_en__isnull=True).update(enviado_en=cuenta.salio_en)
 
 
 def entregar_delivery(cuenta):

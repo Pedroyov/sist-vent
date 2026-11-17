@@ -54,24 +54,29 @@ class Tablero:
         return self
 
     def _atajos(self):
-        a, u = self.atajos, self.user
+        from .glosario import palabras
+        from .models import Ajustes
+
+        a, u, t = self.atajos, self.user, palabras(Ajustes.cargar())
         if puede(u, "mesas.cocina"):
             a.append({"texto": "Pantalla de cocina", "url": reverse("mesas:cocina"), "icono": "bi-fire", "color": "warning"})
         if puede(u, "mesas.atender", "mesas.cobrar"):
             a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
+        if puede(u, "delivery.atender", "delivery.cobrar"):
+            a.append({"texto": "Delivery", "url": reverse("mesas:pedidos"), "icono": "bi-scooter", "color": "danger"})
         if puede(u, "cobranzas.ver"):
-            a.append({"texto": "Cobranzas", "url": reverse("cobranzas:inicio"), "icono": "bi-calendar-check", "color": "primary"})
+            a.append({"texto": t["cobranzas"], "url": reverse("cobranzas:inicio"), "icono": "bi-calendar-check", "color": "primary"})
         if puede(u, "cobranzas.inscribir"):
-            a.append({"texto": "Inscribir", "url": reverse("cobranzas:inscribir"), "icono": "bi-person-plus", "color": "info"})
+            a.append({"texto": t["inscribir"], "url": reverse("cobranzas:inscribir"), "icono": "bi-person-plus", "color": "info"})
         if puede(u, "ventas.vender"):
-            a.append({"texto": "Vender", "url": reverse("ventas:pos"), "icono": "bi-cart-plus", "color": "success"})
+            a.append({"texto": t["vender"], "url": reverse("ventas:pos"), "icono": "bi-cart-plus", "color": "success"})
         if puede(u, "ventas.vender", "ventas.ver"):
             a.append({"texto": "Ventas de hoy" if puede(u, "ventas.ver") else "Mis ventas", "url": reverse("ventas:lista"),
                       "icono": "bi-receipt", "color": "primary"})
         if puede(u, "clientes.ver"):
             a.append({"texto": "Clientes", "url": reverse("clientes:lista"), "icono": "bi-people", "color": "secondary"})
         if puede(u, "productos.ver"):
-            a.append({"texto": "Productos", "url": reverse("productos:lista"), "icono": "bi-box-seam", "color": "success"})
+            a.append({"texto": t["productos"], "url": reverse("productos:lista"), "icono": "bi-box-seam", "color": "success"})
         if puede(u, "productos.stock"):
             a.append({"texto": "Movimientos de stock", "url": reverse("productos:kardex"), "icono": "bi-arrow-left-right", "color": "info"})
         if puede(u, "reportes.ver"):

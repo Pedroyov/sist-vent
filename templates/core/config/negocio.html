@@ -74,10 +74,25 @@
       </div>
 
       <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-puzzle me-1"></i> Funciones</h3></div>
+        <div class="card-body">
+          <p class="small text-body-secondary">{{ form.funciones.help_text }} Al cambiar el tipo de negocio se marcan las que suele usar.</p>
+          {% for c in form.funciones %}
+          <div class="form-check mb-2">
+            {{ c.tag }}
+            <label class="form-check-label" for="{{ c.id_for_label }}"><strong>{{ c.choice_label }}</strong>
+              <span class="d-block small text-body-secondary">{% for k, t in form.explicacion_funciones.items %}{% if k == c.data.value %}{{ t }}{% endif %}{% endfor %}</span></label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% if form.nivel_pedido or P.mod_delivery %}
+      <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-ui-checks me-1"></i> Pedidos</h3></div>
-        <div class="card-body">{{ form.nivel_pedido|as_crispy_field }}
+        <div class="card-body">{% if form.nivel_pedido %}{{ form.nivel_pedido|as_crispy_field }}{% endif %}
           {% if P.mod_delivery %}<div class="row"><div class="col-sm-6">{{ form.delivery_costo|as_crispy_field }}</div></div>{% endif %}</div>
       </div>
+      {% endif %}
 
       <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-printer me-1"></i> Impresión y cocina</h3></div>

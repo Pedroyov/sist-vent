@@ -140,7 +140,7 @@ def resolver_opciones(producto, ids, revisar_disponible=True):
 
     ajustes = Ajustes.cargar()
     combo = foto_combo(producto)
-    if not ajustes.usa_opciones:  # pedidos simples: no se eligen opciones (lo que haga falta va en la nota)
+    if not ajustes.usa_opciones and not producto.es_combo:  # pedidos simples: sin opciones (salvo lo que se elige en un combo)
         return combo, Decimal("0"), ""
     # "s12" = quitar el componente 12 ("SIN ENSALADA"); el resto son opciones
     try:

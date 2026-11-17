@@ -718,3 +718,97 @@ class DeliveryTests(TestCase):
         Ajustes.objects.filter(pk=1).update(modulos_inactivos=["delivery"])
         self._nuevo()
         self.assertEqual(Cuenta.objects.count(), n)  # apagado: no se puede
+
+
+class DeliverySinMesasTests(TestCase):
+    """Una tienda sin mesas puede hacer delivery: pedido, despacho, cobro y reporte, sin cocina."""
+
+    def setUp(self):
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": ["mesas", "cocina"], "delivery_costo": D("5")})
+        self.vendedor = User.objects.create_user("vendedor", password="x-clave-123")
+        self.vendedor.groups.add(Group.objects.get(name="Vendedor"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        abrir(self.cajero, D("50"))
+        arroz = Producto.objects.create(nombre="Arroz Costeño 5 kg", precio=D("24"))
+        self.arroz = asegurar_variante_unica(arroz)
+        mover_stock(self.arroz, 10, MovimientoStock.Tipo.INGRESO)
+
+    def test_flujo_de_tienda(self):
+        self.client.force_login(self.vendedor)
+        inicio = self.client.get(reverse("core:inicio"))
+        self.assertContains(inicio, reverse("mesas:pedidos"))
+        self.assertNotContains(inicio, f'href="{reverse("mesas:mapa")}"')
+        self.assertEqual(self.client.get(reverse("mesas:mapa")).status_code, 403)
+        r = self.client.post(reverse("mesas:delivery_nuevo"), {"telefono": "987111222", "nombre": "Carla", "direccion": "Av. Grau 120"})
+        c = Cuenta.objects.get(tipo=Cuenta.Tipo.DELIVERY)
+        self.assertRedirects(r, reverse("mesas:agregar", args=[c.pk]))
+        self.assertNotContains(self.client.get(reverse("mesas:agregar", args=[c.pk])), "Agregar y enviar")
+        r = self.client.post(reverse("mesas:agregar", args=[c.pk]), json.dumps({"items": [{"variante": self.arroz.pk, "cantidad": "2"}], "enviar": True}),
+                             content_type="application/json")
+        self.assertEqual(r.json()["ok"], True)
+        it = c.items.get(es_envio=False)
+        self.assertIsNone(it.enviado_en)  # sin cocina: sigue editable con + y −
+        r = self.client.get(reverse("mesas:cuenta", args=[c.pk]))
+        self.assertNotContains(r, "Enviar a cocina")
+        self.assertContains(r, reverse("mesas:pedidos"))
+        self.assertContains(self.client.get(reverse("mesas:pedidos")), "Carla")
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "salio", "repartidor": "Luis"})
+        it.refresh_from_db()
+        self.assertIsNotNone(it.enviado_en)  # lo que salió ya no se cambia
+        # el vendedor no cobra; el cajero sí
+        datos = {"pagos": [{"metodo": "EFE", "monto": "53"}], "token": "t1"}
+        self.assertEqual(self.client.post(reverse("mesas:cobrar", args=[c.pk]), json.dumps(datos), content_type="application/json").status_code, 403)
+        self.client.force_login(self.cajero)
+        r = self.client.post(reverse("mesas:cobrar", args=[c.pk]), json.dumps(datos), content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertIn("volver=/mesas/delivery/", r.json()["url"])
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "entregado"})
+        c.refresh_from_db()
+        self.assertEqual(c.estado, Cuenta.Estado.COBRADA)
+        self.arroz.refresh_from_db()
+        self.assertEqual(self.arroz.stock, D("8"))
+        jefe = User.objects.create_user("jefe", password="x-clave-123")
+        jefe.groups.add(Group.objects.get(name="Administración"))
+        self.client.force_login(jefe)
+        r = self.client.get(reverse("reportes:inicio"))
+        self.assertContains(r, 'id="delivery"')
+        self.assertContains(r, "en productos")
+
+    def test_una_mesa_sigue_pidiendo_permisos_de_mesas(self):
+        a = Ajustes.cargar()
+        a.modulos_inactivos = ["cocina"]
+        a.save()
+        mesa = Mesa.objects.create(zona=Zona.objects.create(nombre="Salón"), nombre="1")
+        cajero_mesas = abrir_cuenta(self.cajero, mesa, 2)
+        solo_delivery = User.objects.create_user("repartidor", password="x-clave-123")
+        g = Group.objects.create(name="Despacho")
+        from core.models import PermisosRol
+
+        PermisosRol.objects.create(grupo=g, permisos=["delivery.atender"])
+        solo_delivery.groups.add(g)
+        self.client.force_login(solo_delivery)
+        self.assertEqual(self.client.get(reverse("mesas:cuenta", args=[cajero_mesas.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("mesas:pedidos")).status_code, 200)
+
+    def test_desde_vender(self):
+        """El carrito de Vender pasa a un pedido de delivery, con el precio cambiado si quien lo hace puede cambiar precios."""
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("ventas:pos"))
+        self.assertContains(r, "Enviar por delivery")
+        items = json.dumps([{"variante": self.arroz.pk, "cantidad": "3", "precio": "22.00", "opciones": []}])
+        r = self.client.post(reverse("mesas:delivery_nuevo"), {"telefono": "987000111", "nombre": "Luis", "direccion": "Jr. Ica 300",
+                                                               "items": items})
+        c = Cuenta.objects.get(tipo=Cuenta.Tipo.DELIVERY)
+        self.assertRedirects(r, reverse("mesas:cuenta", args=[c.pk]) + "?desde_venta=1")
+        it = c.items.get(es_envio=False)
+        self.assertEqual((it.cantidad, it.precio), (D("3"), D("24")))  # el cajero no puede cambiar precios
+        self.assertEqual(c.items.get(es_envio=True).precio, D("5"))
+        r = self.client.get(reverse("mesas:cuenta", args=[c.pk]) + "?desde_venta=1")
+        self.assertContains(r, 'sessionStorage.removeItem("pos_carrito_')
+        self.assertContains(self.client.get(reverse("core:inicio")), reverse("mesas:pedidos"))
+        # si algo falla, vuelve a Vender con el carrito intacto
+        malo = json.dumps([{"variante": 999999, "cantidad": "1"}])
+        r = self.client.post(reverse("mesas:delivery_nuevo"), {"telefono": "987000222", "direccion": "x", "items": malo})
+        self.assertRedirects(r, reverse("ventas:pos"), fetch_redirect_response=False)
+        self.assertEqual(Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY).count(), 1)

@@ -2,7 +2,7 @@
 {% load sis %}
 {% block title %}{% if ver == "proximos" %}Por vencer{% else %}Morosos{% endif %}{% endblock %}
 {% block page_title %}{% if ver == "proximos" %}Por vencer{% else %}Morosos{% endif %}{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Morosos</li>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">Morosos</li>{% endblock %}
 {% block content %}
 {% include "cobranzas/partials/menu.html" with activo="morosos" %}
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">

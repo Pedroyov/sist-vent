@@ -3,6 +3,7 @@ import re
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.urls import reverse
 from django.test import TestCase
 from django.urls import URLPattern, URLResolver, get_resolver
 
@@ -84,7 +85,7 @@ class SeguridadTests(TestCase):
 
 
 class ModulosTests(TestCase):
-    """Lo contratado se enciende en Módulos; cocina y delivery necesitan Mesas; productos y ventas son la base."""
+    """Lo contratado se enciende en Módulos; la cocina necesita Mesas (el delivery no); productos y ventas son la base."""
 
     def test_dependencias_y_base(self):
         from .models import Ajustes
@@ -94,9 +95,10 @@ class ModulosTests(TestCase):
         a.modulos_inactivos = ["mesas"]
         a.save()
         activos = modulos_activos()
-        self.assertNotIn("cocina", activos)  # sin mesas no hay cocina ni delivery, aunque estén "encendidos"
-        self.assertNotIn("delivery", activos)
-        self.assertFalse(a.cocina_pantalla or a.delivery_activo)
+        self.assertNotIn("cocina", activos)  # sin mesas no hay cocina, aunque esté "encendida"
+        self.assertIn("delivery", activos)  # el delivery sirve también a una tienda
+        self.assertFalse(a.cocina_pantalla)
+        self.assertTrue(a.delivery_activo)
         self.assertTrue({"productos", "ventas", "config"} <= activos)
         a.modulos_inactivos = ["productos", "ventas"]  # no se pueden apagar
         a.save()
@@ -120,3 +122,87 @@ class ModulosTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "GESTIÓN")
         self.assertNotContains(r, reverse("ventas:pos") + '"')
+
+
+class RubrosTests(TestCase):
+    """El tipo de negocio decide cómo empieza el sistema, sin apagar lo que ya se usa."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group, User
+
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.admin = User.objects.create_superuser("root", password="x-clave-123")
+
+    def test_instalacion_nueva_empieza_simple(self):
+        from .models import Ajustes
+
+        a = Ajustes.cargar()
+        self.assertTrue(a.usa_variantes)
+        self.assertFalse(a.usa_combos or a.usa_servicios or a.usa_agotados)
+        self.assertEqual(a.nivel_pedido, 1)
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("productos:nuevo"))
+        self.assertNotContains(r, 'value="C"')
+        self.assertNotContains(r, 'value="S"')
+        self.assertNotContains(self.client.get(reverse("core:inicio")), reverse("productos:agotados"))
+
+    def test_cambiar_de_rubro_no_apaga_lo_que_se_usa(self):
+        from productos.models import Producto
+
+        from .models import Ajustes, Rubro
+        from .rubros import aplicar
+
+        a = Ajustes.cargar()
+        aplicar(a, Rubro.RESTAURANTE)
+        self.assertTrue(a.usa_combos and a.usa_agotados and a.usa_variantes)
+        self.assertEqual(a.nivel_pedido, 2)
+        Producto.objects.create(nombre="Menú + bebida", precio=15, tipo=Producto.Tipo.COMBO, maneja_stock=False)
+        a.rubro = Rubro.TIENDA
+        encendidas, apagadas = aplicar(a)
+        self.assertTrue(a.usa_combos)  # hay un combo: no se oculta
+        self.assertFalse(a.usa_agotados)
+        self.assertIn("Agotados del día", apagadas)
+        self.assertEqual(a.nivel_pedido, 1)
+
+    def test_pantallas(self):
+        from .models import Ajustes, Rubro
+
+        self.client.force_login(self.jefe)
+        a = Ajustes.cargar()
+        datos = {"rubro": Rubro.PELUQUERIA, "nombre": "Estilo", "nombre_corto": "Estilo", "color": "#0d6efd", "ticket_ancho": 80,
+                 "metodos": ["YAP"], "funciones": ["variantes"], "descuentos_activos": "on", "delivery_costo": "0"}
+        r = self.client.post(reverse("core:datos_negocio"), datos)
+        self.assertRedirects(r, reverse("core:datos_negocio"))
+        a.refresh_from_db()
+        self.assertTrue(a.usa_servicios)  # al cambiar a peluquería se activan los servicios
+        datos["funciones"] = ["servicios"]
+        self.client.post(reverse("core:datos_negocio"), datos)
+        a.refresh_from_db()
+        self.assertFalse(a.usa_variantes)  # el dueño también puede ocultarlas a mano
+        # el administrador principal aplica los módulos recomendados
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("core:modulos")), "Recomendado para")
+        a.rubro = Rubro.ACADEMIA
+        a.save()
+        self.client.post(reverse("core:modulos"), {"accion": "recomendado"})
+        a.refresh_from_db()
+        self.assertTrue(a.tiene_modulo("cobranzas"))
+        self.assertFalse(a.tiene_modulo("mesas"))
+
+    def test_palabras_segun_el_negocio(self):
+        from .models import Ajustes, Rubro
+
+        a = Ajustes.cargar()
+        a.modulos_inactivos = []
+        a.rubro = Rubro.RESTAURANTE
+        a.save()
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("core:inicio"))
+        self.assertContains(r, "<p>Carta <i")
+        self.assertContains(r, "Venta rápida")
+        a.rubro = Rubro.ACADEMIA
+        a.save()
+        r = self.client.get(reverse("cobranzas:planes"))
+        self.assertContains(r, "Mensualidades")
+        self.assertContains(r, "Alumnos y socios")

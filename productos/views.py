@@ -56,7 +56,7 @@ def _filtrar(request):
         productos = productos.filter(categoria__isnull=True)
     elif entero(cat):
         productos = productos.filter(categoria_id=entero(cat))
-    if tipo in ("P", "S"):
+    if tipo in ("P", "S", "C"):
         productos = productos.filter(tipo=tipo)
     if estado == "inactivos":
         productos = productos.filter(activo=False)

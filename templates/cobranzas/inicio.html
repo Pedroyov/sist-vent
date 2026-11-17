@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load sis %}
-{% block title %}Cobranzas{% endblock %}
-{% block page_title %}Cobranzas{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item active">Cobranzas</li>{% endblock %}
+{% block title %}{{ T.cobranzas }}{% endblock %}
+{% block page_title %}{{ T.cobranzas }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">{{ T.cobranzas }}</li>{% endblock %}
 {% block content %}
 {% include "cobranzas/partials/menu.html" with activo="inicio" %}
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-start">
@@ -12,7 +12,7 @@
              hx-get="{% url 'cobranzas:buscar' %}" hx-trigger="input changed delay:250ms, search" hx-target="#resultados"></div>
     <div id="resultados" class="position-absolute w-100" style="z-index: 1050"></div>
   </div>
-  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Inscribir</a>{% endif %}
+  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>{{ T.inscribir }}</a>{% endif %}
 </div>
 
 <div class="row g-2 g-md-3 mb-3">

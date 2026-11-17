@@ -3,6 +3,8 @@ from decimal import Decimal
 from urllib.parse import quote
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,7 +21,7 @@ from core.autorizacion import AutorizacionError, autorizar
 
 from .servicios import (MesaError, abrir_cuenta, abrir_delivery, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, datos_delivery,
                         entregar_delivery, enviar_cocina, falta_de_cocina, juntar, cambiar_personas, cuenta_de_mesa, unir_mesas, separar_mesa, liberar_mesa, marcar_listo, marcar_servido, mover,
-                        poner_envio, quitar, salio_delivery)
+                        poner_envio, quitar, salio_delivery, sin_cocina)
 
 
 def _abiertas():
@@ -85,13 +87,54 @@ def _por_area(items):
     return [(a, nombres[a], [i for i in items if i.area == a]) for a in ("COC", "BAR", "MOZ") if any(i.area == a for i in items)]
 
 
-def _cuenta(pk):
-    return get_object_or_404(Cuenta.objects.select_related("mesa__zona", "mozo").prefetch_related("mesas_unidas"), pk=pk)
+# Un pedido de delivery se maneja con los permisos de Delivery; una mesa o un "para llevar", con los de Mesas.
+# Así el delivery funciona aunque el negocio no tenga mesas (una tienda).
+_PERMISO = {"atender": ("mesas.atender", "delivery.atender"), "cobrar": ("mesas.cobrar", "delivery.cobrar"),
+            "anular": ("mesas.anular", "delivery.anular")}
+ATENDER = ("mesas.atender", "delivery.atender")
+COBRAR = ("mesas.cobrar", "delivery.cobrar")
 
 
-@permiso_requerido("mesas.atender", "mesas.cobrar")
+def _puede(user, c, accion):
+    mesa, delivery = _PERMISO[accion]
+    return puede(user, delivery if c.es_delivery else mesa)
+
+
+def _exigir(user, c, *acciones):
+    if not any(_puede(user, c, a) for a in acciones):
+        raise PermissionDenied
+
+
+def _lista(user, c=None):
+    """A dónde volver: un delivery vuelve a la lista de delivery; una mesa, al mapa."""
+    if c is not None and c.es_delivery and puede(user, "delivery.atender", "delivery.cobrar"):
+        return "mesas:pedidos"
+    return "mesas:mapa" if puede(user, "mesas.atender", "mesas.cobrar") else "mesas:pedidos"
+
+
+@permiso_requerido("delivery.atender", "delivery.cobrar")
+def pedidos(request):
+    """Delivery sin mesas (una tienda): la lista de pedidos por despachar, en camino y por cobrar."""
+    datos = _datos_mapa()
+    datos = {"delivery": datos["delivery"], "ahora": datos["ahora"], "mostrar_vacio": True}
+    if request.htmx:
+        return render(request, "mesas/partials/delivery_lista.html", datos)
+    hoy = timezone.localdate()
+    datos["entregados"] = (Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, abierta_en__date=hoy).exclude(estado=Cuenta.Estado.ABIERTA)
+                           .order_by("-cerrada_en")[:20])
+    return render(request, "mesas/pedidos.html", datos)
+
+
+def _cuenta(pk, user=None, acciones=("atender", "cobrar")):
+    c = get_object_or_404(Cuenta.objects.select_related("mesa__zona", "mozo").prefetch_related("mesas_unidas"), pk=pk)
+    if user is not None:
+        _exigir(user, c, *acciones)
+    return c
+
+
+@permiso_requerido(*ATENDER, *COBRAR)
 def cuenta(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user)
     items = list(c.items.select_related("agregado_por", "venta").order_by("creado", "id"))
     por_enviar = [i for i in items if not i.anulado and not i.enviado_en and not i.venta_id]
     enviados = [i for i in items if not i.anulado and i.enviado_en and not i.venta_id]
@@ -117,17 +160,19 @@ def cuenta(request, pk):
         "repartidores": list(Cuenta.objects.exclude(repartidor="").order_by("-salio_en").values_list("repartidor", flat=True).distinct()[:30])
         if c.es_delivery else [],
         "recien_ts": request.GET.get("enviado", ""),
-        "falta_caja": falta_caja and puede(request.user, "mesas.cobrar"),
-        "puede_anular": puede(request.user, "mesas.anular"),
+        "falta_caja": falta_caja and _puede(request.user, c, "cobrar"),
+        "puede_anular": _puede(request.user, c, "anular"),
+        "pa": _puede(request.user, c, "atender"), "pc": _puede(request.user, c, "cobrar"), "sin_cocina": sin_cocina(c),
+        "volver": _lista(request.user, c),
         "hay_listos": any(i.listo_en and not i.servido_en for i in enviados + pagados),
         "imprimir_precuenta": request.GET.get("precuenta") == "1",
         "motivos_cortesia": ["Plato salió mal", "Demora", "Cumpleaños", "Cliente frecuente", "Consumo del personal", "Invitación del dueño"],
     })
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 def agregar_vista(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user, ("atender",))
     if request.method == "POST":
         try:
             datos = json.loads(request.body or b"{}")
@@ -136,7 +181,7 @@ def agregar_vista(request, pk):
             return JsonResponse({"error": "Datos no válidos."}, status=400)
         except MesaError as e:
             return JsonResponse({"error": str(e)}, status=400)
-        if datos.get("enviar"):
+        if datos.get("enviar") and not sin_cocina(c):
             ts = enviar_cocina(c)
             url = reverse("mesas:cuenta", args=[c.pk]) + (f"?enviado={quote(ts.isoformat())}" if ts else "")
         else:
@@ -148,12 +193,12 @@ def agregar_vista(request, pk):
     from ventas.views import _catalogo
 
     categorias = Categoria.objects.filter(activa=True, productos__activo=True).distinct()
-    return render(request, "mesas/agregar.html", {"c": c, "catalogo": _catalogo(),
+    return render(request, "mesas/agregar.html", {"c": c, "catalogo": _catalogo(), "volver": _lista(request.user, c), "sin_cocina": sin_cocina(c),
                                                   "categorias": [{"id": x.pk, "n": x.nombre} for x in categorias]})
 
 
-def _accion(request, pk, funcion, ok=None):
-    c = _cuenta(pk)
+def _accion(request, pk, funcion, ok=None, acciones=("atender",)):
+    c = _cuenta(pk, request.user, acciones)
     try:
         resultado = funcion(c)
         if ok:
@@ -164,7 +209,7 @@ def _accion(request, pk, funcion, ok=None):
         return c, None
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 @require_POST
 def enviar(request, pk):
     c, ts = _accion(request, pk, enviar_cocina)
@@ -175,16 +220,17 @@ def enviar(request, pk):
     return redirect("mesas:cuenta", pk=pk)
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 @require_POST
 def item(request, pk):
     it = get_object_or_404(ItemCuenta.objects.select_related("cuenta"), pk=pk)
+    _exigir(request.user, it.cuenta, "atender")
     accion = request.POST.get("accion")
     try:
         if accion in ("mas", "menos"):
             cambiar_cantidad(it, 1 if accion == "mas" else -1)
         elif accion == "quitar":
-            quitar(it, request.user, request.POST.get("motivo"), puede(request.user, "mesas.anular"))
+            quitar(it, request.user, request.POST.get("motivo"), _puede(request.user, it.cuenta, "anular"))
             messages.success(request, "Producto quitado.")
     except MesaError as e:
         messages.error(request, str(e))
@@ -195,6 +241,7 @@ def item(request, pk):
 @require_POST
 def cortesia_vista(request, pk):
     it = get_object_or_404(ItemCuenta.objects.select_related("cuenta"), pk=pk)
+    _exigir(request.user, it.cuenta, "atender", "cobrar")
     from core.models import Ajustes
 
     if not Ajustes.cargar().cortesias_activas and request.POST.get("quitar") != "1":
@@ -218,16 +265,16 @@ def cortesia_vista(request, pk):
 @require_POST
 def personas(request, pk):
     try:
-        cambiar_personas(_cuenta(pk), request.POST.get("personas"))
+        cambiar_personas(_cuenta(pk, request.user), request.POST.get("personas"))
     except MesaError as e:
         messages.error(request, str(e))
     return redirect("mesas:cuenta", pk=pk)
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 @require_POST
 def pedir_cuenta(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user, ("atender",))
     if c.abierta:
         c.pidio_cuenta = not c.pidio_cuenta
         c.save(update_fields=["pidio_cuenta"])
@@ -236,19 +283,19 @@ def pedir_cuenta(request, pk):
     return redirect("mesas:cuenta", pk=pk)
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 @require_POST
 def servido(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user, ("atender",))
     n = marcar_servido(c)
     if n:
         messages.success(request, f"Listo: {n} plato{'s' if n != 1 else ''} servido{'s' if n != 1 else ''}.")
     return redirect("mesas:cuenta", pk=pk)
 
 
-@permiso_requerido("mesas.atender", "mesas.cobrar")
+@permiso_requerido(*ATENDER, *COBRAR)
 def precuenta(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user)
     total = c.total_por_cobrar
     return render(request, "mesas/precuenta.html", {"c": c, "items": c.por_cobrar().order_by("creado"), "total": total,
                                                     "propina_sugerida": (total / 10).quantize(total.__class__("0.10")),
@@ -256,9 +303,9 @@ def precuenta(request, pk):
                                                     "pagado": sum((i.subtotal for i in c.items.filter(anulado=False, venta__isnull=False)), total.__class__("0"))})
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido(*ATENDER)
 def comanda(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user, ("atender",))
     ts = parse_datetime(request.GET.get("enviado", "") or "")
     area = _area(request)
     items = c.items.filter(anulado=False, enviado_en__isnull=False, es_envio=False, area=area)
@@ -304,10 +351,10 @@ def cambiar_mesa(request, pk):
     return render(request, "mesas/cambiar.html", {"c": c, "modo": modo, "nueva": request.GET.get("nueva"), **datos})
 
 
-@permiso_requerido("mesas.cobrar")
+@permiso_requerido(*COBRAR)
 @require_POST
 def cobrar_vista(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user, ("cobrar",))
     try:
         datos = json.loads(request.body or b"{}")
         if not isinstance(datos, dict):
@@ -346,10 +393,10 @@ def cobrar_vista(request, pk):
     c.refresh_from_db()
     if c.es_delivery and not c.abierta and c.estado_envio != Cuenta.Envio.ENTREGADO:  # se cobró y se cerró: ya se entregó
         Cuenta.objects.filter(pk=c.pk).update(estado_envio=Cuenta.Envio.ENTREGADO, entregado_en=timezone.now())
-    if venta.enviado_cocina:  # se mandó a cocina al cobrar: al volver, la cuenta muestra qué dictar o la comanda
+    if venta.enviado_cocina and not sin_cocina(c):  # se mandó a cocina al cobrar: al volver, la cuenta muestra qué dictar o la comanda
         siguiente = reverse("mesas:cuenta", args=[c.pk]) + "?enviado=" + quote(venta.enviado_cocina.isoformat())
     else:
-        siguiente = reverse("mesas:mapa") if not c.abierta else reverse("mesas:cuenta", args=[c.pk])
+        siguiente = reverse(_lista(request.user, c)) if not c.abierta else reverse("mesas:cuenta", args=[c.pk])
     return JsonResponse({"ok": True, "url": reverse("ventas:ticket", args=[venta.pk]) + "?nueva=1&volver=" + quote(siguiente, safe="/")})
 
 
@@ -362,25 +409,58 @@ def _nota_cobro(c, datos):
     return nota[:200]
 
 
-@permiso_requerido("mesas.atender")
+@permiso_requerido("delivery.atender")
 @require_POST
 def delivery_nuevo(request):
     from core.models import Ajustes
 
     if not Ajustes.cargar().delivery_activo:
-        messages.error(request, "El delivery no está activado (Datos del negocio).")
-        return redirect("mesas:mapa")
+        messages.error(request, "El delivery no está activado.")
+        return redirect(_lista(request.user))
     d = request.POST
+    items = None
+    if d.get("items"):  # viene de la pantalla Vender con el carrito ya armado
+        try:
+            items = json.loads(d["items"])
+            assert isinstance(items, list) and items
+        except (ValueError, AssertionError):
+            items = None
     try:
-        c = abrir_delivery(request.user, d.get("nombre"), d.get("telefono"), d.get("direccion"), d.get("referencia"), d.get("paga_con"),
-                           d.get("costo_envio"))
+        with transaction.atomic():
+            c = abrir_delivery(request.user, d.get("nombre"), d.get("telefono"), d.get("direccion"), d.get("referencia"), d.get("paga_con"),
+                               d.get("costo_envio"))
+            if items:
+                _carrito_a_delivery(request.user, c, items)
     except MesaError as e:
         messages.error(request, str(e))
-        return redirect("mesas:mapa")
+        return redirect("ventas:pos" if items else _lista(request.user))
+    if items:
+        messages.success(request, f"{c.titulo} creado con lo de la venta. Cóbralo ahora si ya pagó, o cuando vuelva el repartidor.")
+        return redirect(reverse("mesas:cuenta", args=[c.pk]) + "?desde_venta=1")
     return redirect(reverse("mesas:agregar", args=[c.pk]))
 
 
-@permiso_requerido("mesas.atender")
+def _carrito_a_delivery(user, c, items):
+    """Pasa el carrito de Vender al pedido: mismos productos, cantidades y opciones; el precio cambiado a mano se respeta
+    solo si quien lo hace puede cambiar precios."""
+    from decimal import Decimal, InvalidOperation
+
+    creados = agregar(c, [{"variante": i.get("variante"), "cantidad": i.get("cantidad"), "opciones": i.get("opciones") or []}
+                          for i in items if isinstance(i, dict)], user)
+    if puede(user, "ventas.precio"):
+        for it, original in zip(creados, items):
+            try:
+                precio = Decimal(str(original.get("precio"))).quantize(Decimal("0.01"))
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+            if precio >= 0 and precio != it.precio:
+                it.precio = precio
+                it.save(update_fields=["precio"])
+    if not sin_cocina(c):
+        enviar_cocina(c)
+
+
+@permiso_requerido("delivery.atender")
 def delivery_buscar(request):
     """Por el celular: el cliente y su última dirección, para no volver a preguntarla."""
     tel = "".join(ch for ch in request.GET.get("tel", "") if ch.isdigit())
@@ -407,10 +487,10 @@ def delivery_buscar(request):
     return JsonResponse(datos)
 
 
-@permiso_requerido("mesas.atender", "mesas.cobrar")
+@permiso_requerido("delivery.atender", "delivery.cobrar")
 @require_POST
 def delivery_accion(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user)
     if not c.es_delivery:
         return redirect("mesas:cuenta", pk=pk)
     accion, d = request.POST.get("accion"), request.POST
@@ -430,33 +510,34 @@ def delivery_accion(request, pk):
             c.refresh_from_db()
             if not c.abierta:
                 messages.success(request, f"{c.titulo} entregado y cerrado.")
-                return redirect("mesas:mapa")
+                return redirect(_lista(request.user, c))
             messages.info(request, f"{c.titulo} entregado. Falta cobrarlo.")
     except MesaError as e:
         messages.error(request, str(e))
     return redirect("mesas:cuenta", pk=pk)
 
 
-@permiso_requerido("mesas.atender", "mesas.cobrar")
+@permiso_requerido(*ATENDER, *COBRAR)
 @require_POST
 def liberar(request, pk):
-    c = _cuenta(pk)
+    c = _cuenta(pk, request.user)
     try:
         entregar_delivery(c) if c.es_delivery else liberar_mesa(c)
     except MesaError as e:
         messages.error(request, str(e))
         return redirect("mesas:cuenta", pk=pk)
     messages.success(request, f"{c.titulo} {'entregado' if not c.mesa_id else 'liberada'}.")
-    return redirect("mesas:mapa")
+    return redirect(_lista(request.user, c))
 
 
-@permiso_requerido("mesas.atender", "mesas.cobrar")
+@permiso_requerido(*ATENDER, *COBRAR)
 @require_POST
 def anular(request, pk):
-    c, _ = _accion(request, pk, lambda c: anular_cuenta(c, request.user, request.POST.get("motivo"), puede(request.user, "mesas.anular")))
+    c, _ = _accion(request, pk, lambda c: anular_cuenta(c, request.user, request.POST.get("motivo"), _puede(request.user, c, "anular")),
+                   acciones=("atender", "cobrar"))
     if not c.abierta or Cuenta.objects.get(pk=pk).estado != Cuenta.Estado.ABIERTA:
-        messages.success(request, f"{c.titulo} liberada.")
-        return redirect("mesas:mapa")
+        messages.success(request, f"{c.titulo} {'anulado' if c.es_delivery else 'liberada'}.")
+        return redirect(_lista(request.user, c))
     return redirect("mesas:cuenta", pk=pk)
 
 

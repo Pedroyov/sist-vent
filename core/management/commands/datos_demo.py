@@ -46,6 +46,8 @@ class Command(BaseCommand):
         restaurante = ("mesas", "cocina", "delivery")
         inactivos = [m for m in (a.modulos_inactivos or []) if m not in restaurante]
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + list(restaurante)
+        if rubro == Rubro.TIENDA:  # la bodega muestra el delivery sin mesas
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "delivery"]
         a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "facturacion"]  # la demo la trae en modo prueba
         if rubro == Rubro.ACADEMIA:
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m not in ("cobranzas", "clientes")]
@@ -63,6 +65,7 @@ class Command(BaseCommand):
         a.distrito = a.distrito or "Lima"
         a.whatsapp = a.whatsapp or "987654321"
         a.nota_ticket = a.nota_ticket or "Gracias por su compra."
+        a.funciones_inactivas = []  # se ajustan al rubro cuando el catálogo ya está cargado
         a.save()
 
         User = get_user_model()
@@ -78,6 +81,12 @@ class Command(BaseCommand):
                     rol = MOZO
                 u.groups.add(Group.objects.get(name=rol))
         n = cargar_catalogo(rubro, User.objects.get(username="admin"))
+        from core.rubros import aplicar
+
+        aplicar(a)  # funciones del rubro; las que el catálogo de ejemplo usa quedan a la vista
+        if rubro == Rubro.RESTAURANTE:
+            a.nivel_pedido = 3
+            a.save(update_fields=["nivel_pedido"])
         from ventas.demo import cargar_ventas
         from ventas.models import Venta
 

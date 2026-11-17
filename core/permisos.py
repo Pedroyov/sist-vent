@@ -31,7 +31,8 @@ MODULOS = [
     ("cocina", "Pantalla de cocina", "bi-fire",
      "La cocina recibe los pedidos al instante en una tablet o PC y marca lo que está listo; el mozo recibe el aviso.", "mesas"),
     ("delivery", "Delivery", "bi-scooter",
-     "Pedidos por teléfono o WhatsApp con dirección, costo de envío, repartidor, estados y hoja para el repartidor.", "mesas"),
+     "Pedidos por teléfono o WhatsApp con dirección, costo de envío, repartidor, estados y hoja para el repartidor. "
+     "Sirve para restaurantes y para tiendas.", None),
     ("clientes", "Clientes y fiado", "bi-people", "Clientes con DNI/RUC, ventas al fiado con límite, pagos de deudas y recordatorios por WhatsApp.", None),
     ("reportes", "Reportes", "bi-bar-chart", "Ventas por día y hora, lo más vendido, personal, mesas, inventario, deudores y control.", None),
     ("facturacion", "Facturación electrónica", "bi-receipt-cutoff",
@@ -55,6 +56,11 @@ PERMISOS = [
     ("mesas.anular", "mesas", "Quitar productos ya enviados a cocina y anular cuentas", []),
     ("mesas.cocina", "cocina", "Usar la pantalla de cocina: ver pedidos y marcarlos como listos", [COCINA]),
     ("mesas.configurar", "mesas", "Crear y editar zonas y mesas", []),
+
+    ("delivery.atender", "delivery", "Tomar pedidos de delivery, agregarles productos, despacharlos y marcarlos entregados",
+     [CAJERO, VENDEDOR, MOZO]),
+    ("delivery.cobrar", "delivery", "Cobrar pedidos de delivery", [CAJERO]),
+    ("delivery.anular", "delivery", "Quitar productos ya preparados y anular pedidos de delivery", []),
 
     ("clientes.ver", "clientes", "Ver clientes, lo que deben y su estado de cuenta", [CAJERO, VENDEDOR]),
     ("clientes.editar", "clientes", "Registrar y editar clientes", [CAJERO, VENDEDOR]),
@@ -99,7 +105,7 @@ def permisos_por_defecto(rol):
 
 
 def modulos_activos(ajustes=None):
-    """Los módulos encendidos. Uno que necesita a otro (cocina y delivery necesitan mesas) se apaga con él."""
+    """Los módulos encendidos. Uno que necesita a otro (la cocina necesita mesas) se apaga con él."""
     if ajustes is None:
         from .models import Ajustes
 

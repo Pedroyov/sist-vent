@@ -5,6 +5,21 @@
 {% block breadcrumb %}<li class="breadcrumb-item active">Módulos</li>{% endblock %}
 
 {% block content %}
+{# ---------- Lo recomendado para el tipo de negocio ---------- #}
+<div class="card card-outline card-info mb-4">
+  <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+    <i class="bi bi-lightbulb fs-3 text-info"></i>
+    <div class="flex-grow-1 small">
+      <div class="fw-semibold mb-1">Recomendado para «{{ rubro }}» <span class="fw-normal text-body-secondary">(el tipo de negocio se elige en <a href="{% url 'core:datos_negocio' %}">Datos del negocio</a>)</span></div>
+      <div><span class="text-body-secondary">Activos:</span> {{ recomendado|join:", " }}</div>
+      {% if opcional %}<div><span class="text-body-secondary">Si lo pide:</span> {{ opcional|join:", " }}</div>{% endif %}
+    </div>
+    <form method="post">{% csrf_token %}<input type="hidden" name="accion" value="recomendado">
+      <button class="btn {% if difiere %}btn-info{% else %}btn-outline-secondary{% endif %}"><i class="bi bi-magic me-1"></i>Usar lo recomendado</button></form>
+  </div>
+  <div class="card-footer small text-body-secondary py-2">Enciende lo recomendado y apaga lo que no se usa en este tipo de negocio <strong>solo si no tiene datos</strong>. Lo opcional queda como está.</div>
+</div>
+
 {# ---------- Módulos ---------- #}
 <div class="card mb-4">
   <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-toggles me-1"></i> Módulos del sistema</h3></div>

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load sis %}
-{% block title %}Planes{% endblock %}
-{% block page_title %}Planes{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Planes</li>{% endblock %}
+{% block title %}{{ T.planes }}{% endblock %}
+{% block page_title %}{{ T.planes }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">{{ T.planes }}</li>{% endblock %}
 {% block content %}
 {% include "cobranzas/partials/menu.html" with activo="planes" %}
 <div class="d-flex flex-wrap gap-2 mb-3">

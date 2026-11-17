@@ -189,6 +189,7 @@ def datos_negocio(request):
 
     ajustes = Ajustes.cargar()
     logo_antes = ajustes.logo.name if ajustes.logo else ""
+    rubro_antes = ajustes.rubro
     form = DatosNegocioForm(request.POST or None, request.FILES or None, instance=ajustes)
     if request.method == "POST" and form.is_valid():
         a = form.save()
@@ -206,6 +207,14 @@ def datos_negocio(request):
             a.save(update_fields=["version_logo"])
         from .models import Rubro
 
+        if a.rubro != rubro_antes:  # otro tipo de negocio: se ajustan las funciones (lo que ya se usa no se apaga)
+            from .rubros import aplicar
+
+            encendidas, apagadas = aplicar(a)
+            if encendidas or apagadas:
+                messages.info(request, f"Ajustado para {a.get_rubro_display().lower()}:"
+                              + (f" se activó {', '.join(encendidas)}." if encendidas else "")
+                              + (f" Se ocultó {', '.join(apagadas)} (no se estaba usando)." if apagadas else ""))
         if a.rubro == Rubro.RESTAURANTE and "mesas" in a.modulos_inactivos:
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "mesas"]
             a.save(update_fields=["modulos_inactivos"])
@@ -245,6 +254,15 @@ def modulos(request):
     from .models import Ajustes
 
     ajustes = Ajustes.cargar()
+    if request.method == "POST" and request.POST.get("accion") == "recomendado":
+        from .rubros import aplicar
+
+        encendidos, apagados = aplicar(ajustes, modulos=True)
+        messages.success(request, f"Listo para {ajustes.get_rubro_display().lower()}."
+                         + (f" Se activó: {', '.join(encendidos)}." if encendidos else "")
+                         + (f" Se apagó: {', '.join(apagados)} (no tenía datos)." if apagados else "")
+                         + ("" if encendidos or apagados else " Ya estaba así."))
+        return redirect("core:modulos")
     if request.method == "POST":
         activos = set(request.POST.getlist("modulo"))
         ajustes.modulos_inactivos = [m[0] for m in MODULOS if m[0] not in activos]
@@ -253,7 +271,14 @@ def modulos(request):
         messages.success(request, "Módulos guardados." + (f" Desactivados: {', '.join(apagados)}." if apagados else " Todos activos."))
         return redirect("core:modulos")
     inactivos = set(ajustes.modulos_inactivos)
+    from .rubros import perfil
+
+    p = perfil(ajustes.rubro)
     return render(request, "core/config/modulos.html", {
+        "rubro": ajustes.get_rubro_display(),
+        "recomendado": [NOMBRE_MODULO[m[0]] for m in MODULOS if m[0] in p["encendido"]],
+        "opcional": [NOMBRE_MODULO[m[0]] for m in MODULOS if m[0] in p["opcional"]],
+        "difiere": any((m[0] in p["encendido"]) == (m[0] in inactivos) for m in MODULOS if m[0] in p["encendido"]),
         "modulos": [{"codigo": m[0], "nombre": m[1], "icono": m[2], "texto": m[3], "activo": m[0] not in inactivos,
                      "necesita": m[4], "necesita_nombre": NOMBRE_MODULO.get(m[4], "")} for m in MODULOS],
     })

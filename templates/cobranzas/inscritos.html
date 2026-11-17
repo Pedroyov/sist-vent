@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load sis %}
-{% block title %}Inscritos{% endblock %}
-{% block page_title %}Inscritos{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">Cobranzas</a></li><li class="breadcrumb-item active">Inscritos</li>{% endblock %}
+{% block title %}{{ T.inscritos }}{% endblock %}
+{% block page_title %}{{ T.inscritos }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">{{ T.inscritos }}</li>{% endblock %}
 {% block content %}
 {% include "cobranzas/partials/menu.html" with activo="inscritos" %}
 <div class="d-flex flex-wrap gap-2 mb-3">
-  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Inscribir</a>{% endif %}
+  {% if P.cobranzas_inscribir %}<a href="{% url 'cobranzas:inscribir' %}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>{{ T.inscribir }}</a>{% endif %}
   <a href="?{{ query.urlencode }}&excel=1" class="btn btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
 </div>
 <div class="card mb-4">

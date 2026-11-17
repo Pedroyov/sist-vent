@@ -54,7 +54,13 @@ class ProductoForm(forms.ModelForm):
         self.fields["unidad"].required = False
         from core.models import Ajustes
 
-        if Ajustes.cargar().tiene_modulo("mesas"):
+        ajustes = Ajustes.cargar()
+        # Tipos que el negocio no usa no se ofrecen (salvo que este producto ya sea de ese tipo)
+        ocultos = {Producto.Tipo.SERVICIO: ajustes.usa_servicios, Producto.Tipo.COMBO: ajustes.usa_combos}
+        self.fields["tipo"].choices = [(k, v) for k, v in self.fields["tipo"].choices
+                                       if ocultos.get(k, True) or self.instance.tipo == k]
+        self.solo_un_tipo = len(self.fields["tipo"].choices) == 1
+        if ajustes.tiene_modulo("mesas"):
             self.fields["area"].choices = [("", "Como su categoría")] + list(Area.choices)
         else:
             del self.fields["area"]

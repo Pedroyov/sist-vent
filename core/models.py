@@ -23,10 +23,16 @@ def modulos_inactivos_iniciales():
     return ["mesas", "cocina", "delivery", "facturacion", "cobranzas"]
 
 
+def funciones_inactivas_iniciales():
+    """Una instalación nueva empieza como tienda: solo variantes (ver core/rubros.py)."""
+    return ["combos", "servicios", "agotados"]
+
+
 class Ajustes(models.Model):
     """Ajustes generales del sistema y datos del negocio (una sola fila)."""
 
     modulos_inactivos = models.JSONField("módulos desactivados", default=modulos_inactivos_iniciales, blank=True)
+    funciones_inactivas = models.JSONField("funciones avanzadas ocultas", default=funciones_inactivas_iniciales, blank=True)
 
     # --- Datos del negocio (Configuración → Datos del negocio) ---
     rubro = models.CharField("rubro", max_length=3, choices=Rubro.choices, default=Rubro.TIENDA)
@@ -70,7 +76,7 @@ class Ajustes(models.Model):
     delivery_costo = models.DecimalField("costo de envío habitual", max_digits=8, decimal_places=2, default=Decimal("0"),
                                          help_text="Se propone en cada delivery; se puede cambiar en cada pedido.")
     nivel_pedido = models.PositiveSmallIntegerField(
-        "cómo se toman los pedidos", default=2,
+        "cómo se toman los pedidos", default=1,
         choices=[(1, "Simple: el producto y una nota escrita (ej.: «sin cebolla»)"),
                  (2, "Con opciones: término, acompañamiento, cremas, adicionales con precio y menú del día"),
                  (3, "Detallado: además, qué lleva cada plato para quitar o cambiar cosas")],
@@ -112,6 +118,26 @@ class Ajustes(models.Model):
     @property
     def delivery_activo(self):
         return self.tiene_modulo("delivery")
+
+    # --- funciones avanzadas (core/rubros.py): ocultas si el negocio no las usa ---
+    def usa(self, funcion):
+        return funcion not in (self.funciones_inactivas or [])
+
+    @property
+    def usa_variantes(self):
+        return self.usa("variantes")
+
+    @property
+    def usa_combos(self):
+        return self.usa("combos")
+
+    @property
+    def usa_servicios(self):
+        return self.usa("servicios")
+
+    @property
+    def usa_agotados(self):
+        return self.usa("agotados")
 
     @property
     def usa_opciones(self):

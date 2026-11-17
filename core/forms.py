@@ -126,6 +126,8 @@ class UsuarioForm(forms.ModelForm):
 # --- Datos del negocio ---------------------------------------------------------
 
 class DatosNegocioForm(forms.ModelForm):
+    funciones = forms.MultipleChoiceField(label="Funciones que usa el negocio", required=False, widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+                                          help_text="Lo que no marques no aparece en las pantallas. No se borra nada: lo puedes volver a marcar.")
     metodos = forms.MultipleChoiceField(label="Métodos de pago que acepta", required=False, widget=forms.CheckboxSelectMultiple(attrs={"class": "btn-check"}),
                                         help_text="Solo los marcados aparecen al cobrar. El efectivo siempre está.")
 
@@ -150,15 +152,26 @@ class DatosNegocioForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from ventas.models import MetodoPago
 
+        from .rubros import CODIGOS_FUNCIONES, FUNCIONES
+
+        self.fields["funciones"].choices = [(c, n) for c, n, _ in FUNCIONES]
+        self.fields["funciones"].initial = [c for c in CODIGOS_FUNCIONES if self.instance.usa(c)]
+        self.explicacion_funciones = {c: t for c, _, t in FUNCIONES}
         self.fields["metodos"].choices = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.EFECTIVO]
         self.fields["metodos"].initial = [m for m in self.instance.metodos_aceptados if m != MetodoPago.EFECTIVO]
         if not self.instance.tiene_modulo("mesas"):
             del self.fields["cortesias_activas"]  # no se muestra: que no se apague sin querer
+            if not self.instance.tiene_modulo("delivery") and self.instance.nivel_pedido == 1:
+                del self.fields["nivel_pedido"]  # sin mesas ni delivery los pedidos son simples
 
     def save(self, commit=True):
         from ventas.models import MetodoPago
 
+        from .rubros import CODIGOS_FUNCIONES
+
         self.instance.metodos_pago = [MetodoPago.EFECTIVO] + list(self.cleaned_data.get("metodos") or [])
+        elegidas = set(self.cleaned_data.get("funciones") or [])
+        self.instance.funciones_inactivas = [c for c in CODIGOS_FUNCIONES if c not in elegidas]
         return super().save(commit)
 
     def clean_ruc(self):

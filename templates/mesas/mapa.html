@@ -8,7 +8,7 @@
 {% if not hay_mesas %}
 <div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-grid-3x3 fs-4"></i>
   <div class="flex-grow-1">Todavía no hay mesas.{% if not P.mesas_configurar %} Pide al administrador que las cree.{% endif %}</div>
-  {% if P.productos_agotar %}<a href="{% url 'productos:agotados' %}" class="btn btn-sm btn-outline-danger" title="Agotados hoy"><i class="bi bi-slash-circle"></i></a>{% endif %}
+  {% if P.productos_agotar and NEGOCIO.usa_agotados %}<a href="{% url 'productos:agotados' %}" class="btn btn-sm btn-outline-danger" title="Agotados hoy"><i class="bi bi-slash-circle"></i></a>{% endif %}
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-primary">Crear mesas</a>{% endif %}
 </div>
 {% endif %}
@@ -21,7 +21,7 @@
   </span>
   <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-aviso" title="Sonar y vibrar cuando algo esté listo para llevar"><i class="bi bi-bell-slash"></i> Aviso</button>
   {% if P.mesas_atender %}<button type="button" class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#m-llevar"><i class="bi bi-bag me-1"></i>Para llevar</button>
-  {% if NEGOCIO.delivery_activo %}<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#m-delivery"><i class="bi bi-scooter me-1"></i>Delivery</button>{% endif %}{% endif %}
+  {% if NEGOCIO.delivery_activo and P.delivery_atender %}<button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#m-delivery"><i class="bi bi-scooter me-1"></i>Delivery</button>{% endif %}{% endif %}
   {% if P.mesas_configurar %}<a href="{% url 'mesas:configurar' %}" class="btn btn-sm btn-outline-secondary {% if not P.mesas_atender %}ms-auto{% endif %}" title="Configurar mesas"><i class="bi bi-gear"></i></a>{% endif %}
 </div>
 
@@ -67,34 +67,7 @@
     </form>
   </div>
 </div>
-{% if NEGOCIO.delivery_activo %}
-<div class="modal fade" id="m-delivery" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
-    <form method="post" action="{% url 'mesas:delivery_nuevo' %}" class="modal-content">{% csrf_token %}
-      <div class="modal-header"><h5 class="modal-title"><i class="bi bi-scooter me-1"></i>Nuevo delivery</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-      <div class="modal-body">
-        <label class="form-label mb-1" for="dl-tel">Celular</label>
-        <input type="tel" name="telefono" id="dl-tel" class="form-control form-control-lg mb-1" inputmode="tel" maxlength="20" placeholder="987654321"
-               data-url="{% url 'mesas:delivery_buscar' %}" autocomplete="off">
-        <div class="small mb-2" id="dl-info"></div>
-        <label class="form-label mb-1" for="dl-nombre">Nombre</label>
-        <input type="text" name="nombre" id="dl-nombre" class="form-control mb-2" maxlength="60" placeholder="Ej.: Carla">
-        <label class="form-label mb-1" for="dl-dir">Dirección <span class="text-danger">*</span></label>
-        <input type="text" name="direccion" id="dl-dir" class="form-control mb-2" maxlength="200" required placeholder="Ej.: Av. Grau 120, dpto 302">
-        <input type="text" name="referencia" id="dl-ref" class="form-control mb-2" maxlength="200" placeholder="Referencia (ej.: frente al parque, puerta verde)">
-        <div class="row g-2">
-          <div class="col-6"><label class="form-label mb-1" for="dl-envio">Costo de envío</label>
-            <div class="input-group"><span class="input-group-text">S/</span><input type="number" name="costo_envio" id="dl-envio" class="form-control" min="0" step="0.50" inputmode="decimal" value="{{ NEGOCIO.delivery_costo|stringformat:'.2f' }}"></div></div>
-          <div class="col-6"><label class="form-label mb-1" for="dl-paga">Paga con</label>
-            <input type="text" name="paga_con" id="dl-paga" class="form-control" maxlength="40" placeholder="Ej.: 100, Yape" list="dl-pagas">
-            <datalist id="dl-pagas"><option value="Yape"><option value="Plin"><option value="Tarjeta"><option value="Ya pagó"><option value="Exacto"></datalist></div>
-        </div>
-      </div>
-      <div class="modal-footer"><button class="btn btn-primary w-100 btn-lg">Tomar el pedido</button></div>
-    </form>
-  </div>
-</div>
-{% endif %}
+{% if NEGOCIO.delivery_activo and P.delivery_atender %}{% include "mesas/partials/modal_delivery.html" %}{% endif %}
 {% endif %}
 {% endblock %}
 
@@ -157,27 +130,5 @@
     document.getElementById("abrir-juntar").checked = false;
     bootstrap.Modal.getOrCreateInstance(document.getElementById("m-abrir")).show();
   });
-  // Delivery: al escribir el celular, se recuerdan el nombre y la última dirección
-  var tel = document.getElementById("dl-tel"), buscando;
-  if (tel) tel.addEventListener("input", function () {
-    clearTimeout(buscando);
-    var t = tel.value.replace(/\D/g, "");
-    if (t.length < 9) { document.getElementById("dl-info").textContent = ""; return; }
-    buscando = setTimeout(function () {
-      fetch(tel.dataset.url + "?tel=" + encodeURIComponent(t), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
-        var info = document.getElementById("dl-info");
-        if (!d.nombre && !d.direccion) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
-        ["nombre", "direccion", "referencia"].forEach(function (k) {
-          var el = document.getElementById({nombre: "dl-nombre", direccion: "dl-dir", referencia: "dl-ref"}[k]);
-          if (d[k] && !el.value) el.value = d[k];
-        });
-        info.className = "small mb-2 text-success";
-        info.textContent = "Ya pidió antes" + (d.pedidos ? " (" + d.pedidos + " pedido" + (d.pedidos > 1 ? "s" : "") + ")" : "") + ": revisa que la dirección siga igual." +
-          (d.debe ? " Debe S/ " + d.debe + "." : "");
-      });
-    }, 300);
-  });
-  var md = document.getElementById("m-delivery");
-  if (md) md.addEventListener("shown.bs.modal", function () { tel.focus(); });
 </script>
 {% endblock %}

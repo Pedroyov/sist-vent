@@ -20,14 +20,22 @@
         </li>
 
         {# ---------- Atención: lo del día a día ---------- #}
-        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.ventas_vender or P.caja_usar or P.caja_ver or P.cobranzas_ver %}
+        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.delivery_atender or P.delivery_cobrar or P.ventas_vender or P.caja_usar or P.caja_ver or P.cobranzas_ver %}
         <li class="nav-header">ATENCIÓN</li>
         {% endif %}
         {% if P.mesas_atender or P.mesas_cobrar %}
         <li class="nav-item">
-          <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' and url != 'cocina' %}active{% endif %}">
+          <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' and url != 'cocina' and url != 'pedidos' %}active{% endif %}">
             <i class="nav-icon bi bi-grid-3x3-gap"></i>
-            <p>Mesas{% if NEGOCIO.delivery_activo %} y delivery{% endif %}</p>
+            <p>Mesas</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.delivery_atender or P.delivery_cobrar %}
+        <li class="nav-item">
+          <a href="{% url 'mesas:pedidos' %}" class="nav-link {% if url == 'pedidos' %}active{% endif %}">
+            <i class="nav-icon bi bi-scooter"></i>
+            <p>Delivery</p>
           </a>
         </li>
         {% endif %}
@@ -43,7 +51,7 @@
         <li class="nav-item">
           <a href="{% url 'ventas:pos' %}" class="nav-link {% if ns == 'ventas' and url == 'pos' %}active{% endif %}">
             <i class="nav-icon bi bi-cart-plus"></i>
-            <p>Vender</p>
+            <p>{{ T.vender }}</p>
           </a>
         </li>
         {% endif %}
@@ -51,7 +59,7 @@
         <li class="nav-item">
           <a href="{% url 'cobranzas:inicio' %}" class="nav-link {% if ns == 'cobranzas' %}active{% endif %}">
             <i class="nav-icon bi bi-calendar-check"></i>
-            <p>Cobranzas</p>
+            <p>{{ T.cobranzas }}</p>
           </a>
         </li>
         {% endif %}
@@ -65,7 +73,7 @@
         {% endif %}
 
         {# ---------- Hoy: lo que cambia cada día ---------- #}
-        {% if P.productos_agotar or P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
+        {% if P.productos_agotar and NEGOCIO.usa_agotados or P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
         <li class="nav-header">HOY</li>
         {% endif %}
         {% if P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
@@ -76,7 +84,7 @@
           </a>
         </li>
         {% endif %}
-        {% if P.productos_agotar %}
+        {% if P.productos_agotar and NEGOCIO.usa_agotados %}
         <li class="nav-item">
           <a href="{% url 'productos:agotados' %}" class="nav-link {% if ns == 'productos' and url == 'agotados' %}active{% endif %}">
             <i class="nav-icon bi bi-slash-circle"></i>
@@ -117,7 +125,7 @@
         <li class="nav-item {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}menu-open{% endif %}">
           <a href="#" class="nav-link {% if ns == 'productos' and url != 'menu' and url != 'agotados' %}active{% endif %}">
             <i class="nav-icon bi bi-box-seam"></i>
-            <p>Productos <i class="nav-arrow bi bi-chevron-right"></i></p>
+            <p>{{ T.productos }} <i class="nav-arrow bi bi-chevron-right"></i></p>
           </a>
           <ul class="nav nav-treeview">
             <li class="nav-item">
