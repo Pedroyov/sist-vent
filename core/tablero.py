@@ -11,6 +11,8 @@ Cada módulo nuevo agrega aquí su parte, por ejemplo:
                               "icono": "bi-graph-up", "color": "primary", "url": ...})
     self.pendientes.append(_pend("5 productos con stock bajo", reverse(...), "bi-box-seam", "danger"))
 """
+from datetime import timedelta
+
 from django.urls import reverse
 from django.utils import timezone
 
@@ -43,6 +45,8 @@ class Tablero:
             self._caja()
         if puede(self.user, "mesas.atender", "mesas.cobrar"):
             self._mesas()
+        if puede(self.user, "reservas.ver"):
+            self._reservas()
         if puede(self.user, "ventas.vender", "ventas.ver"):
             self._ventas()
         if puede(self.user, "cobranzas.ver"):
@@ -62,6 +66,8 @@ class Tablero:
             a.append({"texto": "Pantalla de cocina", "url": reverse("mesas:cocina"), "icono": "bi-fire", "color": "warning"})
         if puede(u, "mesas.atender", "mesas.cobrar"):
             a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
+        if puede(u, "reservas.ver"):
+            a.append({"texto": "Reservas", "url": reverse("reservas:agenda"), "icono": "bi-calendar-event", "color": "primary"})
         if puede(u, "delivery.atender", "delivery.cobrar"):
             a.append({"texto": "Delivery", "url": reverse("mesas:pedidos"), "icono": "bi-scooter", "color": "danger"})
         if puede(u, "cobranzas.ver"):
@@ -128,6 +134,27 @@ class Tablero:
             if n:
                 self.pendientes.append(_pend(f"{_plural(n, 'mesa')} pidió la cuenta" if n == 1 else f"{n} mesas pidieron la cuenta",
                                              reverse("mesas:mapa"), "bi-receipt", "warning"))
+
+    def _reservas(self):
+        from reservas.servicios import atrasadas, cerrar_pasadas, resumen_dia
+        from reservas.models import Reserva
+
+        cerrar_pasadas(self.hoy)
+        r = resumen_dia(self.hoy)
+        url = reverse("reservas:agenda")
+        self.tarjetas.append({"titulo": f"Reservas de hoy · {_plural(r['personas'], 'persona')}" if r["n"] else "Reservas de hoy", "valor": r["n"],
+                              "icono": "bi-calendar-event", "color": "primary" if r["n"] else "secondary", "url": url})
+        tarde = atrasadas()
+        if tarde:
+            nombres = ", ".join(f"{x.nombre} ({x.hora:%H:%M})" for x in tarde[:3])
+            self.pendientes.append(_pend(f"{_plural(len(tarde), 'reserva')} sin llegar: {nombres}", url, "bi-hourglass-bottom", "danger",
+                                         "Márcalas como «Llegaron» o «No vino»."))
+        if puede(self.user, "reservas.gestionar"):
+            manana = self.hoy + timedelta(days=1)
+            n = Reserva.objects.filter(fecha__in=(self.hoy, manana), estado=Reserva.Estado.PENDIENTE).count()
+            if n:
+                self.pendientes.append(_pend(f"{_plural(n, 'reserva')} por confirmar (hoy y mañana)", url, "bi-whatsapp", "warning",
+                                             "Confírmalas por WhatsApp."))
 
     def _ventas(self):
         from ventas.models import Venta

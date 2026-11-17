@@ -18,6 +18,7 @@
   <span><i class="bi bi-circle-fill text-danger"></i> Ocupada</span>
   <span><i class="bi bi-circle-fill text-warning"></i> Pidió cuenta</span>
   <span><i class="bi bi-circle-fill text-info"></i> Pagada</span>
+  {% if con_reservas %}<span><i class="bi bi-circle-fill" style="color: #8e6bd8"></i> Reservada</span>{% endif %}
   </span>
   <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-aviso" title="Sonar y vibrar cuando algo esté listo para llevar"><i class="bi bi-bell-slash"></i> Aviso</button>
   {% if P.mesas_atender %}<button type="button" class="btn btn-outline-primary btn-sm ms-auto" data-bs-toggle="modal" data-bs-target="#m-llevar"><i class="bi bi-bag me-1"></i>Para llevar</button>
@@ -43,6 +44,11 @@
       {% csrf_token %}<input type="hidden" name="mesa" id="abrir-mesa">
       <div class="modal-header"><h5 class="modal-title">Abrir mesa <span id="abrir-nombre"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
       <div class="modal-body">
+        <div class="alert alert-primary py-2 mb-3 d-none" id="abrir-reserva">
+          <div class="small"><i class="bi bi-calendar-event me-1"></i>Reservada: <strong id="abrir-reserva-texto"></strong></div>
+          <button type="submit" class="btn btn-primary w-100 mt-2" id="abrir-llego" formnovalidate><i class="bi bi-person-check me-1"></i>Llegó <span id="abrir-llego-nombre"></span></button>
+          <div class="small mt-2 text-body-secondary">Si son otros clientes, elige cuántas personas: la mesa se ocupa igual.</div>
+        </div>
         <p class="mb-1">¿Cuántas personas?</p>
         <p class="small text-body-secondary mb-2">Para poner vasos y cubiertos (opcional). Se puede corregir después en la cuenta.</p>
         <div class="d-flex flex-wrap gap-2">
@@ -128,6 +134,13 @@
     document.getElementById("abrir-mesa").value = m.dataset.libre;
     document.getElementById("abrir-nombre").textContent = m.dataset.nombre;
     document.getElementById("abrir-juntar").checked = false;
+    var caja = document.getElementById("abrir-reserva"), llego = document.getElementById("abrir-llego");
+    caja.classList.toggle("d-none", !m.dataset.reserva);
+    if (m.dataset.reserva) {
+      document.getElementById("abrir-reserva-texto").textContent = m.dataset.reserva;
+      document.getElementById("abrir-llego-nombre").textContent = m.dataset.reservaNombre;
+      llego.setAttribute("formaction", m.dataset.llego);
+    }
     bootstrap.Modal.getOrCreateInstance(document.getElementById("m-abrir")).show();
   });
 </script>

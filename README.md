@@ -93,6 +93,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Factura al crédito** – Apagada por defecto. Factura con forma de pago Crédito y cuotas; cuenta corriente por cliente con vencidos, bloqueo de fiado si debe algo vencido, deudas incobrables y Excel mensual para el contador
 - [x] **Tipo de negocio** – Cada rubro recomienda sus módulos, trae visibles solo las funciones que usa (variantes, combos, servicios, agotados; se marcan en Datos del negocio) y adapta palabras del menú (Carta, Venta rápida, Mensualidades…). Cambiar de rubro nunca oculta lo que ya se usa
 - [x] **Cobranzas (mensualidades)** – Para academias, gimnasios y talleres: planes (mensual, quincenal, semanal, por número de cuotas o pago único, con matrícula), inscripciones con alumno distinto al que paga y precio con descuento, cuotas que se generan solas, cobro en caja con recibo (todo o a cuenta), adelantar periodos, bajas, exoneraciones, mora opcional, morosos y por vencer con WhatsApp, reporte mensual y Excel. Funciona sin el punto de venta
+- [x] **Reservas** – Para restaurantes: agenda por día con personas, mesa opcional y nota; aviso si la mesa ya está reservada; confirmación y recordatorio por WhatsApp; la mesa se ve «Reservada» en el mapa y al llegar se abre la cuenta; atrasadas y «No vino»; historial por celular
 - [x] **Reglas de cobro** – El negocio elige qué métodos de pago acepta y si usa propinas, descuentos y cortesías; cobro compacto para celular
 - [ ] Despliegue con HTTPS
 

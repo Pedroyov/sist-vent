@@ -47,7 +47,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 ## Módulos y menú
 
 - **Base, siempre activa:** configuración (`core`), `productos` y el registro de `ventas`.
-- **Módulos** (`core/permisos.MODULOS`: código, nombre, ícono, texto, módulo que necesita) = lo que el negocio **contrató**. Los enciende el superusuario en Configuración → Módulos: `mostrador` (pantalla Vender), `caja`, `mesas`, `cocina` (necesita mesas), `delivery` (independiente: sirve a tiendas), `clientes`, `reportes`, `facturacion`, `cobranzas` (necesita clientes). `modulos_activos()` apaga solos los que necesitan uno apagado.
+- **Módulos** (`core/permisos.MODULOS`: código, nombre, ícono, texto, módulo que necesita) = lo que el negocio **contrató**. Los enciende el superusuario en Configuración → Módulos: `mostrador` (pantalla Vender), `caja`, `mesas`, `cocina` (necesita mesas), `delivery` (independiente: sirve a tiendas), `clientes`, `reportes`, `facturacion`, `cobranzas` (necesita clientes), `reservas`. `modulos_activos()` apaga solos los que necesitan uno apagado.
 - **Datos del negocio** = **cómo lo usa** el dueño dentro de lo contratado: propina, nivel de detalle de los pedidos, costo de envío, ancho del ticket, impresión automática.
 - Un permiso pertenece a un módulo (`PERMISOS`); con el módulo apagado nadie lo tiene. `ventas.vender` es del módulo `mostrador` y `mesas.cocina` del módulo `cocina`. Sin mostrador, el cajero igual ve sus ventas (la lista acepta `mesas.cobrar`).
 - `NEGOCIO.cocina_pantalla` y `NEGOCIO.delivery_activo` siguen existiendo, pero ahora se leen de los módulos (migración `core/0008`).
@@ -149,6 +149,15 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Baja:** quita (marca exoneradas con nota "Por baja") las cuotas que aún no vencen y no tienen pagos; lo vencido se sigue debiendo. Reactivar las devuelve. Un plan con número fijo pasa a Terminada cuando no queda nada por pagar.
 - **Recordatorios:** `mensaje()` arma el texto y `enlace_whatsapp()` el enlace wa.me (no envía nada solo).
 - **Pendiente:** boleta electrónica del pago de cuotas (hoy se entrega un recibo interno), congelar una membresía por unos días.
+
+## Reservas (cómo está pensado)
+
+- **App `reservas`**, módulo apagado por defecto (también en sistemas que ya estaban en uso: migración `0002`). Se ofrece en el rubro restaurante. No necesita Mesas: sin ese módulo, «Llegaron» solo marca la reserva.
+- **Reserva**: fecha + hora, personas, nombre, celular, `cliente` (con el módulo Clientes se busca o crea por celular), `mesa` opcional, nota, estado PEN/CON/LLE/NOV/CAN y la `cuenta` que se abrió al llegar. **Config** (una fila): `antes` (min que la mesa se ve «Reservada» en el mapa), `tolerancia` (min que se guarda después de la hora) y `duracion` (para avisar choques de la misma mesa).
+- `servicios.guardar` valida y avisa choques de mesa (`choques`, ± duración); se puede reservar igual con `permitir_choque`. `llego` abre la cuenta con `mesas.servicios.abrir_cuenta` (personas, nombre y cliente de la reserva). Sin tareas programadas: `cerrar_pasadas()` pasa a «No vino» lo activo de días anteriores al abrir la agenda o el inicio; las de hoy que pasaron la tolerancia salen como **atrasadas**.
+- **Mapa:** `mesas.views._reservas_mapa` usa `para_mapa` (mesas que se ven «Reservada» ahora) y `proximas_hoy` (la tira de arriba). Una mesa reservada se puede ocupar igual (el modal avisa y ofrece «Llegó …»).
+- Permisos: `reservas.ver` (ver; con `mesas.atender` también Llegaron / No vino) y `reservas.gestionar` (tomar, cambiar, confirmar, cancelar, configurar). WhatsApp con `mensaje()` / `enlace_whatsapp()`: confirmación si es otro día, recordatorio si es hoy.
+- **Pendiente (fase 2):** citas de peluquería y spa con personal, horarios, días libres, horarios libres y la próxima hora disponible.
 
 ## Reportes
 

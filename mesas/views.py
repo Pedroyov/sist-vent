@@ -29,7 +29,21 @@ def _abiertas():
         "mesas_unidas", Prefetch("items", queryset=ItemCuenta.objects.filter(anulado=False), to_attr="vigentes"))
 
 
+def _reservas_mapa():
+    """Con el módulo Reservas: qué mesas se ven «Reservada» ahora y las reservas que aún se esperan hoy."""
+    from core.permisos import modulos_activos
+
+    if "reservas" not in modulos_activos():
+        return {}, [], False
+    from reservas.models import Config
+    from reservas.servicios import para_mapa, proximas_hoy
+
+    cfg = Config.cargar()
+    return para_mapa(cfg=cfg), proximas_hoy(cfg=cfg), True
+
+
 def _datos_mapa():
+    reservadas, proximas, con_reservas = _reservas_mapa()
     abiertas = list(_abiertas())
     cuentas = {c.mesa_id: c for c in abiertas if c.mesa_id}
     pegadas = {m.pk: c for c in abiertas if c.mesa_id for m in c.unidas}
@@ -39,6 +53,7 @@ def _datos_mapa():
         for m in mesas:
             m.cuenta = cuentas.get(m.pk)
             m.pegada = pegadas.get(m.pk) if not m.cuenta else None
+            m.reserva = reservadas.get(m.pk)
             if m.cuenta:
                 m.cuenta.total = sum((i.subtotal for i in m.cuenta.vigentes), 0)
                 m.cuenta.sin_enviar = sum(1 for i in m.cuenta.vigentes if not i.enviado_en)
@@ -54,7 +69,8 @@ def _datos_mapa():
         c.esta_pagada = c.pagada(c.vigentes)
     llevar = [c for c in sin_mesa if not c.es_delivery]
     delivery = sorted([c for c in sin_mesa if c.es_delivery], key=lambda c: (c.estado_envio == Cuenta.Envio.EN_CAMINO, c.abierta_en))
-    return {"zonas": zonas, "llevar": llevar, "delivery": delivery, "ahora": timezone.now()}
+    return {"zonas": zonas, "llevar": llevar, "delivery": delivery, "ahora": timezone.now(), "proximas": proximas[:6],
+            "n_proximas": len(proximas), "con_reservas": con_reservas}
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")

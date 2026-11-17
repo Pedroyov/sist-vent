@@ -20,7 +20,7 @@
         </li>
 
         {# ---------- Atención: lo del día a día ---------- #}
-        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.delivery_atender or P.delivery_cobrar or P.ventas_vender or P.caja_usar or P.caja_ver or P.cobranzas_ver %}
+        {% if P.mesas_atender or P.mesas_cobrar or P.mesas_cocina or P.delivery_atender or P.delivery_cobrar or P.ventas_vender or P.caja_usar or P.caja_ver or P.cobranzas_ver or P.reservas_ver %}
         <li class="nav-header">ATENCIÓN</li>
         {% endif %}
         {% if P.mesas_atender or P.mesas_cobrar %}
@@ -28,6 +28,14 @@
           <a href="{% url 'mesas:mapa' %}" class="nav-link {% if ns == 'mesas' and url != 'cocina' and url != 'pedidos' %}active{% endif %}">
             <i class="nav-icon bi bi-grid-3x3-gap"></i>
             <p>Mesas</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.reservas_ver %}
+        <li class="nav-item">
+          <a href="{% url 'reservas:agenda' %}" class="nav-link {% if ns == 'reservas' %}active{% endif %}">
+            <i class="nav-icon bi bi-calendar-event"></i>
+            <p>Reservas</p>
           </a>
         </li>
         {% endif %}

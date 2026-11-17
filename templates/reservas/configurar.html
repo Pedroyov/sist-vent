@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Configurar reservas{% endblock %}
+{% block page_title %}Configurar reservas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'reservas:agenda' %}">Reservas</a></li><li class="breadcrumb-item active">Configurar</li>{% endblock %}
+{% block content %}
+<div class="row"><div class="col-lg-7 col-xl-5">
+<form method="post" class="card card-outline card-primary">{% csrf_token %}
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-12">{{ form.antes|as_crispy_field }}</div>
+      <div class="col-12">{{ form.tolerancia|as_crispy_field }}</div>
+      <div class="col-12">{{ form.duracion|as_crispy_field }}</div>
+    </div>
+    <p class="small text-body-secondary mb-0">Todo en minutos. Ejemplo: con 60, 20 y 120, una reserva de las 8:00 pm se ve en el mapa desde las 7:00 pm, se guarda hasta las 8:20 pm, y otra reserva de la misma mesa recién puede ser a las 10:00 pm.</p>
+  </div>
+  <div class="card-footer d-flex gap-2 justify-content-end">
+    <a href="{% url 'reservas:agenda' %}" class="btn btn-outline-secondary">Cancelar</a>
+    <button class="btn btn-primary">Guardar</button>
+  </div>
+</form>
+</div></div>
+{% endblock %}

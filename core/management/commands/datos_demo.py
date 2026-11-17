@@ -43,7 +43,7 @@ class Command(BaseCommand):
         a.nombre = nombre
         a.nombre_corto = nombre
         a.lema = lema
-        restaurante = ("mesas", "cocina", "delivery")
+        restaurante = ("mesas", "cocina", "delivery", "reservas")
         inactivos = [m for m in (a.modulos_inactivos or []) if m not in restaurante]
         a.modulos_inactivos = inactivos if rubro == Rubro.RESTAURANTE else inactivos + list(restaurante)
         if rubro == Rubro.TIENDA:  # la bodega muestra el delivery sin mesas
@@ -99,6 +99,9 @@ class Command(BaseCommand):
             from mesas.demo import cargar_mesas
 
             cargar_mesas()
+            from reservas.demo import cargar_reservas
+
+            cargar_reservas()
             from productos.demo import marcar_agotados_demo
 
             marcar_agotados_demo()

@@ -1,4 +1,11 @@
 {% load sis %}
+{% if proximas %}
+<a href="{% url 'reservas:agenda' %}" class="d-flex flex-wrap align-items-center gap-2 small mb-3 p-2 rounded border text-decoration-none text-body reservas-hoy">
+  <span class="fw-semibold"><i class="bi bi-calendar-event me-1"></i>Reservas de hoy:</span>
+  {% for r in proximas %}<span class="text-nowrap rounded-pill border bg-body px-2"><strong>{{ r.hora|time:"H:i" }}</strong> {{ r.nombre|truncatechars:16 }} ({{ r.personas }}){% if r.mesa %} · M{{ r.mesa.nombre }}{% endif %}</span>{% endfor %}
+  {% if n_proximas > proximas|length %}<span class="text-body-secondary">y {{ n_proximas|add:"-6" }} más</span>{% endif %}
+</a>
+{% endif %}
 {% for z in zonas %}
 <div class="d-flex align-items-baseline mb-2 {% if not forloop.first %}mt-4{% endif %}">
   <h5 class="mb-0">{{ z.zona.nombre }}</h5><span class="small text-body-secondary ms-2">{{ z.libres }} libre{{ z.libres|pluralize }} de {{ z.mesas|length }}</span>
@@ -13,13 +20,19 @@
       <span class="info">con la {{ m.pegada.mesa.nombre }}</span>
     </a>
     {% elif m.cuenta %}
-    <a href="{% url 'mesas:cuenta' m.cuenta.pk %}" data-listos="{{ m.cuenta.listos }}" data-aviso="Mesa {{ m.cuenta.nombres_mesas }}" class="mesa {% if m.cuenta.esta_pagada %}pagada{% elif m.cuenta.pidio_cuenta %}cuenta{% else %}ocupada{% endif %}">
-      {% if m.cuenta.unidas %}<i class="bi bi-link-45deg union" title="Mesas juntas: {{ m.cuenta.nombres_mesas }}"></i>{% endif %}
+    <a href="{% url 'mesas:cuenta' m.cuenta.pk %}"{% if m.reserva %} title="Reservada a las {{ m.reserva.hora|time:'H:i' }} para {{ m.reserva.nombre }}"{% endif %} data-listos="{{ m.cuenta.listos }}" data-aviso="Mesa {{ m.cuenta.nombres_mesas }}" class="mesa {% if m.cuenta.esta_pagada %}pagada{% elif m.cuenta.pidio_cuenta %}cuenta{% else %}ocupada{% endif %}">
+      {% if m.cuenta.unidas %}<i class="bi bi-link-45deg union" title="Mesas juntas: {{ m.cuenta.nombres_mesas }}"></i>{% elif m.reserva %}<i class="bi bi-calendar-event union text-primary"></i>{% endif %}
       {% if m.cuenta.listos %}<span class="badge rounded-pill text-bg-success globo" title="Platos listos para servir"><i class="bi bi-bell-fill"></i> {{ m.cuenta.listos }}</span>
       {% elif m.cuenta.sin_enviar %}<span class="badge rounded-pill text-bg-primary globo" title="Sin enviar a cocina">{{ m.cuenta.sin_enviar }}</span>{% endif %}
       <span class="num">{{ m.nombre }}</span>
       <span class="info fw-semibold">{% if m.cuenta.esta_pagada %}<i class="bi bi-check2-circle"></i> Pagada{% else %}{{ m.cuenta.total|soles }}{% endif %}</span>
       <span class="info">{{ m.cuenta.abierta_en|hace }} · {{ m.cuenta.mozo.first_name|default:m.cuenta.mozo.username|truncatechars:10 }}</span>
+    </a>
+    {% elif m.reserva %}
+    <a href="#" class="mesa reservada" {% if P.mesas_atender %}data-libre="{{ m.pk }}" data-nombre="{{ m.nombre }}" data-reserva="{{ m.reserva.nombre }} · {{ m.reserva.hora|time:'H:i' }} · {{ m.reserva.personas }} persona{{ m.reserva.personas|pluralize }}{% if m.reserva.nota %} · {{ m.reserva.nota }}{% endif %}" data-reserva-nombre="{{ m.reserva.nombre }}" data-llego="{% url 'reservas:accion' m.reserva.pk 'llego' %}"{% endif %}>
+      <span class="num">{{ m.nombre }}</span>
+      <span class="info fw-semibold"><i class="bi bi-calendar-event"></i> {{ m.reserva.hora|time:"H:i" }}</span>
+      <span class="info text-truncate mw-100 px-1">{{ m.reserva.nombre }} ({{ m.reserva.personas }})</span>
     </a>
     {% else %}
     <a href="#" class="mesa libre" {% if P.mesas_atender %}data-libre="{{ m.pk }}" data-nombre="{{ m.nombre }}"{% endif %}>

@@ -20,7 +20,7 @@ class Rubro(models.TextChoices):
 
 def modulos_inactivos_iniciales():
     """Lo de restaurante empieza apagado (Mesas se activa al elegir ese rubro)."""
-    return ["mesas", "cocina", "delivery", "facturacion", "cobranzas"]
+    return ["mesas", "cocina", "delivery", "facturacion", "cobranzas", "reservas"]
 
 
 def funciones_inactivas_iniciales():

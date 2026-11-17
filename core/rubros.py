@@ -23,14 +23,14 @@ PERFILES = {
     Rubro.LIBRERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "delivery"},
                      "funciones": {"variantes", "combos"}, "nivel_pedido": 1},
     Rubro.RESTAURANTE: {"encendido": {"mesas", "caja", "reportes"},
-                        "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion"},
+                        "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion", "reservas"},
                         "funciones": {"variantes", "combos", "agotados"}, "nivel_pedido": 2},
     Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas"},
                        "funciones": {"servicios", "variantes"}, "nivel_pedido": 1},
     Rubro.ACADEMIA: {"encendido": {"cobranzas", "clientes", "caja", "reportes"}, "opcional": {"mostrador", "facturacion"},
                      "funciones": {"servicios"}, "nivel_pedido": 1},
     Rubro.OTRO: {"encendido": {"mostrador", "caja", "reportes"},
-                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas"},
+                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas", "reservas"},
                  "funciones": {"variantes", "combos", "servicios"}, "nivel_pedido": 1},
 }
 
@@ -74,6 +74,10 @@ def modulo_en_uso(codigo):
         from cobranzas.models import Inscripcion
 
         return Inscripcion.objects.exists()
+    if codigo == "reservas":
+        from reservas.models import Reserva
+
+        return Reserva.objects.exists()
     if codigo == "facturacion":
         from facturacion.models import Comprobante
 

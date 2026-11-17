@@ -40,6 +40,9 @@ MODULOS = [
     ("cobranzas", "Cobranzas (mensualidades)", "bi-calendar-check",
      "Para academias, gimnasios y talleres: planes, inscripciones, cuotas que se generan solas, cobro en caja y morosos por WhatsApp.",
      "clientes"),
+    ("reservas", "Reservas", "bi-calendar-event",
+     "Para restaurantes: agenda de reservas con celular y personas, confirmación por WhatsApp, la mesa se ve «Reservada» en el mapa "
+     "y al llegar se abre la cuenta.", None),
 ]
 MODULOS_BASE = ("config", "productos", "ventas")
 NECESITA = {m[0]: m[4] for m in MODULOS}
@@ -72,6 +75,9 @@ PERMISOS = [
     ("cobranzas.cobrar", "cobranzas", "Cobrar cuotas y mensualidades", [CAJERO]),
     ("cobranzas.inscribir", "cobranzas", "Inscribir, adelantar periodos, cambiar el precio y dar de baja", [CAJERO]),
     ("cobranzas.gestionar", "cobranzas", "Planes, configuración, exonerar cuotas o mora, anular cobros y ver el reporte", []),
+
+    ("reservas.ver", "reservas", "Ver las reservas y marcar cuando llegan o no vienen (si también atiende mesas)", [CAJERO, VENDEDOR, MOZO]),
+    ("reservas.gestionar", "reservas", "Tomar, cambiar, confirmar y cancelar reservas", [CAJERO]),
 
     ("reportes.ver", "reportes", "Ver los reportes del negocio", []),
 

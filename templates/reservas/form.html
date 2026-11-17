@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}{% if r %}Editar reserva{% else %}Nueva reserva{% endif %}{% endblock %}
+{% block page_title %}{% if r %}Editar reserva{% else %}Nueva reserva{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'reservas:agenda' %}">Reservas</a></li><li class="breadcrumb-item active">{% if r %}Editar{% else %}Nueva{% endif %}</li>{% endblock %}
+{% block content %}
+<div class="row"><div class="col-lg-8 col-xl-6">
+<form method="post" novalidate class="card card-outline card-primary mb-4" id="f-reserva">{% csrf_token %}
+  <div class="card-body">
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2 mb-3">{{ form.non_field_errors|join:" " }}
+      {% if choque %}<div class="mt-2"><button type="submit" name="permitir_choque" value="True" class="btn btn-sm btn-outline-danger">Reservar igual esa mesa</button></div>{% endif %}
+    </div>{% endif %}
+    <div class="row g-2">
+      <div class="col-7">{{ form.fecha|as_crispy_field }}</div>
+      <div class="col-5">{{ form.hora|as_crispy_field }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-1 mb-3" id="atajos-dia">
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-dias="0">Hoy</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-dias="1">Mañana</button>
+      <span class="vr mx-1"></span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-hora="13:00">1 pm</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-hora="19:00">7 pm</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-hora="20:00">8 pm</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-hora="21:00">9 pm</button>
+    </div>
+    <label class="form-label">Personas</label>
+    <div class="d-flex flex-wrap gap-1 mb-1" id="atajos-personas">
+      {% for n in "2468" %}<button type="button" class="btn btn-outline-primary" style="width: 3rem" data-n="{{ n }}">{{ n }}</button>{% endfor %}
+      <input type="number" name="personas" id="id_personas" value="{{ form.personas.value|default:'' }}" min="1" max="200" inputmode="numeric"
+             class="form-control {% if form.personas.errors %}is-invalid{% endif %}" style="max-width: 6rem">
+    </div>
+    {% for e in form.personas.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    <div class="mb-3"></div>
+    {{ form.telefono|as_crispy_field }}
+    <div class="small mb-2" id="tel-info" data-url="{% url 'reservas:historial' %}"></div>
+    {{ form.nombre|as_crispy_field }}
+    {% if form.mesa %}{{ form.mesa|as_crispy_field }}{% endif %}
+    {{ form.nota|as_crispy_field }}
+  </div>
+  <div class="card-footer d-flex gap-2 justify-content-end">
+    <a href="{% url 'reservas:agenda' %}{% if r %}?fecha={{ r.fecha|date:'Y-m-d' }}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
+    <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>{% if r %}Guardar cambios{% else %}Tomar la reserva{% endif %}</button>
+  </div>
+</form>
+</div></div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var fecha = document.getElementById("id_fecha"), hora = document.getElementById("id_hora"), pers = document.getElementById("id_personas");
+  document.querySelectorAll("#atajos-dia [data-dias]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var d = new Date(); d.setDate(d.getDate() + parseInt(b.dataset.dias, 10));
+      fecha.value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    });
+  });
+  document.querySelectorAll("#atajos-dia [data-hora]").forEach(function (b) {
+    b.addEventListener("click", function () { hora.value = b.dataset.hora; });
+  });
+  function marcar() {
+    document.querySelectorAll("#atajos-personas [data-n]").forEach(function (b) {
+      b.className = "btn " + (b.dataset.n === pers.value ? "btn-primary" : "btn-outline-primary");
+    });
+  }
+  document.querySelectorAll("#atajos-personas [data-n]").forEach(function (b) {
+    b.addEventListener("click", function () { pers.value = b.dataset.n; marcar(); });
+  });
+  pers.addEventListener("input", marcar); marcar();
+
+  // Al escribir el celular: el nombre y cómo le fue antes
+  var tel = document.getElementById("id_telefono"), info = document.getElementById("tel-info"), nombre = document.getElementById("id_nombre"), t;
+  tel.addEventListener("input", function () {
+    clearTimeout(t);
+    var n = tel.value.replace(/\D/g, "");
+    if (n.length < 9) { info.textContent = ""; return; }
+    t = setTimeout(function () {
+      fetch(info.dataset.url + "?tel=" + encodeURIComponent(n), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.nombre) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
+        if (!nombre.value) nombre.value = d.nombre;
+        if (!d.reservas) { info.className = "small mb-2 text-success"; info.textContent = "Cliente registrado."; return; }
+        function veces(n) { return n + (n > 1 ? " veces" : " vez"); }
+        var txt = "Ya reservó " + veces(d.reservas) + (d.llego ? " · vino " + d.llego : "");
+        if (d.no_vino) txt += " · no vino " + veces(d.no_vino) + ": conviene confirmar por WhatsApp.";
+        info.className = "small mb-2 " + (d.no_vino ? "text-danger" : "text-success");
+        info.textContent = txt;
+      });
+    }, 300);
+  });
+})();
+</script>
+{% endblock %}
