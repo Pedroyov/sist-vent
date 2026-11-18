@@ -100,7 +100,8 @@ def pos(request):
             citas = [c.pk for c in lista]
             agregar = [c.servicio_id for c in lista] + agregar
             if lista:
-                citas_texto = f"{lista[0].nombre}: " + ", ".join(f"{c.servicio_nombre} ({c.profesional.nombre})" for c in lista)
+                nombres = " + ".join(dict.fromkeys(c.nombre for c in lista))  # varias cuentas cobradas juntas: todos los nombres
+                citas_texto = f"{nombres}: " + ", ".join(f"{c.servicio_nombre} ({c.profesional.nombre})" for c in lista)
                 quienes = {c.profesional_id for c in lista}
                 atendio_inicial = quienes.pop() if len(quienes) == 1 else None
         n_por_cobrar = contar_por_cobrar()

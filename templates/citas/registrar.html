@@ -6,6 +6,7 @@
 <div class="row"><div class="col-lg-7 col-xl-6">
 <form method="post" class="card card-outline card-primary mb-4" id="f-reg">{% csrf_token %}
   {% if cita %}<input type="hidden" name="cita" value="{{ cita.pk }}">{% endif %}
+  {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
   <div class="card-body">
     {% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
     {% if cita %}
@@ -13,19 +14,28 @@
     {% else %}
     <p class="small text-body-secondary mb-3">Para un cliente que llegó sin cita: marca lo que se le hizo y caja lo cobra.</p>
     {% endif %}
-    {% if gestiona and not cita %}
+    {% if gestiona %}
     <label class="form-label mb-1" for="r-prof">Atendió</label>
     <select name="profesional" id="r-prof" class="form-select mb-3" required>
       <option value="">Elige quién atendió</option>
       {% for p in personal %}<option value="{{ p.pk }}" {% if datos.profesional == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
     </select>
     {% else %}
-    <input type="hidden" name="profesional" value="{% if cita %}{{ cita.profesional_id }}{% else %}{{ mio.pk }}{% endif %}">
+    <input type="hidden" name="profesional" id="r-prof" value="{% if cita %}{{ cita.profesional_id }}{% else %}{{ mio.pk }}{% endif %}">
+    {% endif %}
+    {% if not cita %}
+    {# El cliente va antes de la lista: con muchos servicios, abajo quedaba lejos. Si no se registró, se pone después en «Por cobrar». #}
+    <div class="row g-2 mb-3">
+      <div class="col-6"><label class="form-label mb-1" for="r-tel">Celular</label>
+        <input type="tel" name="telefono" id="r-tel" class="form-control" inputmode="tel" maxlength="20" placeholder="Opcional" value="{{ datos.telefono|default:'' }}"></div>
+      <div class="col-6"><label class="form-label mb-1" for="r-nombre">Nombre</label>
+        <input type="text" name="nombre" id="r-nombre" class="form-control" maxlength="60" placeholder="Opcional" value="{{ datos.nombre|default:'' }}"></div>
+    </div>
     {% endif %}
     <label class="form-label mb-1">Servicios</label>
     <div class="list-group mb-2" id="servicios">
       {% for v in servicios %}
-      <div class="list-group-item d-flex align-items-center gap-2 py-2 servicio" data-precio="{{ v.precio_venta|stringformat:'.2f' }}">
+      <div class="list-group-item d-flex align-items-center gap-2 py-2 servicio" data-precio="{{ v.precio_venta|stringformat:'.2f' }}" data-producto="{{ v.producto_id }}">
         <button type="button" class="btn btn-link text-start text-body text-decoration-none p-0 flex-grow-1 sumar">
           <span class="fw-semibold">{{ v.nombre_completo }}</span><span class="d-block small text-body-secondary">S/ {{ v.precio_venta }}</span></button>
         <div class="input-group input-group-sm" style="width: 7.5rem">
@@ -36,28 +46,31 @@
       </div>
       {% empty %}<div class="list-group-item small text-body-secondary">No hay servicios. Créalos en Productos (tipo Servicio).</div>{% endfor %}
     </div>
+    <button type="button" class="btn btn-link btn-sm px-0 mb-2 d-none" id="r-todos"><i class="bi bi-chevron-down me-1"></i><span>Ver todos los servicios</span></button>
     <div class="d-flex mb-3"><span class="text-body-secondary">Total</span><strong class="ms-auto fs-5" id="r-total">S/ 0.00</strong></div>
-    {% if not cita %}
-    <div class="row g-2">
-      <div class="col-6"><label class="form-label mb-1" for="r-tel">Celular</label>
-        <input type="tel" name="telefono" id="r-tel" class="form-control" inputmode="tel" maxlength="20" placeholder="Opcional" value="{{ datos.telefono|default:'' }}"></div>
-      <div class="col-6"><label class="form-label mb-1" for="r-nombre">Nombre</label>
-        <input type="text" name="nombre" id="r-nombre" class="form-control" maxlength="60" placeholder="Opcional" value="{{ datos.nombre|default:'' }}"></div>
-    </div>
-    {% endif %}
-    <input type="text" name="nota" class="form-control mt-2" maxlength="200" placeholder="Nota para caja (opcional)" value="{{ datos.nota|default:'' }}">
+    <input type="text" name="nota" class="form-control" maxlength="200" placeholder="Nota para caja (opcional)" value="{{ datos.nota|default:'' }}">
   </div>
   <div class="card-footer d-flex gap-2 justify-content-end">
     <a href="{% if cita %}{% url 'citas:detalle' cita.pk %}{% elif mio %}{% url 'citas:mi_agenda' %}{% else %}{% url 'citas:agenda' %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
-    <button class="btn btn-primary btn-lg" id="r-listo" disabled><i class="bi bi-send me-1"></i>Listo, avisar a caja</button>
+    <button class="btn btn-primary btn-lg d-none d-lg-inline-block r-listo" disabled><i class="bi bi-send me-1"></i>Listo, avisar a caja</button>
   </div>
 </form>
 </div></div>
+
+{# Celular: lo marcado, el total y el botón siempre a la vista #}
+<div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">
+  <div class="d-flex align-items-center gap-2">
+    <span class="small text-nowrap"><span id="r-n">0 servicios</span> · <strong class="fs-5" id="r-total-m">S/ 0.00</strong></span>
+    <button type="submit" form="f-reg" class="btn btn-primary ms-auto text-nowrap r-listo" disabled><i class="bi bi-send me-1"></i>Avisar a caja</button>
+  </div>
+</div>
+{{ hacen|json_script:"datos-hacen" }}
 {% endblock %}
 {% block extra_js %}
 <script>
 (function () {
-  var filas = document.querySelectorAll("#servicios .servicio");
+  var filas = document.querySelectorAll("#servicios .servicio"), hacen = JSON.parse(document.getElementById("datos-hacen").textContent);
+  var prof = document.getElementById("r-prof"), todos = document.getElementById("r-todos"), verTodos = false;
   function total() {
     var t = 0, n = 0;
     filas.forEach(function (f) {
@@ -65,8 +78,24 @@
       t += c * parseFloat(f.dataset.precio); n += c;
       f.classList.toggle("list-group-item-primary", c > 0);
     });
-    document.getElementById("r-total").textContent = "S/ " + t.toFixed(2);
-    document.getElementById("r-listo").disabled = !n;
+    var texto = "S/ " + t.toFixed(2);
+    document.getElementById("r-total").textContent = texto;
+    document.getElementById("r-total-m").textContent = texto;
+    document.getElementById("r-n").textContent = n + (n === 1 ? " servicio" : " servicios");
+    document.querySelectorAll(".r-listo").forEach(function (b) { b.disabled = !n; });
+  }
+  // Primero lo que hace quien atendió (lo marcado en Personal); lo demás, con «Ver todos»
+  function filtrar() {
+    var suyos = hacen[prof.value] || [], ocultos = 0;
+    filas.forEach(function (f) {
+      var mostrar = verTodos || !suyos.length || suyos.indexOf(parseInt(f.dataset.producto, 10)) !== -1
+        || (parseInt(f.querySelector(".cant").value, 10) || 0) > 0;
+      f.classList.toggle("d-none", !mostrar);
+      if (!mostrar) ocultos++;
+    });
+    todos.classList.toggle("d-none", !ocultos && !verTodos);
+    todos.querySelector("span").textContent = verTodos ? "Solo los suyos" : "Ver todos los servicios (" + ocultos + " más)";
+    todos.querySelector("i").className = (verTodos ? "bi bi-chevron-up" : "bi bi-chevron-down") + " me-1";
   }
   filas.forEach(function (f) {
     var cant = f.querySelector(".cant");
@@ -76,7 +105,10 @@
     f.querySelector(".menos").addEventListener("click", function () { poner(-1); });
     cant.addEventListener("input", total);
   });
+  todos.addEventListener("click", function () { verTodos = !verTodos; filtrar(); });
+  prof.addEventListener("change", filtrar);
   total();
+  filtrar();
 })();
 </script>
 {% endblock %}

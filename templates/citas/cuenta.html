@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Cuenta por cobrar{% endblock %}
+{% block page_title %}Cuenta por cobrar{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'citas:por_cobrar' %}">Por cobrar</a></li><li class="breadcrumb-item active">Editar</li>{% endblock %}
+{% block content %}
+<div class="row g-3"><div class="col-lg-7 col-xl-6">
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0">Servicios</h3><strong class="ms-auto fs-5">S/ {{ total|floatformat:2 }}</strong></div>
+    <ul class="list-group list-group-flush">
+      {% for c in citas %}
+      <li class="list-group-item d-flex align-items-center gap-2">
+        <span class="agenda-punto" style="background: {{ c.profesional.color }}"></span>
+        <span class="flex-grow-1 min-w-0">{{ c.servicio_nombre }} <span class="small text-body-secondary">· {{ c.profesional.nombre }}{% if c.sin_cita %} · sin cita{% endif %}</span></span>
+        <span class="text-nowrap">{% if c.servicio_id %}S/ {{ c.servicio.precio_venta }}{% endif %}</span>
+        {% if c.quitable %}
+        <form method="post" action="{% url 'citas:cuenta_quitar' c.pk %}" onsubmit="return confirm('¿Quitar {{ c.servicio_nombre|escapejs }}? Queda como cancelado y no se cobra.')">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger" title="Quitar (se marcó por error)" aria-label="Quitar {{ c.servicio_nombre }}"><i class="bi bi-trash"></i></button></form>
+        {% else %}
+        <a href="{% url 'citas:detalle' c.pk %}" class="btn btn-sm btn-outline-secondary" title="Es la cita de la agenda: se cambia desde ahí" aria-label="Ver la cita"><i class="bi bi-calendar-event"></i></a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if agregar %}
+    <div class="card-footer">
+      <a href="{% url 'citas:registrar' %}?cita={{ ultima.pk }}&next={% url 'citas:cuenta' cuenta %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg me-1"></i>Agregar otro servicio</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="post" class="card card-outline card-primary mb-4" novalidate>{% csrf_token %}
+    <div class="card-header"><h3 class="card-title mb-0">Cliente</h3></div>
+    <div class="card-body">
+      {% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+      <p class="small text-body-secondary">Si no se registró al llegar, ponlo ahora: queda en todos los servicios de esta cuenta y, con el celular, en su historial de cliente.</p>
+      <div class="row g-2">
+        <div class="col-6"><label class="form-label mb-1" for="e-tel">Celular</label>
+          <input type="tel" name="telefono" id="e-tel" class="form-control" inputmode="tel" maxlength="20" placeholder="Opcional" value="{{ datos.telefono|default:'' }}"></div>
+        <div class="col-6"><label class="form-label mb-1" for="e-nombre">Nombre</label>
+          <input type="text" name="nombre" id="e-nombre" class="form-control" maxlength="60" placeholder="Cliente sin cita" value="{{ datos.nombre|default:'' }}"></div>
+      </div>
+    </div>
+    <div class="card-footer d-flex gap-2 justify-content-end">
+      <a href="{% url 'citas:por_cobrar' %}" class="btn btn-outline-secondary">Volver</a>
+      <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}

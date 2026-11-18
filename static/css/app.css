@@ -82,8 +82,15 @@ label.mesa { cursor: pointer; margin: 0; }
 
 /* Barras de acción fijas abajo: en PC no deben quedar debajo del menú lateral */
 @media (min-width: 992px) {
-  body.sidebar-expand-lg:not(.sidebar-collapse) .barra-mesa { left: var(--lte-sidebar-width, 250px); }
+  body.sidebar-expand-lg:not(.sidebar-collapse) .barra-mesa,
+  body.sidebar-expand-lg:not(.sidebar-collapse) .barra-fija { left: var(--lte-sidebar-width, 250px); }
 }
+
+/* Barra fija abajo con el total y el botón principal, para no tener que bajar hasta el final en el celular.
+   Uso: <div class="fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">…</div>
+   (con d-lg-none si en PC ya se ve todo). La página deja espacio abajo para que no tape lo último. */
+.barra-fija { box-shadow: 0 -.25rem 1rem rgba(0,0,0,.12); padding-bottom: calc(.5rem + env(safe-area-inset-bottom)); z-index: 1030; }
+.app-content:has(.barra-fija:not(.d-none)) { padding-bottom: 5.5rem; }
 
 /* Deja que un texto largo se corte dentro de una fila flex (Bootstrap no trae esta clase) */
 .min-w-0 { min-width: 0; }

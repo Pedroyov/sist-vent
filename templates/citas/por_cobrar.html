@@ -3,7 +3,7 @@
 {% block page_title %}Servicios por cobrar{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active">Por cobrar</li>{% endblock %}
 {% block content %}
-<p class="small text-body-secondary">Lo que el personal ya hizo y avisó. Pulsa <strong>Cobrar</strong>: se abre Vender con esos servicios; al cobrar, salen de esta lista.</p>
+<p class="small text-body-secondary">Lo que el personal ya hizo y avisó: una tarjeta por cada registro. Pulsa <strong>Cobrar</strong>: se abre Vender con esos servicios; al cobrar, salen de esta lista.{% if vender %} Si una persona paga por varias (papá e hijo, amigas), marca sus tarjetas y pulsa <strong>Cobrar juntos</strong>.{% endif %}</p>
 {% if grupos %}
 <div class="row g-3">
   {% for g in grupos %}
@@ -11,8 +11,10 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="d-flex align-items-start gap-2 mb-2">
-          <div class="flex-grow-1"><div class="fw-semibold">{{ g.nombre }}</div>
-            <div class="small text-body-secondary">{% if g.fecha != hoy %}{{ g.fecha|date:"d/m" }} · {% endif %}terminó {{ g.desde|time:"H:i" }}{% if g.telefono %} · {{ g.telefono }}{% endif %}</div></div>
+          {% if vender %}<input type="checkbox" class="form-check-input mt-1 fs-5 juntar" id="j-{{ g.cuenta }}" data-ids="{{ g.ids }}"
+            data-total="{{ g.total|stringformat:'.2f' }}" aria-label="Cobrar junto con otras: {{ g.nombre }}">{% endif %}
+          <label class="flex-grow-1 mb-0" for="j-{{ g.cuenta }}"><div class="fw-semibold">{{ g.nombre }}</div>
+            <div class="small text-body-secondary">{% if g.fecha != hoy %}{{ g.fecha|date:"d/m" }} · {% endif %}terminó {{ g.desde|time:"H:i" }}{% if g.telefono %} · {{ g.telefono }}{% endif %}</div></label>
           <strong class="fs-5 text-nowrap">S/ {{ g.total|floatformat:2 }}</strong>
         </div>
         <ul class="list-unstyled small mb-0">
@@ -24,6 +26,7 @@
       </div>
       <div class="card-footer d-flex gap-2">
         {% if vender %}<a href="{% url 'ventas:pos' %}?citas={{ g.ids }}" class="btn btn-primary flex-grow-1"><i class="bi bi-cart-check me-1"></i>Cobrar</a>{% endif %}
+        <a href="{% url 'citas:cuenta' g.cuenta %}" class="btn btn-outline-secondary" title="Poner nombre y celular, quitar o agregar servicios" aria-label="Editar"><i class="bi bi-pencil"></i></a>
         <form method="post" action="{% url 'citas:cobrada_aparte' %}" onsubmit="return confirm('¿Marcar como ya cobrado? No se registra ninguna venta.')">{% csrf_token %}
           <input type="hidden" name="ids" value="{{ g.ids }}"><button class="btn btn-outline-secondary" title="Ya se cobró aparte o no se cobra"><i class="bi bi-check2-all"></i> Ya cobrado</button></form>
       </div>
@@ -31,7 +34,43 @@
   </div>
   {% endfor %}
 </div>
+{% if vender %}
+{# Barra fija: aparece al marcar tarjetas, con el total de todas y un solo cobro #}
+<div class="fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print d-none" id="barra-juntos">
+  <div class="d-flex align-items-center gap-2">
+    <button type="button" class="btn btn-link btn-sm px-1 text-body-secondary" id="j-quitar" title="Quitar las marcas" aria-label="Quitar las marcas"><i class="bi bi-x-lg"></i></button>
+    <span class="small text-nowrap"><span id="j-n">0</span> · <strong class="fs-5" id="j-total">S/ 0.00</strong></span>
+    <a href="#" class="btn btn-primary ms-auto text-nowrap" id="j-cobrar"><i class="bi bi-cart-check me-1"></i><span id="j-texto">Cobrar juntos</span></a>
+  </div>
+</div>
+{% endif %}
 {% else %}
 <div class="text-center text-body-secondary py-5"><i class="bi bi-check2-circle display-6"></i><p class="mt-2">No hay servicios por cobrar.</p></div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{% if grupos and vender %}
+<script>
+(function () {
+  var marcas = document.querySelectorAll(".juntar"), barra = document.getElementById("barra-juntos"), boton = document.getElementById("j-cobrar");
+  var base = "{% url 'ventas:pos' %}?citas=";
+  function actualizar() {
+    var ids = [], total = 0, n = 0;
+    marcas.forEach(function (m) {
+      m.closest(".card").classList.toggle("border-primary", m.checked);
+      if (!m.checked) return;
+      ids.push(m.dataset.ids); total += parseFloat(m.dataset.total); n++;
+    });
+    barra.classList.toggle("d-none", !n);
+    document.getElementById("j-n").textContent = n + (n === 1 ? " cuenta" : " cuentas");
+    document.getElementById("j-total").textContent = "S/ " + total.toFixed(2);
+    document.getElementById("j-texto").textContent = n > 1 ? "Cobrar juntos" : "Cobrar";
+    boton.href = base + ids.join(",");
+  }
+  marcas.forEach(function (m) { m.addEventListener("change", actualizar); });
+  document.getElementById("j-quitar").addEventListener("click", function () { marcas.forEach(function (m) { m.checked = false; }); actualizar(); });
+  actualizar();
+})();
+</script>
 {% endif %}
 {% endblock %}

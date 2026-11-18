@@ -310,6 +310,9 @@ def resumen_dia(fecha, prof=None):
 
 # --- Servicios hechos y cobro en caja ----------------------------------------------------
 
+SIN_NOMBRE = "Cliente sin cita"  # quien llegó sin cita y no dio su nombre
+
+
 def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="", nota="", cita=None):
     """El trabajador avisa qué servicios hizo (cliente sin cita, o algo más en una cita): quedan «por cobrar» en caja.
     No revisa horarios (ya se hizo). Devuelve las citas creadas (una por servicio, una tras otra)."""
@@ -328,7 +331,7 @@ def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="",
         total = sum(duracion_de(s, cfg) for s in servicios)
         inicio = max(0, ahora.hour * 60 + ahora.minute - total)  # se registra al terminar: empezó hace un rato
         inicio -= inicio % 5
-    nombre = _limpio(nombre, 60) or "Cliente sin cita"
+    nombre = _limpio(nombre, 60) or SIN_NOMBRE
     creadas = []
     with transaction.atomic():
         for s in servicios:
@@ -345,18 +348,71 @@ def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="",
             c.save()
             creadas.append(c)
             inicio = fin
+        # lo de un mismo registro va en una sola cuenta (en una cita, se suma a la de esa cita)
+        cuenta = (cita.cuenta or cita.pk) if cita is not None else creadas[0].pk
+        Cita.objects.filter(pk__in=[c.pk for c in creadas]).update(cuenta=cuenta)
+        for c in creadas:
+            c.cuenta = cuenta
     return creadas
 
 
+def clave_cuenta(c):
+    """Con qué se agrupa en «Por cobrar»: su registro (o la cita sola)."""
+    return c.cuenta or c.pk
+
+
+def de_la_cuenta(cuenta):
+    """Lo que falta cobrar de una tarjeta de «Por cobrar», en orden."""
+    from django.db.models import Q
+
+    return list(Cita.objects.filter(Q(cuenta=cuenta) | Q(pk=cuenta, cuenta__isnull=True), estado=Cita.Estado.ATENDIDA, cobrada=False)
+                .select_related("profesional", "servicio__producto").order_by("fecha", "inicio", "pk"))
+
+
+def se_puede_quitar(c):
+    """Se quita lo que se registró en «Registrar servicio» (sin cita o «algo más»); la cita de la agenda se cambia desde la agenda."""
+    return c.sin_cita or bool(c.cuenta and c.cuenta != c.pk)
+
+
+def editar_cuenta(cuenta, usuario, nombre, telefono):
+    """Pone el nombre y el celular a toda una tarjeta por cobrar (el cliente no se registró al llegar).
+    Con el celular, el cliente queda registrado como en todo el sistema."""
+    citas = de_la_cuenta(cuenta)
+    if not citas:
+        raise CitaError("Esa cuenta ya se cobró o ya no está.")
+    nombre = _limpio(nombre, 60) or SIN_NOMBRE
+    telefono = "".join(ch for ch in str(telefono or "") if ch.isdigit() or ch == "+")[:20]
+    from clientes.servicios import recordar
+
+    cliente = recordar(nombre, telefono, origen="citas", cliente=next((c.cliente for c in citas if c.cliente_id), None))
+    ahora = timezone.now()
+    with transaction.atomic():
+        for c in citas:
+            c.nombre, c.telefono, c.cliente = nombre, telefono, cliente
+            c.cambiada_por, c.cambiada_en = usuario, ahora
+            c.save(update_fields=["nombre", "telefono", "cliente", "cambiada_por", "cambiada_en"])
+    return citas
+
+
+def quitar_de_cuenta(cita, usuario):
+    """Un servicio marcado por error, antes de cobrarlo: queda como cancelado (no se borra) y sale de «Por cobrar»."""
+    if not cita.por_cobrar:
+        raise CitaError("Ese servicio ya se cobró o ya no está por cobrar.")
+    if not se_puede_quitar(cita):
+        raise CitaError("Es la cita de la agenda: para quitarla, ábrela y usa «Volver a activar».")
+    return turnos.cambiar_estado(cita, usuario, Cita.Estado.CANCELADA, (Cita.Estado.ATENDIDA,), CitaError)
+
+
 def por_cobrar(desde_dias=7):
-    """Servicios hechos que caja todavía no cobra, agrupados por cliente: [{nombre, telefono, citas, total, profesionales}]."""
+    """Servicios hechos que caja todavía no cobra, una tarjeta por registro (aunque sea el mismo cliente o «Cliente sin cita»):
+    [{cuenta, nombre, telefono, citas, total, profesionales}]. Si paga uno por varios, caja los cobra juntos."""
     desde = timezone.localdate() - timedelta(days=desde_dias)
     qs = (Cita.objects.filter(estado=Cita.Estado.ATENDIDA, cobrada=False, fecha__gte=desde)
           .select_related("profesional", "servicio__producto").order_by("fecha", "inicio"))
     grupos = {}
     for c in qs:
-        clave = (c.fecha, c.cliente_id or c.telefono or c.nombre.lower())
-        g = grupos.setdefault(clave, {"fecha": c.fecha, "nombre": c.nombre, "telefono": c.telefono, "citas": []})
+        clave = clave_cuenta(c)
+        g = grupos.setdefault(clave, {"cuenta": clave, "fecha": c.fecha, "nombre": c.nombre, "telefono": c.telefono, "citas": []})
         g["citas"].append(c)
     salida = list(grupos.values())
     for g in salida:
@@ -373,15 +429,21 @@ def contar_por_cobrar():
 
 def marcar_cobradas(ids, venta=None):
     """Al cobrar en Vender (o «ya se cobró aparte»): esos servicios salen de «Por cobrar».
-    Con la venta, cada servicio guarda el precio al que se cobró (por si se cambió en caja)."""
+    Con la venta, cada servicio guarda el precio al que se cobró (por si se cambió en caja) y, si en caja se eligió
+    al cliente, los servicios que nadie identificó quedan a su nombre (así entran a su historial)."""
     citas = list(Cita.objects.filter(pk__in=list(ids), estado=Cita.Estado.ATENDIDA, cobrada=False))
     precios = {}
+    cliente = venta.cliente if venta is not None and venta.cliente_id else None
     if venta is not None:
         for i in venta.items.all():
             precios.setdefault(i.variante_id, i.precio_unitario)
     for c in citas:
         c.cobrada, c.venta = True, venta
+        campos = ["cobrada", "venta", "precio"]
         if c.servicio_id in precios:
             c.precio = precios[c.servicio_id]
-        c.save(update_fields=["cobrada", "venta", "precio"])
+        if cliente is not None and not c.cliente_id and c.nombre == SIN_NOMBRE:
+            c.cliente, c.nombre, c.telefono = cliente, cliente.nombre[:60], c.telefono or cliente.telefono
+            campos += ["cliente", "nombre", "telefono"]
+        c.save(update_fields=campos)
     return len(citas)

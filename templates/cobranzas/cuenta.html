@@ -56,6 +56,13 @@
           <div class="small text-body-secondary mt-1 text-center">El efectivo entra a tu caja abierta. Se imprime el recibo.</div>
         </div>
       </form>
+      {# Celular: con varias cuotas, el monto y el botón quedaban abajo #}
+      <div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">
+        <div class="d-flex align-items-center gap-2">
+          <span class="small text-nowrap"><strong class="fs-5" id="c-total-m">S/ 0.00</strong> · <span id="c-metodo-m"></span></span>
+          <button type="submit" form="f-cobro" class="btn btn-success ms-auto" id="c-boton-m"><i class="bi bi-check-lg me-1"></i>Cobrar</button>
+        </div>
+      </div>
       {% endif %}
     </div>
     {% else %}
@@ -181,11 +188,15 @@
       var m = parseFloat(monto.value) || 0;
       total.textContent = m ? "S/ " + m.toFixed(2) : "";
       boton.disabled = !m || m > s + 0.001;
+      document.getElementById("c-total-m").textContent = "S/ " + m.toFixed(2);
+      document.getElementById("c-boton-m").disabled = boton.disabled;
+      var met = f.querySelector("[name=metodo]:checked");
+      document.getElementById("c-metodo-m").textContent = met ? f.querySelector("label[for='" + met.id + "']").textContent : "";
       monto.classList.toggle("is-invalid", m > s + 0.001);
     }
-    f.addEventListener("change", function (e) { if (e.target.classList.contains("c-cuota")) pintar(true); });
+    f.addEventListener("change", function (e) { if (e.target.classList.contains("c-cuota")) pintar(true); else if (e.target.name === "metodo") pintar(false); });
     monto.addEventListener("input", function () { pintar(false); });
-    f.addEventListener("submit", function () { boton.disabled = true; });
+    f.addEventListener("submit", function () { boton.disabled = true; document.getElementById("c-boton-m").disabled = true; });
     pintar(true);
   })();
   {% if request.GET.recibo %}window.addEventListener("load", function () { window.imprimir("{% url 'cobranzas:recibo' 0 %}".replace("/0/", "/{{ request.GET.recibo|urlencode }}/")); });{% endif %}

@@ -28,7 +28,7 @@
       </div>
     </div>
     <div class="col-lg-5">
-      <div class="card mb-3">
+      <div class="card mb-3" id="c-resumen">
         <div class="card-body">
           {{ form.contado|as_crispy_field }}
           <div class="alert text-center py-2 mb-3" id="dif"></div>
@@ -44,6 +44,13 @@
     </div>
   </div>
 </form>
+{# Celular: lo contado a la vista mientras se cuentan billetes y monedas. La diferencia se ve recién al revisar (conteo honesto). #}
+<div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">
+  <div class="d-flex align-items-center gap-2">
+    <span class="small text-nowrap">Contado <strong class="fs-5" id="contado-m">S/ 0.00</strong></span>
+    <a href="#c-resumen" class="btn btn-dark ms-auto text-nowrap"><i class="bi bi-arrow-down-circle me-1"></i>Revisar y cerrar</a>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -53,6 +60,7 @@
     var total = document.getElementById("id_contado"), dif = document.getElementById("dif");
     var soles = function (c) { return "S/ " + (Math.abs(c) / 100).toFixed(2); };
     function mostrar() {
+      document.getElementById("contado-m").textContent = "S/ " + (parseFloat(total.value) || 0).toFixed(2);
       if (total.value === "") { dif.className = "alert alert-light border text-center py-2 mb-3"; dif.textContent = "Ingresa lo contado"; return; }
       var c = Math.round(parseFloat(total.value) * 100) - ESPERADO;
       if (c === 0) { dif.className = "alert alert-success text-center py-2 mb-3 fs-5"; dif.innerHTML = '<i class="bi bi-check-circle"></i> Cuadra exacto'; }

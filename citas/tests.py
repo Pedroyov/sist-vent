@@ -240,6 +240,114 @@ class CobroTests(Base):
         with self.assertRaisesMessage(CitaError, "Marca al menos"):
             registrar_servicios(self.u_carla, self.carla, [])
 
+    def test_una_tarjeta_por_registro(self):
+        """Cada registro es su propia cuenta: dos clientes sin nombre el mismo día no se juntan, ni dos visitas del mismo celular;
+        lo de un mismo registro va junto y lo «algo más» de una cita se suma a la de esa cita."""
+        from .servicios import por_cobrar, registrar_servicios
+
+        a = registrar_servicios(self.cajero, self.carla, [self.corte, self.tinte])  # corte + tinte, mismo registro
+        b = registrar_servicios(self.cajero, self.ana, [self.manicure])  # otra persona, también sin nombre
+        c1 = registrar_servicios(self.cajero, self.carla, [self.corte], "Rosa", "987333444")
+        c2 = registrar_servicios(self.cajero, self.ana, [self.manicure], "Rosa", "987333444")  # mismo celular, otro registro
+        self.assertEqual({x.nombre for x in a + b}, {"Cliente sin cita"})
+        tarjetas = {g["cuenta"]: [x.pk for x in g["citas"]] for g in por_cobrar()}
+        self.assertEqual(tarjetas, {a[0].pk: [a[0].pk, a[1].pk], b[0].pk: [b[0].pk], c1[0].pk: [c1[0].pk], c2[0].pk: [c2[0].pk]})
+        cita = self.cita(self.carla, time(10))
+        atender(cita, self.cajero)
+        extra = registrar_servicios(self.cajero, self.carla, [self.tinte], cita=cita)
+        g = next(g for g in por_cobrar() if g["cuenta"] == cita.pk)
+        self.assertEqual(([x.pk for x in g["citas"]], g["total"]), ([cita.pk, extra[0].pk], D("115")))
+
+    def test_cobrar_juntos(self):
+        """Papá e hijo, con distinta persona: dos tarjetas que paga uno solo, en una sola venta."""
+        import json
+
+        from caja.servicios import abrir
+
+        from .servicios import por_cobrar, registrar_servicios
+
+        papa = registrar_servicios(self.cajero, self.carla, [self.corte], "Jorge")
+        hijo = registrar_servicios(self.cajero, self.ana, [self.corte], "Jorgito")
+        self.assertEqual(len(por_cobrar()), 2)
+        abrir(self.cajero, D("0"))
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("citas:por_cobrar"))
+        self.assertContains(r, 'class="form-check-input mt-1 fs-5 juntar"', count=2)
+        self.assertContains(r, 'id="barra-juntos"')
+        ids = [papa[0].pk, hijo[0].pk]
+        r = self.client.get(reverse("ventas:pos"), {"citas": ",".join(map(str, ids))})
+        self.assertEqual(r.context["agregar"], [self.corte.pk, self.corte.pk])
+        self.assertContains(r, "Cobrando: <strong>Jorge + Jorgito")
+        datos = {"items": [{"variante": self.corte.pk, "cantidad": "2"}], "pagos": [{"metodo": "EFE", "monto": "50"}],
+                 "citas": ids, "token": "t-juntos"}
+        self.assertTrue(self.client.post(reverse("ventas:registrar"), json.dumps(datos), content_type="application/json").json()["ok"])
+        self.assertEqual(por_cobrar(), [])
+        venta = Cita.objects.get(pk=papa[0].pk).venta
+        self.assertEqual(sorted(venta.citas.values_list("profesional__nombre", flat=True)), ["Ana", "Carla"])  # cada uno con su comisión
+
+    def test_editar_la_cuenta(self):
+        """Llegó sin registrarse: luego se le pone nombre y celular, se quita lo marcado por error y se agrega algo más."""
+        from clientes.models import Cliente
+
+        from .servicios import por_cobrar, registrar_servicios
+
+        hechos = registrar_servicios(self.cajero, self.carla, [self.corte, self.tinte])
+        cuenta = hechos[0].cuenta
+        self.client.force_login(self.cajero)
+        url = reverse("citas:cuenta", args=[cuenta])
+        self.assertContains(self.client.get(url), "Agregar otro servicio")
+        self.assertRedirects(self.client.post(url, {"nombre": "Pilar Soto", "telefono": "986 555 111"}), reverse("citas:por_cobrar"))
+        cli = Cliente.objects.get(telefono="986555111")
+        self.assertEqual({(c.nombre, c.cliente_id) for c in Cita.objects.filter(cuenta=cuenta)}, {("Pilar Soto", cli.pk)})
+        # el tinte se marcó por error
+        self.client.post(reverse("citas:cuenta_quitar", args=[hechos[1].pk]))
+        self.assertEqual(Cita.objects.get(pk=hechos[1].pk).estado, Cita.Estado.CANCELADA)
+        # se agrega una manicure con otra persona: va a la misma tarjeta y vuelve a ella
+        r = self.client.post(f"{reverse('citas:registrar')}?cita={hechos[0].pk}&next={url}",
+                             {"cita": hechos[0].pk, "profesional": self.ana.pk, f"s{self.manicure.pk}": "1", "next": url})
+        self.assertRedirects(r, url)
+        g = por_cobrar()
+        self.assertEqual(len(g), 1)
+        self.assertEqual(([c.servicio_nombre for c in g[0]["citas"]], g[0]["total"], g[0]["nombre"]), (["Corte", "Manicure"], D("45"), "Pilar Soto"))
+        self.assertEqual(g[0]["citas"][1].profesional, self.ana)
+        # la cita de la agenda no se quita desde aquí
+        c = self.cita(self.carla, time(10))
+        atender(c, self.cajero)
+        self.client.post(reverse("citas:cuenta_quitar", args=[c.pk]))
+        self.assertEqual(Cita.objects.get(pk=c.pk).estado, Cita.Estado.ATENDIDA)
+
+    def test_cliente_elegido_en_caja(self):
+        """Nadie anotó quién era, pero en caja eligen al cliente: el servicio queda a su nombre (y en su historial)."""
+        import json
+
+        from caja.servicios import abrir
+        from clientes.models import Cliente
+
+        from .servicios import registrar_servicios
+
+        sin = registrar_servicios(self.cajero, self.carla, [self.corte])[0]
+        con = registrar_servicios(self.cajero, self.ana, [self.manicure], "Jorgito")[0]  # este sí tiene nombre: se respeta
+        cli = Cliente.objects.create(nombre="Jorge Paz", telefono="987111222")
+        abrir(self.cajero, D("0"))
+        self.client.force_login(self.cajero)
+        datos = {"items": [{"variante": self.corte.pk, "cantidad": "1"}, {"variante": self.manicure.pk, "cantidad": "1"}],
+                 "pagos": [{"metodo": "EFE", "monto": "45"}], "citas": [sin.pk, con.pk], "cliente_id": cli.pk, "token": "t-cli"}
+        self.assertTrue(self.client.post(reverse("ventas:registrar"), json.dumps(datos), content_type="application/json").json()["ok"])
+        sin.refresh_from_db()
+        con.refresh_from_db()
+        self.assertEqual((sin.cliente_id, sin.nombre, sin.telefono), (cli.pk, "Jorge Paz", "987111222"))
+        self.assertEqual((con.cliente_id, con.nombre), (None, "Jorgito"))
+
+    def test_registrar_en_el_celular(self):
+        """El cliente va arriba, la barra fija trae total y botón, y se sabe qué servicios hace cada uno (los suyos primero)."""
+        self.client.force_login(self.cajero)
+        r = self.client.get(reverse("citas:registrar"))
+        html = r.content.decode()
+        self.assertLess(html.index('id="r-tel"'), html.index('id="servicios"'))
+        self.assertContains(r, 'class="d-lg-none fixed-bottom bg-body border-top barra-fija')
+        self.assertContains(r, 'form="f-reg"')
+        self.assertEqual(sorted(r.context["hacen"][str(self.ana.pk)]), sorted([self.manicure.producto_id, self.corte.producto_id]))
+
     def test_atender_y_cobrar_y_ya_cobrado(self):
         self.client.force_login(self.cajero)
         c = self.cita(self.carla, time(10))

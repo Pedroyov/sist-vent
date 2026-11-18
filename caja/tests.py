@@ -78,6 +78,7 @@ class CajaTests(TestCase):
         self.assertEqual(r.status_code, 200)
         r = self.client.get(reverse("caja:cerrar", args=[s.pk]))
         self.assertEqual(r.context["r"]["esperado"], D("47"))
+        self.assertContains(r, 'id="contado-m"')  # celular: lo contado en la barra fija (sin la diferencia)
         self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "0", "d_20": "2", "d_5": "1", "d_1": "2"})
         s.refresh_from_db()
         self.assertEqual((s.contado, s.diferencia, s.conteo), (D("47"), D("0"), {"20": 2, "5": 1, "1": 2}))

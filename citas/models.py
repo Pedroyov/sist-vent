@@ -112,6 +112,9 @@ class Cita(TurnoBase):
     cobrada = models.BooleanField(default=False, help_text="El servicio ya se cobró (o se marcó como cobrado aparte).")
     venta = models.ForeignKey("ventas.Venta", on_delete=models.SET_NULL, null=True, blank=True, related_name="citas",
                               help_text="La venta en la que se cobró.")
+    cuenta = models.PositiveIntegerField(null=True, blank=True, db_index=True,
+                                         help_text="Servicios de un mismo registro, que caja cobra juntos: el número del primero. "
+                                                   "Vacío: la cita va sola.")
 
     class Meta:
         verbose_name = "cita"

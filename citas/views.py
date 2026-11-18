@@ -23,7 +23,7 @@ from .models import Ausencia, Cita, Config, Horario
 from .servicios import (CitaError, Dia, a_esa_hora, dia_corto, a_hora, agendar, atender, cancelar, cerrar_pasadas, confirmar, dia_texto, duracion_de,
                         enlace_cita, enlace_horarios, hora_texto, m, mensaje_horarios, mis_horarios, no_vino, profesionales,
                         proximos, rangos_texto, reabrir, resumen_dia, registrar_servicios, por_cobrar as lista_por_cobrar,
-                        marcar_cobradas, contar_por_cobrar)
+                        marcar_cobradas, contar_por_cobrar, clave_cuenta, de_la_cuenta, editar_cuenta, quitar_de_cuenta, se_puede_quitar, SIN_NOMBRE)
 
 VER = ("citas.ver", "citas.gestionar")
 PPM = 1.4  # alto de la agenda: píxeles por minuto
@@ -384,10 +384,11 @@ def registrar(request):
             messages.success(request, f"Listo: {', '.join(c.servicio_nombre for c in hechos)} de {hechos[0].nombre} (S/ {total:.2f}). "
                                       "Caja ya lo ve en «Por cobrar».")
             if cita is not None:
-                return redirect("citas:detalle", pk=cita.pk)
+                return redirect(_destino(request, cita))  # «Agregar servicio» desde Por cobrar vuelve a la tarjeta
             return redirect("citas:agenda" if gestiona and not mio else "citas:mi_agenda")
     return render(request, "citas/registrar.html", {
         "cita": cita, "personal": personal, "mio": mio, "gestiona": gestiona, "servicios": servicios, "error": error,
+        "hacen": {str(p.pk): [s.pk for s in p.servicios.all()] for p in personal + ([cita.profesional] if cita else [])},
         "datos": request.POST if request.method == "POST" else {"profesional": str(cita.profesional_id if cita else (mio.pk if mio else ""))},
     })
 
@@ -396,6 +397,46 @@ def registrar(request):
 def por_cobrar(request):
     return render(request, "citas/por_cobrar.html", {"grupos": lista_por_cobrar(), "hoy": timezone.localdate(),
                                                      "vender": modulo_activo(request.user, "mostrador") and puede(request.user, "ventas.vender")})
+
+
+@permiso_requerido("ventas.vender", "citas.gestionar")
+def cuenta(request, cuenta):
+    """Una tarjeta de «Por cobrar»: ponerle nombre y celular (si el cliente no se registró al llegar), quitar o agregar servicios."""
+    citas = de_la_cuenta(cuenta)
+    if not citas:
+        messages.info(request, "Esa cuenta ya se cobró o ya no está por cobrar.")
+        return redirect("citas:por_cobrar")
+    error = None
+    if request.method == "POST":
+        try:
+            editar_cuenta(cuenta, request.user, request.POST.get("nombre", ""), request.POST.get("telefono", ""))
+        except CitaError as e:
+            error = str(e)
+        else:
+            messages.success(request, "Cuenta actualizada.")
+            return redirect("citas:por_cobrar")
+    for c in citas:
+        c.quitable = se_puede_quitar(c)
+    sin_nombre = citas[0].nombre == SIN_NOMBRE
+    return render(request, "citas/cuenta.html", {
+        "cuenta": cuenta, "citas": citas, "error": error, "total": sum((c.servicio.precio_venta for c in citas if c.servicio_id), 0),
+        "datos": request.POST if request.method == "POST" else {"nombre": "" if sin_nombre else citas[0].nombre, "telefono": citas[0].telefono},
+        "agregar": puede(request.user, "citas.gestionar"), "ultima": citas[-1],
+    })
+
+
+@require_POST
+@permiso_requerido("ventas.vender", "citas.gestionar")
+def cuenta_quitar(request, pk):
+    c = get_object_or_404(Cita, pk=pk)
+    cuenta = clave_cuenta(c)
+    try:
+        quitar_de_cuenta(c, request.user)
+    except CitaError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"Se quitó {c.servicio_nombre}.")
+    return redirect("citas:cuenta", cuenta=cuenta)
 
 
 @require_POST

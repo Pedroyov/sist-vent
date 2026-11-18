@@ -186,6 +186,7 @@ class VistasTests(Base):
         self.assertEqual(pedro.telefono, "986111222")
         r = self.client.get(reverse("cobranzas:cuenta", args=[pedro.pk]))
         self.assertContains(r, "Mateo Ríos")
+        self.assertContains(r, 'form="f-cobro"')  # celular: monto y Cobrar en la barra fija
         self.assertContains(r, "wa.me/51986111222")
         ids = list(pendientes(pedro).values_list("pk", flat=True)[:2])
         r = self.client.post(reverse("cobranzas:cobrar", args=[pedro.pk]), {"cuota": ids, "monto": "200", "metodo": "EFE"})
