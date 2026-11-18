@@ -6,7 +6,7 @@
       <div class="modal-body">
         <label class="form-label mb-1" for="dl-tel">Celular</label>
         <input type="tel" name="telefono" id="dl-tel" class="form-control form-control-lg mb-1" inputmode="tel" maxlength="20" placeholder="987654321"
-               data-url="{% url 'mesas:delivery_buscar' %}" autocomplete="off">
+               data-url="{% url 'clientes:celular' %}" autocomplete="off">
         <div class="small mb-2" id="dl-info"></div>
         <label class="form-label mb-1" for="dl-nombre">Nombre</label>
         <input type="text" name="nombre" id="dl-nombre" class="form-control mb-2" maxlength="60" placeholder="Ej.: Carla">
@@ -36,14 +36,14 @@
     buscando = setTimeout(function () {
       fetch(tel.dataset.url + "?tel=" + encodeURIComponent(t), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
         var info = document.getElementById("dl-info");
-        if (!d.nombre && !d.direccion) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
+        if (!d.conocido) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
         ["nombre", "direccion", "referencia"].forEach(function (k) {
           var el = document.getElementById({nombre: "dl-nombre", direccion: "dl-dir", referencia: "dl-ref"}[k]);
           if (d[k] && !el.value) el.value = d[k];
         });
         info.className = "small mb-2 text-success";
-        info.textContent = "Ya pidió antes" + (d.pedidos ? " (" + d.pedidos + " pedido" + (d.pedidos > 1 ? "s" : "") + ")" : "") + ": revisa que la dirección siga igual." +
-          (d.debe ? " Debe S/ " + d.debe + "." : "");
+        info.textContent = (d.pedidos ? "Ya pidió antes (" + d.pedidos + " pedido" + (d.pedidos > 1 ? "s" : "") + "): revisa que la dirección siga igual."
+                                      : "Cliente conocido.") + (d.debe ? " Debe S/ " + d.debe + "." : "");
       });
     }, 300);
   });

@@ -11,7 +11,8 @@ class ReservaForm(forms.Form):
     telefono = forms.CharField(label="Celular", max_length=20, required=False,
                                widget=forms.TextInput(attrs={"type": "tel", "inputmode": "tel", "placeholder": "987654321", "autocomplete": "off"}))
     nombre = forms.CharField(label="Nombre", max_length=60, widget=forms.TextInput(attrs={"placeholder": "Ej.: Familia Pérez"}))
-    mesa = forms.ModelChoiceField(label="Mesa", queryset=None, required=False, empty_label="Sin mesa (se elige al llegar)")
+    mesas = forms.ModelMultipleChoiceField(label="Mesa", queryset=None, required=False, widget=forms.CheckboxSelectMultiple,
+                                           help_text="Opcional. Para un grupo grande marca varias: se juntan al llegar.")
     nota = forms.CharField(label="Nota", max_length=200, required=False,
                            widget=forms.TextInput(attrs={"placeholder": "Ej.: cumpleaños, silla para bebé, terraza"}))
     permitir_choque = forms.BooleanField(required=False, widget=forms.HiddenInput)
@@ -21,15 +22,14 @@ class ReservaForm(forms.Form):
         if con_mesas:
             from mesas.models import Mesa
 
-            self.fields["mesa"].queryset = Mesa.objects.filter(activa=True).select_related("zona")
-            self.fields["mesa"].label_from_instance = lambda m: f"Mesa {m.nombre} · {m.zona.nombre} · {m.capacidad} pers."
+            self.fields["mesas"].queryset = Mesa.objects.filter(activa=True).select_related("zona")
         else:
-            del self.fields["mesa"]
+            del self.fields["mesas"]
 
     @classmethod
     def desde(cls, r, **kw):
         return cls(initial={"fecha": r.fecha, "hora": r.hora, "personas": r.personas, "telefono": r.telefono, "nombre": r.nombre,
-                            "mesa": r.mesa_id, "nota": r.nota}, **kw)
+                            "mesas": [m.pk for m in r.mesas], "nota": r.nota}, **kw)
 
 
 class ConfigForm(forms.ModelForm):

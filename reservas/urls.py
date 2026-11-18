@@ -9,6 +9,5 @@ urlpatterns = [
     path("nueva/", views.formulario, name="nueva"),
     path("<int:pk>/editar/", views.formulario, name="editar"),
     path("<int:pk>/<str:accion>/", views.accion, name="accion"),
-    path("historial/", views.buscar_tel, name="historial"),
     path("configurar/", views.configurar, name="configurar"),
 ]

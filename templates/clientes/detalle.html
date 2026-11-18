@@ -30,6 +30,17 @@
     </div>
   </div>
   <div class="col-lg-8">
+    {% if h %}
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-clock-history me-1"></i> En el negocio</h3></div>
+      <div class="card-body py-2 d-flex flex-wrap gap-4 small">
+        {% if h.pedidos %}<div><div class="fs-5 fw-bold">{{ h.pedidos }}</div><i class="bi bi-scooter"></i> pedido{{ h.pedidos|pluralize }} de delivery</div>{% endif %}
+        {% if h.reservas %}<div><div class="fs-5 fw-bold">{{ h.reservas }}</div><i class="bi bi-calendar-event"></i> reserva{{ h.reservas|pluralize }}{% if h.llego %} · vino {{ h.llego }}{% endif %}</div>{% endif %}
+        {% if h.citas %}<div><div class="fs-5 fw-bold">{{ h.citas }}</div><i class="bi bi-calendar2-week"></i> cita{{ h.citas|pluralize }}{% if h.preferido %} · suele atenderse con {{ h.preferido.nombre }}{% endif %}</div>{% endif %}
+        {% if h.no_vino %}<div class="text-danger"><div class="fs-5 fw-bold">{{ h.no_vino }}</div><i class="bi bi-person-x"></i> vez{{ h.no_vino|pluralize:"es" }} no vino{% if h.no_vino_reservas and h.no_vino_citas %} ({{ h.no_vino_reservas }} reserva{{ h.no_vino_reservas|pluralize }}, {{ h.no_vino_citas }} cita{{ h.no_vino_citas|pluralize }}){% endif %}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
     {% if P.cobranzas_ver %}
     <a href="{% url 'cobranzas:cuenta' c.pk %}" class="card mb-3 text-decoration-none text-body">
       <div class="card-body py-2 d-flex align-items-center gap-2"><i class="bi bi-calendar-check fs-4 text-primary"></i>

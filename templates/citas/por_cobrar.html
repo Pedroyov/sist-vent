@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Servicios por cobrar{% endblock %}
+{% block page_title %}Servicios por cobrar{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Por cobrar</li>{% endblock %}
+{% block content %}
+<p class="small text-body-secondary">Lo que el personal ya hizo y avisó. Pulsa <strong>Cobrar</strong>: se abre Vender con esos servicios; al cobrar, salen de esta lista.</p>
+{% if grupos %}
+<div class="row g-3">
+  {% for g in grupos %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-start gap-2 mb-2">
+          <div class="flex-grow-1"><div class="fw-semibold">{{ g.nombre }}</div>
+            <div class="small text-body-secondary">{% if g.fecha != hoy %}{{ g.fecha|date:"d/m" }} · {% endif %}terminó {{ g.desde|time:"H:i" }}{% if g.telefono %} · {{ g.telefono }}{% endif %}</div></div>
+          <strong class="fs-5 text-nowrap">S/ {{ g.total|floatformat:2 }}</strong>
+        </div>
+        <ul class="list-unstyled small mb-0">
+          {% for c in g.citas %}<li class="d-flex gap-2"><span class="agenda-punto mt-1" style="background: {{ c.profesional.color }}"></span>
+            <span class="flex-grow-1">{{ c.servicio_nombre }} <span class="text-body-secondary">· {{ c.profesional.nombre }}{% if c.sin_cita %} · sin cita{% endif %}</span></span>
+            <span class="text-nowrap">{% if c.servicio_id %}S/ {{ c.servicio.precio_venta }}{% endif %}</span></li>
+          {% if c.nota %}<li class="small fst-italic text-body-secondary ms-3">{{ c.nota }}</li>{% endif %}{% endfor %}
+        </ul>
+      </div>
+      <div class="card-footer d-flex gap-2">
+        {% if vender %}<a href="{% url 'ventas:pos' %}?citas={{ g.ids }}" class="btn btn-primary flex-grow-1"><i class="bi bi-cart-check me-1"></i>Cobrar</a>{% endif %}
+        <form method="post" action="{% url 'citas:cobrada_aparte' %}" onsubmit="return confirm('¿Marcar como ya cobrado? No se registra ninguna venta.')">{% csrf_token %}
+          <input type="hidden" name="ids" value="{{ g.ids }}"><button class="btn btn-outline-secondary" title="Ya se cobró aparte o no se cobra"><i class="bi bi-check2-all"></i> Ya cobrado</button></form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-body-secondary py-5"><i class="bi bi-check2-circle display-6"></i><p class="mt-2">No hay servicios por cobrar.</p></div>
+{% endif %}
+{% endblock %}

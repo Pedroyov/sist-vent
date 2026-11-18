@@ -1,6 +1,5 @@
 import json
 from datetime import date, timedelta
-from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -15,7 +14,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero, url_segura
+from core.utils import enlace_whatsapp, entero, url_segura
 from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variante
 from productos.servicios import minimo_disponible, ordenar_grupos
 
@@ -81,12 +80,39 @@ def pos(request):
         falta_caja = False
     except CajaError:
         falta_caja = True
+    agregar = [int(x) for x in request.GET.get("agregar", "").split(",") if x.strip().isdigit()][:10]
+    citas, citas_texto, n_por_cobrar, atendio_inicial = [], "", 0, None
+    personas_atienden = []
+    if Ajustes.cargar().usa_atendio:  # función «Quién atendió»: el cajero elige a la persona del personal
+        from personal.models import Persona
+
+        personas_atienden = list(Persona.objects.filter(activo=True).only("pk", "nombre"))
+    from core.permisos import modulo_activo
+
+    if modulo_activo(request.user, "citas"):
+        from citas.models import Cita
+        from citas.servicios import contar_por_cobrar
+
+        ids = [int(x) for x in request.GET.get("citas", "").split(",") if x.strip().isdigit()][:20]
+        if ids:
+            lista = list(Cita.objects.filter(pk__in=ids, estado=Cita.Estado.ATENDIDA, cobrada=False, servicio__isnull=False)
+                         .select_related("profesional"))
+            citas = [c.pk for c in lista]
+            agregar = [c.servicio_id for c in lista] + agregar
+            if lista:
+                citas_texto = f"{lista[0].nombre}: " + ", ".join(f"{c.servicio_nombre} ({c.profesional.nombre})" for c in lista)
+                quienes = {c.profesional_id for c in lista}
+                atendio_inicial = quienes.pop() if len(quienes) == 1 else None
+        n_por_cobrar = contar_por_cobrar()
     return render(request, "ventas/pos.html", {
         "falta_caja": falta_caja,
         "catalogo": _catalogo(),
         "categorias": [{"id": c.pk, "n": c.nombre} for c in categorias],
         "puede_precio": puede(request.user, "ventas.precio"),
         "con_delivery": Ajustes.cargar().delivery_activo and puede(request.user, "delivery.atender"),
+        # ?agregar=12,15 → llega con esos productos en la venta (por ejemplo, el servicio de una cita atendida)
+        "agregar": agregar, "citas": citas, "citas_texto": citas_texto, "n_por_cobrar": n_por_cobrar,
+        "personas_atienden": personas_atienden, "atendio_inicial": atendio_inicial,
     })
 
 
@@ -115,6 +141,18 @@ def registrar(request):
                 puede_exceder_limite=puede(request.user, "clientes.limite"),
             )
             comprobante = crear(venta, sol, request.user)
+            if entero(datos.get("atendio")):
+                from core.models import Ajustes
+                from personal.models import Persona
+
+                if Ajustes.cargar().usa_atendio:
+                    venta.atendio_persona = Persona.objects.filter(pk=entero(datos.get("atendio")), activo=True).first()
+                    venta.save(update_fields=["atendio_persona"])
+            ids_citas = [entero(x) for x in (datos.get("citas") or []) if entero(x)][:20]
+            if ids_citas:  # servicios de peluquería / spa que se cobraron en esta venta
+                from citas.servicios import marcar_cobradas
+
+                marcar_cobradas(ids_citas, venta)
     except (VentaInvalida, ComprobanteError) as e:
         return JsonResponse({"error": str(e)}, status=400)
     enviar_seguro(comprobante)
@@ -144,12 +182,12 @@ def ticket(request, pk):
         lineas.append(f"Propina: S/ {venta.propina}")
     if negocio.nota_ticket:
         lineas += ["", negocio.nota_ticket]
-    texto = quote("\n".join(lineas))
+    texto = "\n".join(lineas)
     volver = request.GET.get("volver", "")
     return render(request, "ventas/ticket.html", {
         "v": venta, "nueva": request.GET.get("nueva") == "1",
         "volver": url_segura(request, volver, ""),
-        "wa_texto": texto,
+        "wa_enlace": enlace_whatsapp(None, texto),  # elige a quién mandarlo
         "ver_costos": puede(request.user, "productos.costos"),
     })
 

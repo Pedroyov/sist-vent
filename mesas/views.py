@@ -97,6 +97,19 @@ def abrir(request):
     return redirect(reverse("mesas:agregar", args=[cuenta.pk]))
 
 
+def _repartidores():
+    """Para elegir al repartidor: primero los del Personal que reparten; luego los nombres que ya se escribieron antes."""
+    from personal.models import Persona
+
+    nombres = list(Persona.objects.filter(activo=True, reparte=True).values_list("nombre", flat=True))
+    vistos = {n.lower() for n in nombres}
+    for n in Cuenta.objects.exclude(repartidor="").order_by("-salio_en").values_list("repartidor", flat=True)[:200]:
+        if n.lower() not in vistos and len(nombres) < 30:
+            vistos.add(n.lower())
+            nombres.append(n)
+    return nombres
+
+
 def _por_area(items):
     """Lo recién enviado, separado: [(código, nombre, items)] en orden cocina, barra, mozo."""
     nombres = {"COC": "Cocina", "BAR": "Barra", "MOZ": "Llévalo tú"}
@@ -173,8 +186,7 @@ def cuenta(request, pk):
         "esta_pagada": c.pagada(items),
         # al cobrar todo: ¿se libera la mesa? Por defecto sí, salvo que algo no haya salido de cocina (o el delivery no se entregó)
         "liberar_al_cobrar": (c.estado_envio == Cuenta.Envio.ENTREGADO) if c.es_delivery else not falta_de_cocina(por_enviar + enviados + pagados),
-        "repartidores": list(Cuenta.objects.exclude(repartidor="").order_by("-salio_en").values_list("repartidor", flat=True).distinct()[:30])
-        if c.es_delivery else [],
+        "repartidores": _repartidores() if c.es_delivery else [],
         "recien_ts": request.GET.get("enviado", ""),
         "falta_caja": falta_caja and _puede(request.user, c, "cobrar"),
         "puede_anular": _puede(request.user, c, "anular"),
@@ -474,33 +486,6 @@ def _carrito_a_delivery(user, c, items):
                 it.save(update_fields=["precio"])
     if not sin_cocina(c):
         enviar_cocina(c)
-
-
-@permiso_requerido("delivery.atender")
-def delivery_buscar(request):
-    """Por el celular: el cliente y su última dirección, para no volver a preguntarla."""
-    tel = "".join(ch for ch in request.GET.get("tel", "") if ch.isdigit())
-    if len(tel) < 6:
-        return JsonResponse({})
-    previo = Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, telefono__endswith=tel[-9:]).order_by("-abierta_en").first()
-    datos = {}
-    if previo:
-        datos = {"nombre": previo.nombre, "direccion": previo.direccion, "referencia": previo.referencia, "pedidos": Cuenta.objects.filter(
-            tipo=Cuenta.Tipo.DELIVERY, telefono=previo.telefono).exclude(estado=Cuenta.Estado.ANULADA).count()}
-    from core.permisos import modulo_activo
-
-    if modulo_activo(request.user, "clientes"):
-        from clientes.models import Cliente
-
-        cli = Cliente.objects.filter(telefono__endswith=tel[-9:], activo=True).first()
-        if cli:
-            datos.setdefault("nombre", cli.nombre)
-            if not datos.get("direccion"):
-                datos["direccion"] = cli.direccion
-            saldo = cli.saldo
-            if saldo > 0:
-                datos["debe"] = f"{saldo:.2f}"
-    return JsonResponse(datos)
 
 
 @permiso_requerido("delivery.atender", "delivery.cobrar")

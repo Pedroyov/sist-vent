@@ -16,7 +16,7 @@ from core.utils import entero
 
 from .forms import ConfigForm, ReservaForm
 from .models import Config, Reserva
-from .servicios import (ReservaError, cancelar, cerrar_pasadas, confirmar, del_dia, enlace_whatsapp, guardar, historial, llego, no_vino,
+from .servicios import (ReservaError, cancelar, cerrar_pasadas, confirmar, del_dia, enlace_whatsapp, guardar, llego, no_vino,
                         reabrir, resumen_dia)
 
 
@@ -100,7 +100,8 @@ def formulario(request, pk=None):
             d = form.cleaned_data
             try:
                 r2, avisos = guardar(request.user, r, fecha=d["fecha"], hora=d["hora"], personas=d["personas"], nombre=d["nombre"],
-                                     telefono=d["telefono"], mesa=d.get("mesa"), nota=d["nota"], permitir_choque=d["permitir_choque"])
+                                     telefono=d["telefono"], mesas=list(d.get("mesas") or []), nota=d["nota"],
+                                     permitir_choque=d["permitir_choque"])
             except ReservaError as e:
                 form.add_error(None, str(e))
                 choque = "ya está reservada" in str(e)
@@ -118,9 +119,18 @@ def formulario(request, pk=None):
             fecha = timezone.localdate()
         inicial = {"fecha": fecha, "hora": _hora_sugerida(fecha), "personas": 2}
         if con_mesas and request.GET.get("mesa"):
-            inicial["mesa"] = entero(request.GET.get("mesa"))
+            inicial["mesas"] = [entero(request.GET.get("mesa"))]
         form = ReservaForm(initial=inicial, con_mesas=con_mesas)
-    return render(request, "reservas/form.html", {"form": form, "r": r, "choque": choque,
+    mesas_zonas = []
+    if con_mesas:
+        from mesas.models import Zona
+
+        for z in Zona.objects.prefetch_related("mesas"):
+            lista = [m for m in z.mesas.all() if m.activa]
+            if lista:
+                mesas_zonas.append((z, lista))
+    elegidas = {str(x) for x in (form["mesas"].value() or [])} if con_mesas else set()
+    return render(request, "reservas/form.html", {"form": form, "r": r, "choque": choque, "mesas_zonas": mesas_zonas, "elegidas": elegidas,
                                                   "breadcrumb": [("Reservas", reverse("reservas:agenda"))]})
 
 
@@ -141,14 +151,22 @@ def accion(request, pk, accion):
         raise PermissionDenied
     try:
         if accion == "llego":
-            mesa = None
-            if request.POST.get("mesa"):
+            mesas = []
+            ids = [entero(x) for x in request.POST.getlist("mesa") if entero(x)]
+            if ids:
                 from mesas.models import Mesa
 
-                mesa = get_object_or_404(Mesa, pk=entero(request.POST.get("mesa")))
-            cuenta = llego(r, request.user, mesa)
+                por_id = {m.pk: m for m in Mesa.objects.filter(pk__in=ids)}
+                mesas = [por_id[i] for i in ids if i in por_id]
+                propias = r.mesas
+                if len(mesas) == 1 and mesas[0] in propias:  # tocó una de sus mesas en el mapa: se abren todas las de la reserva
+                    mesas = mesas + [m for m in propias if m != mesas[0]]
+            cuenta = llego(r, request.user, mesas=mesas)
             if cuenta is not None:
-                messages.success(request, f"Bienvenidos, {r.nombre}: se abrió la mesa {cuenta.mesa.nombre} para {r.personas}.")
+                cuenta.refresh_from_db()
+                messages.success(request, f"Bienvenidos, {r.nombre}: se abrió la mesa {cuenta.nombres_mesas} para {r.personas}.")
+                if r.aviso:
+                    messages.warning(request, r.aviso)
                 return redirect("mesas:cuenta", pk=cuenta.pk)
             messages.success(request, f"{r.nombre} llegó.")
         else:
@@ -158,22 +176,6 @@ def accion(request, pk, accion):
     except ReservaError as e:
         messages.error(request, str(e))
     return redirect(_destino(request, r))
-
-
-@permiso_requerido("reservas.gestionar")
-def buscar_tel(request):
-    """Por el celular: el nombre y cómo le fue antes (cuántas veces reservó y cuántas no vino)."""
-    tel = request.GET.get("tel", "")
-    datos = historial(tel)
-    digitos = "".join(c for c in tel if c.isdigit())
-    if not datos.get("nombre") and len(digitos) >= 6 and modulo_activo(request.user, "clientes"):
-        from clientes.models import Cliente
-
-        cli = Cliente.objects.filter(telefono__endswith=digitos[-9:], activo=True).first()
-        if cli:
-            datos["nombre"] = cli.nombre
-            datos["cliente"] = True
-    return JsonResponse(datos)
 
 
 @permiso_requerido("reservas.gestionar")

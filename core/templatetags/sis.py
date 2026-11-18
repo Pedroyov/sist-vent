@@ -52,6 +52,14 @@ def hace(fecha):
 
 
 @register.filter
+def wa_enlace(telefono, texto=""):
+    """{{ c.telefono|wa_enlace }} → enlace para abrir el chat (vacío si el número no sirve)."""
+    from core.utils import enlace_whatsapp
+
+    return enlace_whatsapp(telefono or "", texto)
+
+
+@register.filter
 def whatsapp(telefono):
     """Número para enlaces wa.me (agrega el 51 a los celulares peruanos)."""
     from core.utils import numero_whatsapp

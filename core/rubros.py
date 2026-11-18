@@ -11,6 +11,9 @@ FUNCIONES = [
     ("combos", "Combos y packs", "Un producto que agrupa a otros (menú + bebida, pack escolar) y descuenta el stock de cada uno."),
     ("servicios", "Servicios", "Lo que se cobra sin stock (corte, clase, reparación, instalación), con su duración."),
     ("agotados", "Agotados del día", "Marcar platos u opciones como agotados solo por hoy, sin tocar el stock."),
+    ("atendio", "Quién atendió la venta", "En Vender se elige qué persona del personal atendió al cliente (vendedores a comisión, "
+                "servicios cobrados directo). Sale en el reporte de Personal."),
+    ("comisiones", "Comisiones del personal", "A cada persona se le pone un % de lo que atiende y el reporte de Personal dice cuánto le toca."),
 ]
 CODIGOS_FUNCIONES = [f[0] for f in FUNCIONES]
 
@@ -25,12 +28,12 @@ PERFILES = {
     Rubro.RESTAURANTE: {"encendido": {"mesas", "caja", "reportes"},
                         "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion", "reservas"},
                         "funciones": {"variantes", "combos", "agotados"}, "nivel_pedido": 2},
-    Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas"},
+    Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas", "citas"},
                        "funciones": {"servicios", "variantes"}, "nivel_pedido": 1},
     Rubro.ACADEMIA: {"encendido": {"cobranzas", "clientes", "caja", "reportes"}, "opcional": {"mostrador", "facturacion"},
                      "funciones": {"servicios"}, "nivel_pedido": 1},
     Rubro.OTRO: {"encendido": {"mostrador", "caja", "reportes"},
-                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas", "reservas"},
+                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas", "reservas", "citas"},
                  "funciones": {"variantes", "combos", "servicios"}, "nivel_pedido": 1},
 }
 
@@ -51,6 +54,14 @@ def en_uso(funcion):
         return Producto.objects.filter(tipo=Producto.Tipo.COMBO).exists()
     if funcion == "servicios":
         return Producto.objects.filter(tipo=Producto.Tipo.SERVICIO, activo=True).exists()
+    if funcion == "comisiones":
+        from personal.models import Persona
+
+        return Persona.objects.filter(comision__gt=0).exists()
+    if funcion == "atendio":
+        from ventas.models import Venta
+
+        return Venta.objects.filter(atendio_persona__isnull=False).exists()
     if funcion == "agotados":
         return False  # se reinicia cada día: apagarla no pierde nada
     return False
@@ -74,6 +85,10 @@ def modulo_en_uso(codigo):
         from cobranzas.models import Inscripcion
 
         return Inscripcion.objects.exists()
+    if codigo == "citas":
+        from citas.models import Cita
+
+        return Cita.objects.exists()
     if codigo == "reservas":
         from reservas.models import Reserva
 

@@ -1,5 +1,3 @@
-from urllib.parse import quote
-
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import F, Q
@@ -11,6 +9,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
+from core.utils import enlace_whatsapp
 
 from .forms import AbonoForm, ClienteForm
 from .models import Abono, Cliente
@@ -103,11 +102,20 @@ def detalle(request, pk):
         "c": c, "saldo": saldo, "movimientos": estado_de_cuenta(c, 100),
         "compras": c.ventas.select_related("usuario").prefetch_related("pagos").order_by("-fecha")[:15],
         "form_abono": AbonoForm(initial={"monto": saldo if saldo > 0 else None, "metodo": "EFE"}),
-        "wa": f"https://wa.me/{c.whatsapp}?text={quote(texto)}" if c.whatsapp else "",
+        "wa": enlace_whatsapp(c.telefono, texto),
         "anulados": c.abonos.filter(anulado=True)[:10],
         "pendientes": pendientes, "con_factura": bool(con_factura), "vencido": vencido,
         **_cobranzas(request.user, c),
+        "h": _historial(c),
     })
+
+
+def _historial(c):
+    """Lo que hizo en todo el negocio (delivery, reservas, citas), con el mismo cálculo que usan esos módulos."""
+    from .servicios import historial
+
+    h = historial(cliente=c) if c.telefono else {}
+    return h if any(h.get(k) for k in ("pedidos", "reservas", "citas")) else {}
 
 
 def _cobranzas(user, c):
@@ -186,3 +194,20 @@ def buscar(request):
         {"id": c.pk, "n": c.nombre, "doc": c.documento, "num": c.numero_documento, "dir": c.direccion,
          "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}"}
         for c in clientes]})
+
+
+@permiso_requerido("clientes.ver", "delivery.atender", "reservas.gestionar", "citas.gestionar", "citas.agendar_propias",
+                   "cobranzas.inscribir", "ventas.vender")
+def celular(request):
+    """Por el celular: quién es y todo lo que hizo (pedidos, reservas, citas, si no vino, si debe). Lo usan todos los módulos."""
+    from django.http import JsonResponse
+
+    from .servicios import historial
+
+    tel = request.GET.get("tel", "")
+    if len("".join(c for c in tel if c.isdigit())) < 6:
+        return JsonResponse({})
+    datos = historial(tel)
+    if not puede(request.user, "clientes.ver", "delivery.atender"):
+        datos.pop("debe", None)  # lo que debe solo lo ve quien ve clientes
+    return JsonResponse(datos)

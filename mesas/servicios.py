@@ -61,19 +61,10 @@ def datos_delivery(cuenta, nombre="", telefono="", direccion="", referencia="", 
     cuenta.paga_con = _limpio(paga_con, 40)
     if not cuenta.direccion:
         raise MesaError("Escribe la dirección de entrega.")
-    from core.permisos import modulos_activos
+    from clientes.servicios import recordar
 
-    if cuenta.telefono and "clientes" in modulos_activos():
-        from clientes.models import Cliente
-
-        cli = cuenta.cliente or Cliente.objects.filter(telefono=cuenta.telefono, activo=True).first()
-        if cli is None and cuenta.nombre:
-            cli = Cliente.objects.create(tipo_documento=Cliente.TipoDocumento.SIN, nombre=cuenta.nombre, telefono=cuenta.telefono,
-                                         direccion=cuenta.direccion, nota="Cliente de delivery")
-        elif cli is not None and (cli.direccion != cuenta.direccion or not cli.telefono):
-            cli.direccion, cli.telefono = cuenta.direccion, cli.telefono or cuenta.telefono  # la última dirección queda para la próxima
-            cli.save(update_fields=["direccion", "telefono"])
-        cuenta.cliente = cli
+    if cuenta.telefono:  # el cliente por su celular (lo registra si es nuevo y recuerda su última dirección)
+        cuenta.cliente = recordar(cuenta.nombre, cuenta.telefono, cuenta.direccion, "delivery", cuenta.cliente_id and cuenta.cliente)
     cuenta.save()
     return cuenta
 

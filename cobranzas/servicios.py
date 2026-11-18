@@ -2,7 +2,7 @@
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import quote
+from core.utils import enlace_whatsapp as _enlace_wa
 
 from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
@@ -361,7 +361,7 @@ def mensaje(cliente, cuotas, hoy=None):
 def enlace_whatsapp(cliente, cuotas, hoy=None):
     if not cliente.whatsapp:
         return ""
-    return f"https://wa.me/{cliente.whatsapp}?text={quote(mensaje(cliente, cuotas, hoy))}"
+    return _enlace_wa(cliente.telefono, mensaje(cliente, cuotas, hoy))
 
 
 def resumen(hoy=None):

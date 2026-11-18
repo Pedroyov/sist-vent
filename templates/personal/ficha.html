@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}{% if p %}{{ p.nombre }}{% else %}Agregar persona{% endif %}{% endblock %}
+{% block page_title %}{% if p %}{{ p.nombre }}{% else %}Agregar persona{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'personal:lista' %}">Personal</a></li><li class="breadcrumb-item active">{% if p %}{{ p.nombre }}{% else %}Nuevo{% endif %}</li>{% endblock %}
+{% block content %}
+<form method="post" novalidate>{% csrf_token %}
+<div class="row g-3">
+  <div class="col-lg-{% if con_citas %}4{% else %}6{% endif %}">
+    <div class="card card-outline card-primary mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">Datos</h3></div>
+      <div class="card-body">
+        {{ form.non_field_errors }}
+        {{ form.nombre|as_crispy_field }}
+        {{ form.telefono|as_crispy_field }}
+        {{ form.usuario|as_crispy_field }}
+        <label class="form-label">Color en la agenda</label>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for v, n in form.fields.color.choices %}<label class="d-inline-flex align-items-center gap-1 small border rounded px-2 py-1">
+            <input type="radio" name="color" value="{{ v }}" {% if form.color.value == v %}checked{% endif %}><span class="agenda-punto m-0" style="background: {{ v }}"></span>{{ n }}</label>{% endfor %}
+        </div>
+        {% if form.comision %}{{ form.comision|as_crispy_field }}{% endif %}
+        {% if form.reparte %}{{ form.reparte|as_crispy_field }}{% endif %}
+        {% if form.atiende_citas %}{{ form.atiende_citas|as_crispy_field }}
+        <div id="caja-servicios">
+        <label class="form-label">Servicios que hace</label>
+        <div class="small text-body-secondary mb-1">Ninguno marcado = hace todos.</div>
+        <div class="border rounded p-2 mb-3" style="max-height: 14rem; overflow: auto">
+          {% for ch in form.servicios %}<div class="form-check">{{ ch.tag }}<label class="form-check-label" for="{{ ch.id_for_label }}">{{ ch.choice_label }}</label></div>
+          {% empty %}<div class="small text-body-secondary">No hay servicios. Créalos en Productos (tipo Servicio).</div>{% endfor %}
+        </div></div>{% endif %}
+        <div class="row g-2"><div class="col-6">{{ form.orden|as_crispy_field }}</div><div class="col-6 pt-4">{{ form.activo|as_crispy_field }}</div></div>
+      </div>
+    </div>
+  </div>
+  {% if con_citas %}<div class="col-lg-8" id="caja-horario">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-clock me-1"></i> Horario de la semana</h3></div>
+      <div class="card-body p-0">
+        {{ dias.management_form }}
+        {% for e in dias.non_form_errors %}<div class="alert alert-danger m-2 py-1">{{ e }}</div>{% endfor %}
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+          <thead class="small"><tr><th>Día</th><th>Entrada</th><th>Salida</th><th colspan="2">Refrigerio (opcional)</th></tr></thead>
+          <tbody>
+          {% for nombre, f in filas %}
+          <tr class="fila-dia">
+            <td class="text-nowrap"><div class="form-check form-switch mb-0">{{ f.trabaja }}<label class="form-check-label" for="{{ f.trabaja.id_for_label }}">{{ nombre }}</label></div>
+              {% for e in f.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+            <td>{{ f.entrada }}</td><td>{{ f.salida }}</td><td>{{ f.descanso_desde }}</td><td>{{ f.descanso_hasta }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+        <p class="small text-body-secondary px-3 py-2 mb-0">Los días apagados son su día libre de cada semana.</p>
+      </div>
+    </div>
+  </div>{% endif %}
+</div>
+<div class="d-flex gap-2 justify-content-end mb-3">
+  <a href="{% url 'personal:lista' %}" class="btn btn-outline-secondary">Volver</a>
+  <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+</div>
+</form>
+
+{% if p and con_citas and p.atiende_citas %}
+<div class="row g-3"><div class="col-lg-8 offset-lg-4">
+<div class="card mb-3" id="ausencias">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-airplane me-1"></i> Días libres, vacaciones y permisos</h3></div>
+  {% if ausencias %}
+  <ul class="list-group list-group-flush small">
+    {% for a in ausencias %}<li class="list-group-item d-flex align-items-center gap-2 {% if a.hasta < hoy %}text-body-secondary{% endif %}">
+      <span><strong>{{ a.motivo|default:"Ausencia" }}</strong> · {{ a.desde|date:"d/m/Y" }}{% if a.hasta != a.desde %} al {{ a.hasta|date:"d/m/Y" }}{% endif %}{% if not a.todo_el_dia %} · {{ a.hora_desde|time:"G:i" }}–{{ a.hora_hasta|time:"G:i" }}{% endif %}</span>
+      <form method="post" action="{% url 'citas:ausencia_borrar' a.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-trash"></i></button></form>
+    </li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="{% url 'citas:ausencia' p.pk %}" class="card-body border-top">{% csrf_token %}
+    <div class="row g-2">
+      <div class="col-6">{{ form_aus.desde|as_crispy_field }}</div><div class="col-6">{{ form_aus.hasta|as_crispy_field }}</div>
+      <div class="col-6">{{ form_aus.hora_desde|as_crispy_field }}</div><div class="col-6">{{ form_aus.hora_hasta|as_crispy_field }}</div>
+      <div class="col-12">{{ form_aus.motivo|as_crispy_field }}</div>
+    </div>
+    <datalist id="motivos"><option value="Vacaciones"><option value="Día libre"><option value="Permiso"><option value="Descanso médico"><option value="Entra tarde"></datalist>
+    <p class="small text-body-secondary">Sin horas = todo el día. Con horas = solo ese rato (por ejemplo, entra tarde).</p>
+    <button class="btn btn-outline-primary"><i class="bi bi-plus-lg me-1"></i>Agregar</button>
+  </form>
+</div>
+</div></div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {  // sin «atiende citas» no se ven horarios ni servicios
+  var ac = document.getElementById("id_atiende_citas");
+  if (!ac) return;
+  function ver() { ["caja-servicios", "caja-horario"].forEach(function (id) { var el = document.getElementById(id); if (el) el.classList.toggle("d-none", !ac.checked); }); }
+  ac.addEventListener("change", ver); ver();
+})();
+document.querySelectorAll(".fila-dia").forEach(function (tr) {
+  var sw = tr.querySelector("input[type=checkbox]"), horas = tr.querySelectorAll("input[type=time]");
+  horas.forEach(function (h) { h.classList.add("form-control", "form-control-sm"); });
+  function pintar() { horas.forEach(function (h) { h.disabled = !sw.checked; }); tr.classList.toggle("text-body-secondary", !sw.checked); }
+  sw.classList.add("form-check-input"); sw.addEventListener("change", pintar); pintar();
+});
+</script>
+{% endblock %}

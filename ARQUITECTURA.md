@@ -2,6 +2,18 @@
 
 Este documento resume cómo está hecho el sistema. Sirve para empezar otro proyecto sobre esta misma base: compártelo al inicio de la nueva conversación.
 
+## Reglas para construir (leer antes de cada cambio)
+
+El sistema sirve a varios tipos de negocio (tienda, restaurante, peluquería, academia…). Antes de agregar algo:
+
+1. **¿Quién más lo usaría?** Pensar en todos los rubros, no solo en el que lo pidió.
+2. **¿Es un dato común o propio del rubro?** Lo común va en la **base** y lo usan todos los módulos: negocio y usuarios (`core`), **personal** (`personal`), clientes, productos, ventas, caja, reportes. Lo propio de un rubro va en un **módulo opcional** que se apoya en la base (mesas, citas, cuotas, reservas). Nunca duplicar en un módulo un dato que ya existe en la base (ej.: el "profesional" de Citas es una Persona del Personal).
+3. **¿Se puede apagar sin romper nada?** Lo avanzado empieza apagado: módulos en `MODULOS`, funciones en `core/rubros.FUNCIONES` (`Ajustes.usa_x`). En sistemas ya en uso, lo nuevo se apaga con una migración de datos.
+4. **¿Cambian las palabras según el rubro?** Se resuelve con el glosario (`core/glosario.py`), no con pantallas duplicadas.
+5. **Pantallas y reportes únicos que se adaptan**: una pantalla o un reporte muestra solo las columnas y campos de lo que el negocio usa (ej.: el reporte de Personal), en vez de un reporte por módulo.
+6. **¿Qué pasa con los datos existentes?** Migración que los conserva (y prueba de migración con una base con datos).
+7. Proponer siempre la opción recomendada con su porqué y las alternativas.
+
 ## Tecnología
 
 - **Django 5.2** en Python 3.12, con **SQLite** en desarrollo y PostgreSQL recomendado en producción (`DATABASE_URL` en `.env`, vía django-environ).
@@ -18,6 +30,7 @@ Este documento resume cómo está hecho el sistema. Sirve para empezar otro proy
 | --- | --- |
 | `config/` | settings (todo por `.env`), urls, formatos |
 | `core/` | Base reutilizable: datos del negocio y rubro (`Ajustes`), usuarios, **roles y permisos**, **módulos activos**, inicio (`tablero.py`), archivos privados, PWA, utilidades |
+| `personal/` | Base: **Personal** (quienes trabajan, con o sin usuario: color, comisión, reparte, atiende citas, servicios). Reporte único de Personal (`personal/reportes.py`) |
 | `productos/` | Catálogo: categorías, productos y servicios, variantes (talla/color/tamaño), stock y kardex, importar y exportar Excel, catálogos de ejemplo por rubro |
 | `ventas/` | Punto de venta, registro y anulación de ventas, ticket, lista y resumen del día, Excel |
 | `caja/` | Turnos de caja: apertura, ingresos y egresos, cierre con arqueo por billetes, historial |
@@ -47,7 +60,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 ## Módulos y menú
 
 - **Base, siempre activa:** configuración (`core`), `productos` y el registro de `ventas`.
-- **Módulos** (`core/permisos.MODULOS`: código, nombre, ícono, texto, módulo que necesita) = lo que el negocio **contrató**. Los enciende el superusuario en Configuración → Módulos: `mostrador` (pantalla Vender), `caja`, `mesas`, `cocina` (necesita mesas), `delivery` (independiente: sirve a tiendas), `clientes`, `reportes`, `facturacion`, `cobranzas` (necesita clientes), `reservas`. `modulos_activos()` apaga solos los que necesitan uno apagado.
+- **Módulos** (`core/permisos.MODULOS`: código, nombre, ícono, texto, módulo que necesita) = lo que el negocio **contrató**. Los enciende el superusuario en Configuración → Módulos: `mostrador` (pantalla Vender), `caja`, `mesas`, `cocina` (necesita mesas), `delivery` (independiente: sirve a tiendas), `clientes`, `reportes`, `facturacion`, `cobranzas` (necesita clientes), `reservas`, `citas`. `modulos_activos()` apaga solos los que necesitan uno apagado.
 - **Datos del negocio** = **cómo lo usa** el dueño dentro de lo contratado: propina, nivel de detalle de los pedidos, costo de envío, ancho del ticket, impresión automática.
 - Un permiso pertenece a un módulo (`PERMISOS`); con el módulo apagado nadie lo tiene. `ventas.vender` es del módulo `mostrador` y `mesas.cocina` del módulo `cocina`. Sin mostrador, el cajero igual ve sus ventas (la lista acepta `mesas.cobrar`).
 - `NEGOCIO.cocina_pantalla` y `NEGOCIO.delivery_activo` siguen existiendo, pero ahora se leen de los módulos (migración `core/0008`).
@@ -150,14 +163,44 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Recordatorios:** `mensaje()` arma el texto y `enlace_whatsapp()` el enlace wa.me (no envía nada solo).
 - **Pendiente:** boleta electrónica del pago de cuotas (hoy se entrega un recibo interno), congelar una membresía por unos días.
 
+## Turnos: base común de lo que se agenda (reservas, citas…)
+
+- `core/turnos.py`: modelo abstracto **`TurnoBase`** (nombre, celular, `cliente`, nota, quién lo tomó y cambió; `momento` según `CAMPO_HORA`, `activa`, `whatsapp`) y funciones comunes: `cambiar_estado`, `cerrar_pasadas` (lo de días anteriores sin marcar → «No vino»), `por_confirmar` (Inicio), y los textos `hora_texto`, `dia_texto` («mañana», «el jueves 19/11»), `dia_corto` («Jueves 19/11») y `negocio()`.
+- Mismos códigos de estado: PEN, CON, NOV, CAN; el «hecho» lo pone cada módulo (Reserva: LLE «Llegó»; Cita: ATE «Atendida»).
+- `reservas.Reserva` y `citas.Cita` heredan de `TurnoBase`; cada uno agrega a qué se reserva (mesa/s o persona y servicio) y sus pantallas. Un módulo nuevo de este tipo (canchas, salas, clases) parte de aquí y del cliente por celular.
+
 ## Reservas (cómo está pensado)
 
 - **App `reservas`**, módulo apagado por defecto (también en sistemas que ya estaban en uso: migración `0002`). Se ofrece en el rubro restaurante. No necesita Mesas: sin ese módulo, «Llegaron» solo marca la reserva.
-- **Reserva**: fecha + hora, personas, nombre, celular, `cliente` (con el módulo Clientes se busca o crea por celular), `mesa` opcional, nota, estado PEN/CON/LLE/NOV/CAN y la `cuenta` que se abrió al llegar. **Config** (una fila): `antes` (min que la mesa se ve «Reservada» en el mapa), `tolerancia` (min que se guarda después de la hora) y `duracion` (para avisar choques de la misma mesa).
+- **Reserva**: fecha + hora, personas, nombre, celular, `cliente` (con el módulo Clientes se busca o crea por celular), `mesa` opcional (principal) + `mesas_extra` (grupos grandes: se juntan con `unir_mesas` al llegar; `choques` y `para_mapa` miran todas), nota, estado PEN/CON/LLE/NOV/CAN y la `cuenta` que se abrió al llegar. **Config** (una fila): `antes` (min que la mesa se ve «Reservada» en el mapa), `tolerancia` (min que se guarda después de la hora) y `duracion` (para avisar choques de la misma mesa).
 - `servicios.guardar` valida y avisa choques de mesa (`choques`, ± duración); se puede reservar igual con `permitir_choque`. `llego` abre la cuenta con `mesas.servicios.abrir_cuenta` (personas, nombre y cliente de la reserva). Sin tareas programadas: `cerrar_pasadas()` pasa a «No vino» lo activo de días anteriores al abrir la agenda o el inicio; las de hoy que pasaron la tolerancia salen como **atrasadas**.
 - **Mapa:** `mesas.views._reservas_mapa` usa `para_mapa` (mesas que se ven «Reservada» ahora) y `proximas_hoy` (la tira de arriba). Una mesa reservada se puede ocupar igual (el modal avisa y ofrece «Llegó …»).
 - Permisos: `reservas.ver` (ver; con `mesas.atender` también Llegaron / No vino) y `reservas.gestionar` (tomar, cambiar, confirmar, cancelar, configurar). WhatsApp con `mensaje()` / `enlace_whatsapp()`: confirmación si es otro día, recordatorio si es hoy.
-- **Pendiente (fase 2):** citas de peluquería y spa con personal, horarios, días libres, horarios libres y la próxima hora disponible.
+
+## Citas (cómo está pensado)
+
+- **App `citas`**, módulo apagado por defecto (también en sistemas ya en uso: migración `0002`, que además crea el rol **Profesional**). Se ofrece en el rubro peluquería.
+- Quien atiende es una **Persona** del Personal (`personal.Persona` con `atiende_citas`; `servicios` = productos tipo Servicio, ninguno = hace todos). Los campos `profesional` de Citas apuntan a Persona → **Horario** (uno por día de la semana: entrada, salida, refrigerio) y **Ausencia** (desde/hasta; con horas = solo ese rato). **Cita**: fecha, inicio, fin, profesional, `servicio` (Variante) + `servicio_nombre`, cliente, estado PEN/CON/ATE/NOV/CAN. **Config**: intervalo (10/15/30), duración por defecto, días que se comparten.
+- **Horarios libres** (`servicios.Dia`): carga una vez los horarios, ausencias y citas del día; `jornada` = horario − refrigerio − ausencias; `libres` = jornada − citas (PEN, CON, ATE) − lo ya pasado; `horarios_libres` = inicios cada `intervalo` donde cabe la duración. `proximos` busca los siguientes días (máx. 3 por día) y `a_esa_hora` a otros profesionales libres a esa hora o hasta 1 h después. `agendar` rechaza lo que no cabe salvo `forzar` (solo `citas.gestionar`).
+- **Preferido:** `historial(celular)` cuenta con quién se atendió más (PEN/CON/ATE) y el formulario lo elige solo.
+- **Por cobrar:** una cita ATENDIDA con `cobrada=False` está «por cobrar». `registrar_servicios` (cliente sin cita, `sin_cita=True`, o algo más en una cita) crea citas ya atendidas, una por servicio y seguidas. `por_cobrar()` las agrupa por cliente y día. Vender con `?citas=1,2` carga esos servicios y guarda los ids en el carrito (sessionStorage); `ventas.registrar` recibe `citas` y llama a `marcar_cobradas(ids, venta)`. «Ya cobrado» marca sin venta. Las ATE anteriores a esta versión se dieron por cobradas (migración 0003).
+- **Precio:** `Cita.precio` guarda el del catálogo al agendar y `marcar_cobradas` lo cambia por el `precio_unitario` cobrado en la venta.
+- **Reporte:** ya no hay uno propio: Citas aporta sus columnas (servicios, clientes, sin cita, no vino, ocupación, top, servicios por persona) al reporte único de Personal.
+- Permisos: `citas.ver`, `citas.gestionar`, `citas.personal`, `citas.mi_agenda` (rol Profesional), `citas.agendar_propias` (apagado por defecto; solo con su propio profesional y sin forzar). Un profesional solo ve sus citas.
+- **Mi agenda / compartir:** `mis_horarios` (rangos libres ≥ 30 min) y `mensaje_horarios` → enlace `wa.me/?text=` (elige a quién mandarlo).
+
+## Cliente por celular (una sola forma para todo el sistema)
+
+- `clientes.servicios`: `por_celular(tel)` (compara los últimos 9 dígitos), `recordar(nombre, tel, direccion, origen, cliente)` (con el módulo Clientes busca o registra al cliente y guarda su última dirección; sin el módulo no hace nada) e `historial(tel | cliente)` (pedidos de delivery, reservas, citas, «no vino» sumando reservas y citas, con quién suele atenderse, si debe). Funciona aunque Clientes esté apagado, buscando por celular en cada módulo.
+- Un solo endpoint `clientes:celular` (JSON) para los formularios de delivery, reservas y citas. Lo que debe solo lo ve quien ve clientes o toma deliverys.
+- Delivery (`mesas.servicios.datos_delivery`), Reservas y Citas usan `recordar`; la ficha del cliente muestra «En el negocio» con `historial`.
+
+## Personal (cómo está pensado)
+
+- **App `personal`, base del sistema** (siempre activa, en `MODULOS_BASE`; permiso `personal.editar`, por defecto solo Administración). `Persona`: nombre, celular, `usuario` opcional (uno a uno), color, `comision` %, `atiende_citas`, `reparte`, `servicios`. La ficha (`PersonaForm`) muestra solo lo de los módulos y funciones activos.
+- **Quién usa el Personal:** Citas (agenda, horarios, ausencias), Delivery (`mesas.views._repartidores`: primero los que reparten), Vender (función **«Quién atendió»** → `Venta.atendio_persona`), Mesas (el mozo es un usuario; si tiene Persona, el reporte usa su nombre).
+- **Reporte único** (`personal/reportes.reporte(desde, hasta, modulos, comisiones, atendio)`, sección «Personal» de Reportes y «Este mes» de Mi agenda): una fila por Persona (o por usuario si no está en el Personal). Columnas según el negocio: cobró en caja (`Venta.usuario`), atendió (`atendio_persona` o el mozo `atendio`; sin contar lo que ya cuenta como servicio), propinas (Mesas), servicios… (Citas), entregas (Delivery, por el nombre del repartidor), generó y **comisión** (función «Comisiones»: % sobre lo generado).
+- Funciones nuevas apagadas por defecto: `atendio` y `comisiones` (migración `core.0013`). La migración `citas.0005` pasó los Profesional a Persona con el mismo id.
 
 ## Reportes
 
@@ -204,7 +247,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Límite de tamaño para archivos subidos (`TamanoMaximo`).
   - Modo demo (`DEMO=True`): bloquea cambios de clave, usuarios y admin (`core/middleware.py`).
 - **WhatsApp:**
-  - Enlaces `wa.me` con el mensaje ya armado (`core.utils.numero_whatsapp` agrega el 51).
+  - Enlaces `wa.me` con el mensaje ya armado: **todos** salen de `core.utils.enlace_whatsapp(telefono, texto)` (usa `numero_whatsapp`, que agrega el 51; devuelve "" si el número no sirve; con `telefono=None` abre WhatsApp para elegir a quién mandarlo). En plantillas: filtro `|wa_enlace`. No armar `wa.me` a mano en otro lugar.
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
 - **Redirecciones:** toda dirección de "volver" que llegue por GET pasa por `core.utils.url_segura` (no se puede mandar al usuario a otro sitio).
 - **Respaldos:** `python manage.py respaldo` (o `respaldo.bat`). Guarda la base de datos y `media/` en un zip y conserva los últimos 30.

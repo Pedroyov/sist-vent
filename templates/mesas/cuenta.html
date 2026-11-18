@@ -57,7 +57,7 @@
   <div class="card-body py-2">
     <div class="fw-semibold">{{ c.nombre|default:"(sin nombre)" }}{% if c.cliente %} <a href="{% url 'clientes:detalle' c.cliente_id %}" class="small fw-normal">ficha</a>{% endif %}</div>
     {% if c.telefono %}<div><i class="bi bi-phone me-1"></i><a href="tel:{{ c.telefono }}">{{ c.telefono }}</a>
-      <a href="https://wa.me/{{ c.telefono|whatsapp }}" target="_blank" rel="noopener" class="ms-2 text-success"><i class="bi bi-whatsapp"></i> WhatsApp</a></div>{% endif %}
+      <a href="{{ c.telefono|wa_enlace }}" target="_blank" rel="noopener" class="ms-2 text-success"><i class="bi bi-whatsapp"></i> WhatsApp</a></div>{% endif %}
     <div><i class="bi bi-geo-alt me-1"></i>{{ c.direccion }} {% if c.mapa_url %}<a href="{{ c.mapa_url }}" target="_blank" rel="noopener" class="small">mapa</a>{% endif %}</div>
     {% if c.referencia %}<div class="small text-body-secondary ms-3">{{ c.referencia }}</div>{% endif %}
     <div class="small mt-1">Envío <strong>{{ c.costo_envio|soles }}</strong>{% if c.paga_con %} · Paga con <strong>{{ c.paga_con }}</strong>{% if c.vuelto_para %} → llevar vuelto <strong>{{ c.vuelto_para|soles }}</strong>{% endif %}{% endif %}</div>

@@ -1,0 +1,28 @@
+{% if prof %}
+  {% if no_hace %}<div class="alert alert-warning py-2 small mb-2">{{ prof.nombre }} no tiene marcado este servicio.</div>{% endif %}
+  {% if ocupada %}<div class="alert alert-danger py-2 small mb-2"><i class="bi bi-x-circle me-1"></i>{{ prof.nombre }} no está libre {{ dia_txt }} a las {{ hora|time:"H:i" }} ({{ duracion }} min).</div>{% endif %}
+  {% if ausencia %}<div class="alert alert-secondary py-2 small mb-2"><i class="bi bi-airplane me-1"></i>{{ prof.nombre }}: {{ ausencia.motivo|default:"no viene" }} ({{ ausencia.desde|date:"d/m" }} al {{ ausencia.hasta|date:"d/m" }}).</div>{% endif %}
+  <div class="small fw-semibold mb-1">Libres con {{ prof.nombre }}, {{ dia_txt }} ({{ duracion }} min):</div>
+  {% if libres %}
+  <div class="d-flex flex-wrap gap-1 mb-3">{% for t in libres %}<button type="button" class="btn btn-sm btn-outline-primary hora-chip {% if hora and t == hora %}active{% endif %}" data-hora="{{ t|time:'H:i' }}">{{ t|time:"H:i" }}</button>{% endfor %}</div>
+  {% else %}<p class="small text-body-secondary mb-3">No tiene horarios libres ese día.</p>{% endif %}
+  {% if proximos %}
+  <div class="small fw-semibold mb-1"><i class="bi bi-arrow-right-circle me-1"></i>Próximos horarios con {{ prof.nombre }}:</div>
+  <div class="d-flex flex-wrap gap-1 mb-3">{% for f, t, txt in proximos %}<button type="button" class="btn btn-sm btn-outline-primary hora-chip" data-hora="{{ t|time:'H:i' }}" data-fecha="{{ f|date:'Y-m-d' }}">{{ txt|capfirst }} {{ t|time:"H:i" }}</button>{% endfor %}</div>
+  {% endif %}
+  {% if otros %}
+  <div class="small fw-semibold mb-1"><i class="bi bi-people me-1"></i>O a esa hora con:</div>
+  <div class="d-flex flex-wrap gap-1">{% for p, t in otros %}<button type="button" class="btn btn-sm btn-outline-success hora-chip" data-hora="{{ t|time:'H:i' }}" data-prof="{{ p.pk }}"><span class="agenda-punto" style="background: {{ p.color }}"></span>{{ p.nombre }} ({{ t|time:"H:i" }})</button>{% endfor %}</div>
+  {% endif %}
+{% else %}
+  <div class="small text-body-secondary mb-2">Quién está libre {{ dia_txt }} ({{ duracion }} min). Toca un horario para elegir persona y hora.</div>
+  {% for p, horas, aus in todos %}
+  <div class="mb-3">
+    <div class="small fw-semibold mb-1"><span class="agenda-punto" style="background: {{ p.color }}"></span>{{ p.nombre }}</div>
+    {% if horas %}<div class="d-flex flex-wrap gap-1">{% for t in horas %}<button type="button" class="btn btn-sm btn-outline-primary hora-chip" data-hora="{{ t|time:'H:i' }}" data-prof="{{ p.pk }}">{{ t|time:"H:i" }}</button>{% endfor %}</div>
+    {% elif aus %}<div class="small text-body-secondary"><i class="bi bi-airplane"></i> {{ aus.motivo|default:"No viene" }}</div>
+    {% else %}<div class="small text-body-secondary">Sin horarios libres.</div>{% endif %}
+  </div>
+  {% empty %}<p class="small text-body-secondary">Nadie hace este servicio.</p>
+  {% endfor %}
+{% endif %}

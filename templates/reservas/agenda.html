@@ -51,7 +51,7 @@
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <span class="fw-semibold {% if x.estado == 'CAN' %}text-decoration-line-through{% endif %}">{{ x.nombre }}</span>
                 <span class="text-nowrap"><i class="bi bi-people"></i> {{ x.personas }}</span>
-                {% if x.mesa %}<span class="badge text-bg-light border">Mesa {{ x.mesa.nombre }}</span>{% endif %}
+                {% if x.mesa %}<span class="badge text-bg-light border">{% if x.mesas|length > 1 %}Mesas{% else %}Mesa{% endif %} {{ x.nombres_mesas }}</span>{% endif %}
                 {% if x.estado == "PEN" %}<span class="badge text-bg-warning">Por confirmar</span>
                 {% elif x.estado == "CON" %}<span class="badge text-bg-success">Confirmada</span>
                 {% elif x.estado == "LLE" %}<span class="badge text-bg-primary">Llegó</span>
@@ -67,7 +67,7 @@
               <div class="d-flex flex-wrap gap-1 mt-2">
                 {% if x.activa %}
                   {% if puede_llegada and x.fecha == hoy %}
-                    {% if con_mesas %}<button type="button" class="btn btn-sm btn-primary" data-llego="{% url 'reservas:accion' x.pk 'llego' %}" data-mesa="{{ x.mesa_id|default:'' }}" data-nombre="{{ x.nombre }}" data-personas="{{ x.personas }}"><i class="bi bi-person-check me-1"></i>Llegaron</button>
+                    {% if con_mesas %}<button type="button" class="btn btn-sm btn-primary" data-llego="{% url 'reservas:accion' x.pk 'llego' %}" data-mesas="{% for m in x.mesas %}{{ m.pk }}{% if not forloop.last %},{% endif %}{% endfor %}" data-nombre="{{ x.nombre }}" data-personas="{{ x.personas }}"><i class="bi bi-person-check me-1"></i>Llegaron</button>
                     {% else %}<form method="post" action="{% url 'reservas:accion' x.pk 'llego' %}">{% csrf_token %}<button class="btn btn-sm btn-primary"><i class="bi bi-person-check me-1"></i>Llegaron</button></form>{% endif %}
                   {% endif %}
                   {% if x.wa %}<a href="{{ x.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-success"><i class="bi bi-whatsapp me-1"></i>{% if x.fecha == hoy %}Recordar{% else %}WhatsApp{% endif %}</a>{% endif %}
@@ -125,16 +125,16 @@
       <div class="modal-header"><h5 class="modal-title">Llegó <span id="ll-nombre"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
       <div class="modal-body">
         {% if libres %}
-        <p class="mb-2">¿En qué mesa se sientan? Se abre la cuenta para <strong id="ll-personas"></strong> personas.</p>
+        <p class="mb-2">¿En qué mesa se sientan? Se abre la cuenta para <strong id="ll-personas"></strong> personas. Si marcas varias, se juntan.</p>
         <div class="row g-2">
           {% for m in libres %}<div class="col-3 col-sm-2">
-            <input type="radio" class="btn-check" name="mesa" value="{{ m.pk }}" id="ll-m{{ m.pk }}" required>
+            <input type="checkbox" class="btn-check" name="mesa" value="{{ m.pk }}" id="ll-m{{ m.pk }}">
             <label class="mesa mesa-sm libre w-100" for="ll-m{{ m.pk }}"><span class="num">{{ m.nombre }}</span><span class="info"><i class="bi bi-people"></i> {{ m.capacidad }}</span></label>
           </div>{% endfor %}
         </div>
         {% else %}<div class="alert alert-warning mb-0">No hay mesas libres en este momento.</div>{% endif %}
       </div>
-      {% if libres %}<div class="modal-footer"><button class="btn btn-primary w-100 btn-lg">Abrir la mesa</button></div>{% endif %}
+      {% if libres %}<div class="modal-footer"><button class="btn btn-primary w-100 btn-lg" id="ll-abrir">Abrir la mesa</button></div>{% endif %}
     </form>
   </div>
 </div>
@@ -148,10 +148,17 @@ document.querySelectorAll("[data-llego]").forEach(function (b) {
     f.action = b.dataset.llego;
     document.getElementById("ll-nombre").textContent = b.dataset.nombre;
     var p = document.getElementById("ll-personas"); if (p) p.textContent = b.dataset.personas;
-    f.querySelectorAll("input[name=mesa]").forEach(function (i) { i.checked = i.value === b.dataset.mesa; });
+    var suyas = (b.dataset.mesas || "").split(",");
+    f.querySelectorAll("input[name=mesa]").forEach(function (i) { i.checked = suyas.indexOf(i.value) >= 0; });
     bootstrap.Modal.getOrCreateInstance(document.getElementById("m-llego")).show();
   });
 });
+(function () {  // al menos una mesa
+  var f = document.getElementById("f-llego");
+  if (f) f.addEventListener("submit", function (e) {
+    if (!f.querySelector("input[name=mesa]:checked")) { e.preventDefault(); alert("Elige al menos una mesa."); }
+  });
+})();
 {% if nueva %}(function () { var el = document.getElementById("r{{ nueva }}"); if (el) el.scrollIntoView({block: "center"}); })();{% endif %}
 </script>
 {% endblock %}

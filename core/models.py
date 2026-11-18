@@ -20,12 +20,12 @@ class Rubro(models.TextChoices):
 
 def modulos_inactivos_iniciales():
     """Lo de restaurante empieza apagado (Mesas se activa al elegir ese rubro)."""
-    return ["mesas", "cocina", "delivery", "facturacion", "cobranzas", "reservas"]
+    return ["mesas", "cocina", "delivery", "facturacion", "cobranzas", "reservas", "citas"]
 
 
 def funciones_inactivas_iniciales():
     """Una instalación nueva empieza como tienda: solo variantes (ver core/rubros.py)."""
-    return ["combos", "servicios", "agotados"]
+    return ["combos", "servicios", "agotados", "atendio", "comisiones"]
 
 
 class Ajustes(models.Model):
@@ -124,6 +124,14 @@ class Ajustes(models.Model):
         return funcion not in (self.funciones_inactivas or [])
 
     @property
+    def usa_comisiones(self):
+        return self.usa("comisiones")
+
+    @property
+    def usa_atendio(self):
+        return self.usa("atendio")
+
+    @property
     def usa_variantes(self):
         return self.usa("variantes")
 
@@ -185,10 +193,9 @@ class Ajustes(models.Model):
 
     @property
     def whatsapp_link(self):
-        from .utils import numero_whatsapp
+        from .utils import enlace_whatsapp
 
-        d = numero_whatsapp(self.whatsapp)
-        return f"https://wa.me/{d}" if d else ""
+        return enlace_whatsapp(self.whatsapp)
 
     def linea_contacto(self):
         partes = [x for x in (self.direccion, self.distrito) if x]

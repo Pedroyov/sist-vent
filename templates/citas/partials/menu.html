@@ -1,0 +1,7 @@
+{% if P.personal_editar or P.citas_ver and P.citas_mi_agenda and not P.acceso_total %}
+<ul class="nav nav-pills small mb-3 flex-nowrap overflow-auto text-nowrap">
+  {% if P.citas_ver or P.citas_gestionar %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'agenda' %}active{% endif %}" href="{% url 'citas:agenda' %}"><i class="bi bi-calendar2-week me-1"></i>Agenda</a></li>{% endif %}
+  {% if P.citas_mi_agenda and not P.acceso_total or P.citas_agendar_propias and not P.acceso_total %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'mia' %}active{% endif %}" href="{% url 'citas:mi_agenda' %}"><i class="bi bi-person-badge me-1"></i>Mi agenda</a></li>{% endif %}
+  {% if P.personal_editar %}<li class="nav-item"><a class="nav-link py-1" href="{% url 'personal:lista' %}"><i class="bi bi-people me-1"></i>Personal y horarios</a></li>{% endif %}
+</ul>
+{% endif %}

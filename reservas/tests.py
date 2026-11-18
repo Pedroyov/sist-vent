@@ -11,7 +11,9 @@ from mesas.models import Cuenta, Mesa, Zona
 from mesas.servicios import abrir_cuenta
 
 from .models import Config, Reserva
-from .servicios import (ReservaError, atrasadas, cancelar, cerrar_pasadas, confirmar, guardar, historial, llego, mensaje, no_vino, para_mapa,
+from clientes.servicios import historial
+
+from .servicios import (ReservaError, atrasadas, cancelar, cerrar_pasadas, confirmar, guardar, llego, mensaje, no_vino, para_mapa,
                         reabrir)
 
 
@@ -136,7 +138,7 @@ class VistasTests(Base):
         if (timezone.localtime() + timedelta(minutes=30)).date() != hoy:
             return
         resp = self.client.post(reverse("reservas:nueva"), {"fecha": hoy.isoformat(), "hora": hora, "personas": 3, "nombre": "Carla",
-                                                            "telefono": "986111222", "mesa": self.m1.pk, "nota": "ventana"})
+                                                            "telefono": "986111222", "mesas": self.m1.pk, "nota": "ventana"})
         self.assertEqual(resp.status_code, 302)
         r = Reserva.objects.get()
         mapa = self.client.get(reverse("mesas:mapa"))
@@ -154,7 +156,7 @@ class VistasTests(Base):
     def test_choque_pide_confirmar(self):
         self.reservar(mesa=self.m1)
         self.client.force_login(self.cajero)
-        datos = {"fecha": self.manana.isoformat(), "hora": "20:30", "personas": 2, "nombre": "Otro", "mesa": self.m1.pk}
+        datos = {"fecha": self.manana.isoformat(), "hora": "20:30", "personas": 2, "nombre": "Otro", "mesas": self.m1.pk}
         resp = self.client.post(reverse("reservas:nueva"), datos)
         self.assertContains(resp, "Reservar igual esa mesa")
         resp = self.client.post(reverse("reservas:nueva"), {**datos, "permitir_choque": "True"})
@@ -175,5 +177,42 @@ class VistasTests(Base):
         r = self.reservar()
         no_vino(r, self.cajero)
         self.client.force_login(self.cajero)
-        d = self.client.get(reverse("reservas:historial"), {"tel": "987 654 321"}).json()
+        d = self.client.get(reverse("clientes:celular"), {"tel": "987 654 321"}).json()
         self.assertEqual((d["nombre"], d["reservas"], d["no_vino"]), ("Familia Pérez", 1, 1))
+
+
+class VariasMesasTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.m3 = Mesa.objects.create(zona=self.m1.zona, nombre="3", capacidad=4)
+
+    def test_grupo_grande_con_dos_mesas(self):
+        r, avisos = guardar(self.cajero, fecha=timezone.localdate(), hora=time(23, 30), personas=10, nombre="Cumpleaños",
+                            mesas=[self.m1, self.m3])
+        self.assertEqual(r.nombres_mesas, "1 + 3")
+        self.assertIn("son para 8", avisos[0])
+        # la otra mesa también queda reservada: choca con otra reserva a esa hora
+        with self.assertRaisesMessage(ReservaError, "La mesa 3 ya está reservada"):
+            self.reservar(fecha=timezone.localdate(), hora=time(23, 45), mesa=self.m3, nombre="Otro")
+        Config.objects.update_or_create(pk=1, defaults={"antes": 60, "tolerancia": 20})
+        mapa = para_mapa(_en(timezone.localdate(), 23, 0))
+        self.assertEqual(set(mapa), {self.m1.pk, self.m3.pk})
+
+    def test_llegan_y_se_juntan(self):
+        r, _ = guardar(self.cajero, fecha=timezone.localdate(), hora=time(23, 30), personas=10, nombre="Cumpleaños",
+                       mesas=[self.m1, self.m3])
+        self.client.force_login(self.mozo)
+        # el mozo toca la mesa 3 en el mapa: se abren las dos, con la 3 como principal
+        self.client.post(reverse("reservas:accion", args=[r.pk, "llego"]), {"mesa": self.m3.pk})
+        c = Cuenta.objects.get(estado=Cuenta.Estado.ABIERTA)
+        self.assertEqual((c.mesa, c.personas), (self.m3, 10))
+        self.m1.refresh_from_db()
+        self.assertEqual(self.m1.unida_a, c)
+
+    def test_si_una_esta_ocupada_avisa(self):
+        abrir_cuenta(self.cajero, self.m3, 2)
+        r, _ = guardar(self.cajero, fecha=timezone.localdate(), hora=time(23, 30), personas=8, nombre="Grupo", mesas=[self.m1, self.m3],
+                       permitir_choque=True)
+        c = llego(r, self.mozo)
+        self.assertEqual(c.mesa, self.m1)
+        self.assertIn("mesa 3", r.aviso)

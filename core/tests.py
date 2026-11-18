@@ -206,3 +206,48 @@ class RubrosTests(TestCase):
         r = self.client.get(reverse("cobranzas:planes"))
         self.assertContains(r, "Mensualidades")
         self.assertContains(r, "Alumnos y socios")
+
+
+class TurnosTests(TestCase):
+    """Base común de reservas y citas (core/turnos.py)."""
+
+    def test_textos_y_cierre_de_pasadas_para_los_dos(self):
+        from datetime import date, time, timedelta
+
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+
+        from citas.models import Cita
+        from personal.models import Persona
+        from reservas.models import Reserva
+
+        from . import turnos
+
+        hoy = date(2026, 11, 17)  # martes
+        self.assertEqual(turnos.hora_texto(time(20, 30)), "8:30 pm")
+        self.assertEqual(turnos.hora_texto(9 * 60), "9:00 am")
+        self.assertEqual(turnos.dia_texto(hoy + timedelta(days=1), hoy), "mañana")
+        self.assertEqual(turnos.dia_texto(hoy + timedelta(days=2), hoy), "el jueves 19/11")
+        self.assertEqual(turnos.dia_corto(hoy + timedelta(days=2), hoy), "Jueves 19/11")
+        u = User.objects.create_user("x", password="x-clave-123")
+        ayer = timezone.localdate() - timedelta(days=1)
+        r = Reserva.objects.create(fecha=ayer, hora=time(20), nombre="A", creada_por=u)
+        c = Cita.objects.create(fecha=ayer, inicio=time(10), fin=time(10, 30), profesional=Persona.objects.create(nombre="P"), nombre="B",
+                                creada_por=u)
+        self.assertEqual((turnos.cerrar_pasadas(Reserva), turnos.cerrar_pasadas(Cita)), (1, 1))
+        r.refresh_from_db()
+        c.refresh_from_db()
+        self.assertEqual((r.estado, c.estado), ("NOV", "NOV"))
+        self.assertEqual((r.momento.hour, c.momento.hour), (20, 10))
+        with self.assertRaisesMessage(ValueError, "La reserva ya está como «No vino»"):
+            turnos.cambiar_estado(r, u, "CON", turnos.TurnoBase.ACTIVAS)
+
+
+class WhatsappTests(TestCase):
+    def test_enlace_unico(self):
+        from core.utils import enlace_whatsapp
+
+        self.assertEqual(enlace_whatsapp("986 111 222"), "https://wa.me/51986111222")
+        self.assertEqual(enlace_whatsapp("986111222", "Hola ñ"), "https://wa.me/51986111222?text=Hola%20%C3%B1")
+        self.assertEqual(enlace_whatsapp("", "Hola"), "")  # sin número no hay botón
+        self.assertEqual(enlace_whatsapp(None, "a\nb"), "https://wa.me/?text=a%0Ab")  # compartir

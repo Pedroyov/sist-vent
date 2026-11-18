@@ -144,22 +144,60 @@
 </section>
 {% endif %}
 
-{# ---------- Personal ---------- #}
+{# ---------- Personal: uno solo para todos los negocios (personal/reportes.py) ---------- #}
 <section id="personal">
+{% with a=personal v=personal.ver %}
+{% if v.servicios or v.comisiones %}
 <div class="row g-3 mb-3">
-  <div class="col-lg-{% if con_mesas %}6{% else %}12{% endif %}"><div class="card h-100 mb-0">
-    <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-person-badge me-1"></i> Por quién cobró</h3></div>
-    <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th class="ps-3">Usuario</th><th class="text-end">Ventas</th><th class="text-end">Promedio</th><th class="text-end pe-3">Total</th></tr></thead>
-      <tbody>{% for f in vendedores %}<tr><td class="ps-3">{{ f.etiqueta }}<div class="hbarra mt-1" style="max-width: 200px"><div style="width: {{ f.pct|stringformat:'.1f' }}%"></div></div></td><td class="text-end">{{ f.n }}</td><td class="text-end">{{ f.promedio|soles }}</td><td class="text-end pe-3 fw-semibold">{{ f.total|soles }}</td></tr>
-      {% empty %}<tr><td colspan="4" class="text-center text-body-secondary py-3">Sin ventas.</td></tr>{% endfor %}</tbody></table></div>
-  </div></div>
-  {% if con_mesas %}<div class="col-lg-6"><div class="card h-100 mb-0">
-    <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-person-raised-hand me-1"></i> Por mozo</h3></div>
-    <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th class="ps-3">Mozo</th><th class="text-end">Cuentas</th><th class="text-end">Propinas</th><th class="text-end pe-3">Total</th></tr></thead>
-      <tbody>{% for f in mozos %}<tr><td class="ps-3">{{ f.etiqueta }}<div class="hbarra mt-1" style="max-width: 200px"><div style="width: {{ f.pct|stringformat:'.1f' }}%"></div></div></td><td class="text-end">{{ f.n }}</td><td class="text-end">{{ f.propinas|soles }}</td><td class="text-end pe-3 fw-semibold">{{ f.total|soles }}</td></tr>
-      {% empty %}<tr><td colspan="4" class="text-center text-body-secondary py-3">Sin cobros de mesas.</td></tr>{% endfor %}</tbody></table></div>
-  </div></div>{% endif %}
+  {% if v.servicios %}<div class="col-6 col-lg-3"><div class="card mb-0 h-100"><div class="card-body"><div class="small text-body-secondary">Servicios hechos</div><div class="fs-3 fw-bold">{{ a.servicios }}</div><div class="small">por el personal</div></div></div></div>{% endif %}
+  <div class="col-6 col-lg-3"><div class="card mb-0 h-100"><div class="card-body"><div class="small text-body-secondary">Generó el personal</div><div class="fs-3 fw-bold">{{ a.generado|soles }}</div><div class="small">{% if v.servicios %}servicios{% if v.atendio %} + ventas atendidas{% endif %}{% else %}ventas atendidas{% endif %}</div></div></div></div>
+  {% if v.comisiones %}<div class="col-6 col-lg-3"><div class="card mb-0 h-100 card-outline card-success"><div class="card-body"><div class="small text-body-secondary">Comisiones a pagar</div><div class="fs-3 fw-bold text-success">{{ a.comision_total|soles }}</div><div class="small">según el % de cada persona</div></div></div></div>{% endif %}
 </div>
+{% endif %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-person-vcard me-1"></i> Personal</h3></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="small"><tr><th class="ps-3">Persona</th><th class="text-end">Cobró en caja</th>
+      {% if v.atendio %}<th class="text-end">Atendió</th>{% endif %}{% if v.propinas %}<th class="text-end">Propinas</th>{% endif %}
+      {% if v.servicios %}<th class="text-end">Servicios</th><th class="text-end">Clientes</th><th class="text-end">Sin cita</th><th class="text-end">No vino</th>{% if v.ocupacion %}<th class="text-end">Ocupación</th>{% endif %}<th>Lo que más hizo</th>{% endif %}
+      {% if v.entregas %}<th class="text-end">Entregas</th>{% endif %}
+      {% if v.atendio or v.servicios %}<th class="text-end{% if not v.comisiones %} pe-3{% endif %}">Generó</th>{% endif %}{% if v.comisiones %}<th class="text-end pe-3">Comisión</th>{% endif %}</tr></thead>
+    <tbody>{% for f in a.filas %}<tr>
+      <td class="ps-3 text-nowrap"><span class="agenda-punto" style="background: {{ f.color }}"></span>{{ f.nombre }}<div class="hbarra mt-1" style="max-width: 160px"><div style="width: {{ f.pct|stringformat:'.1f' }}%"></div></div></td>
+      <td class="text-end text-nowrap">{% if f.cobro_n %}{{ f.cobro|soles }}
+        <div class="small text-body-secondary">{% if f.ventas_n %}{{ f.ventas_n }} venta{{ f.ventas_n|pluralize }}{% if f.promedio %} · prom. {{ f.promedio|soles }}{% endif %}{% endif %}
+          {% if f.cuotas_n %}<div>{{ f.cuotas_n }} cuota{{ f.cuotas_n|pluralize }} · {{ f.cuotas|soles }}</div>{% endif %}
+          {% if f.deudas_n %}<div>{{ f.deudas_n }} pago{{ f.deudas_n|pluralize }} de deuda · {{ f.deudas|soles }}</div>{% endif %}</div>
+        {% else %}—{% endif %}</td>
+      {% if v.atendio %}<td class="text-end text-nowrap">{% if f.atendio_n %}{{ f.atendio|soles }}<div class="small text-body-secondary">{{ f.atendio_n }} venta{{ f.atendio_n|pluralize }}</div>{% else %}—{% endif %}</td>{% endif %}
+      {% if v.propinas %}<td class="text-end text-nowrap">{% if f.propinas %}{{ f.propinas|soles }}{% else %}—{% endif %}</td>{% endif %}
+      {% if v.servicios %}<td class="text-end fw-semibold">{{ f.servicios|default:"—" }}</td><td class="text-end">{{ f.clientes|default:"—" }}</td><td class="text-end">{{ f.sin_cita|default:"—" }}</td>
+        <td class="text-end {% if f.no_vino %}text-danger{% endif %}">{{ f.no_vino|default:"—" }}</td>
+        {% if v.ocupacion %}<td class="text-end">{% if f.ocupacion is not None %}{{ f.ocupacion }} %{% else %}—{% endif %}</td>{% endif %}
+        <td class="small">{% for n, k in f.top %}{{ n }} <span class="text-body-secondary">({{ k }})</span>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>{% endif %}
+      {% if v.entregas %}<td class="text-end">{{ f.entregas|default:"—" }}</td>{% endif %}
+      {% if v.atendio or v.servicios %}<td class="text-end fw-semibold text-nowrap{% if not v.comisiones %} pe-3{% endif %}">{% if f.generado %}{{ f.generado|soles }}{% else %}—{% endif %}</td>{% endif %}
+      {% if v.comisiones %}<td class="text-end pe-3 text-success text-nowrap">{% if f.persona %}{{ f.comision|soles }}<div class="small text-body-secondary">{{ f.pct_comision|floatformat:"-2" }} %</div>{% else %}—{% endif %}</td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="12" class="text-center text-body-secondary py-3">Sin movimientos del personal en el periodo.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer small text-body-secondary">
+    <strong>Cobró en caja:</strong> todo lo que cobró con su usuario (ventas{% if v.cuotas %}, cuotas{% endif %}{% if v.deudas %}, pagos de deudas{% endif %}); "prom." es su ticket promedio de ventas.
+    {% if v.atendio %}<strong>Atendió:</strong> ventas que atendió como {% if v.propinas %}mozo{% else %}vendedor{% endif %}.{% endif %}
+    {% if v.ocupacion %}<strong>Ocupación:</strong> tiempo con clientes sobre sus horas de trabajo (hasta hoy).{% endif %}
+    {% if v.comisiones %}La comisión es sobre lo que generó.{% endif %}
+    Quien no está en <a href="{% url 'personal:lista' %}">Personal</a> sale con su nombre de usuario.
+  </div>
+</div>
+{% if a.tabla %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-table me-1"></i> Servicios por persona</h3></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="small"><tr><th class="ps-3">Servicio</th>{% for p in a.columnas %}<th class="text-end"><span class="agenda-punto" style="background: {{ p.color }}"></span>{{ p.nombre }}</th>{% endfor %}<th class="text-end pe-3">Total</th></tr></thead>
+    <tbody>{% for f in a.tabla %}<tr><td class="ps-3">{{ f.servicio }}</td>{% for n in f.por %}<td class="text-end {% if not n %}text-body-tertiary{% endif %}">{{ n }}</td>{% endfor %}<td class="text-end pe-3 fw-semibold">{{ f.total }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endwith %}
 </section>
 
 {# ---------- Mesas ---------- #}

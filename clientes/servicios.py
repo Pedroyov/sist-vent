@@ -228,3 +228,120 @@ def estado_de_cuenta(cliente, limite=200):
         saldo += m["monto"]
         m["saldo"] = saldo
     return list(reversed(movs))[:limite]
+
+
+# --- Cliente por celular: una sola forma para todo el sistema ------------------------------
+# Delivery, Reservas, Citas (y lo que venga) buscan y registran al cliente con estas funciones,
+# y la ficha del cliente muestra todo lo que hizo en el negocio.
+
+def digitos(telefono):
+    return "".join(c for c in str(telefono or "") if c.isdigit())
+
+
+def _filtro_tel(campo, telefono):
+    """Compara por los últimos 9 dígitos (987654321 = +51 987 654 321)."""
+    d = digitos(telefono)
+    return {f"{campo}__endswith": d[-9:]} if len(d) >= 6 else None
+
+
+def por_celular(telefono):
+    """El cliente registrado con ese celular (o None)."""
+    f = _filtro_tel("telefono", telefono)
+    return Cliente.objects.filter(activo=True, **f).order_by("-pk").first() if f else None
+
+
+def recordar(nombre, telefono, direccion="", origen="", cliente=None):
+    """Con el módulo Clientes: busca al cliente por celular o lo registra, y guarda su última dirección.
+    Lo usan el delivery, las reservas, las citas… Sin el módulo (o sin celular) devuelve el cliente dado o None."""
+    tel = "".join(c for c in str(telefono or "") if c.isdigit() or c == "+")[:20]
+    if not modulo_activo() or len(digitos(tel)) < 6:
+        return cliente
+    cli = cliente if cliente is not None and digitos(cliente.telefono)[-9:] == digitos(tel)[-9:] else None
+    cli = cli or por_celular(tel)
+    nombre = " ".join(str(nombre or "").split())[:150]
+    if cli is None:
+        if not nombre:
+            return None
+        return Cliente.objects.create(tipo_documento=Cliente.TipoDocumento.SIN, nombre=nombre, telefono=tel, direccion=direccion or "",
+                                      nota=f"Cliente de {origen}" if origen else "")
+    cambios = []
+    if direccion and cli.direccion != direccion:
+        cli.direccion = direccion  # la última dirección queda para la próxima
+        cambios.append("direccion")
+    if not cli.telefono:
+        cli.telefono = tel
+        cambios.append("telefono")
+    if cambios:
+        cli.save(update_fields=cambios)
+    return cli
+
+
+def historial(telefono=None, cliente=None):
+    """Todo lo que este cliente hizo en el negocio, por su celular (y su ficha, si está registrado).
+
+    Sirve igual con o sin el módulo Clientes: busca en los pedidos, reservas y citas por el celular."""
+    from core.permisos import modulos_activos
+
+    cliente = cliente or (por_celular(telefono) if telefono else None)
+    telefono = telefono or (cliente.telefono if cliente else "")
+    modulos = modulos_activos()
+    datos = {"nombre": cliente.nombre if cliente else "", "cliente_id": cliente.pk if cliente else None,
+             "pedidos": 0, "reservas": 0, "llego": 0, "citas": 0, "no_vino": 0, "no_vino_reservas": 0, "no_vino_citas": 0}
+    if cliente is not None:
+        datos["direccion"] = cliente.direccion
+        datos["compras"] = cliente.ventas.count()
+        saldo = cliente.saldo
+        if saldo > 0:
+            datos["debe"] = f"{saldo:.2f}"
+    ultimos = []  # (fecha, nombre) de lo más reciente, para proponer el nombre
+    if "delivery" in modulos:
+        from mesas.models import Cuenta
+
+        f = _filtro_tel("telefono", telefono)
+        if f:
+            qs = Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, **f).exclude(estado=Cuenta.Estado.ANULADA)
+            datos["pedidos"] = qs.count()
+            ultimo = qs.order_by("-abierta_en").first()
+            if ultimo:
+                datos.setdefault("direccion", ultimo.direccion)
+                if not datos.get("direccion"):
+                    datos["direccion"] = ultimo.direccion
+                datos["referencia"] = ultimo.referencia
+                ultimos.append((ultimo.abierta_en, ultimo.nombre))
+    if "reservas" in modulos:
+        from reservas.models import Reserva
+
+        f = _filtro_tel("telefono", telefono)
+        if f:
+            qs = Reserva.objects.filter(**f)
+            datos["reservas"] = qs.count()
+            datos["llego"] = qs.filter(estado=Reserva.Estado.LLEGO).count()
+            datos["no_vino_reservas"] = qs.filter(estado=Reserva.Estado.NO_VINO).count()
+            ultima = qs.order_by("-fecha", "-hora").first()
+            if ultima:
+                ultimos.append((ultima.momento, ultima.nombre))
+    if "citas" in modulos:
+        from collections import Counter
+
+        from citas.models import Cita
+        from personal.models import Persona
+
+        f = _filtro_tel("telefono", telefono)
+        if f:
+            qs = Cita.objects.filter(**f)
+            datos["citas"] = qs.count()
+            datos["no_vino_citas"] = qs.filter(estado=Cita.Estado.NO_VINO).count()
+            ultima = qs.order_by("-fecha", "-inicio").first()
+            if ultima:
+                ultimos.append((ultima.momento, ultima.nombre))
+            veces = Counter(qs.filter(estado__in=Cita.OCUPAN).values_list("profesional_id", flat=True))
+            if veces:
+                pid, n = veces.most_common(1)[0]
+                p = Persona.objects.filter(pk=pid, activo=True).first()
+                if p:
+                    datos["preferido"] = {"id": p.pk, "nombre": p.nombre, "veces": n, "de": sum(veces.values())}
+    datos["no_vino"] = datos["no_vino_reservas"] + datos["no_vino_citas"]
+    if not datos["nombre"] and ultimos:
+        datos["nombre"] = max(ultimos, key=lambda x: x[0])[1]
+    datos["conocido"] = bool(cliente or datos["pedidos"] or datos["reservas"] or datos["citas"])
+    return datos

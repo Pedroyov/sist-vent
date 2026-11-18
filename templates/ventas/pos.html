@@ -33,6 +33,12 @@
   <div class="flex-grow-1">Para cobrar, primero abre tu caja.</div>
   <a href="{% url 'caja:mi_caja' %}?next={% url 'ventas:pos' %}" class="btn btn-warning">Abrir caja</a></div>
 {% endif %}
+{% if n_por_cobrar or citas_texto %}
+<div class="alert alert-info py-2 d-flex flex-wrap align-items-center gap-2 small">
+  {% if citas_texto %}<span><i class="bi bi-scissors me-1"></i>Cobrando: <strong>{{ citas_texto }}</strong></span>{% endif %}
+  {% if n_por_cobrar %}<a href="{% url 'citas:por_cobrar' %}" class="btn btn-sm btn-info ms-auto"><i class="bi bi-hourglass-split me-1"></i>Servicios por cobrar ({{ n_por_cobrar }})</a>{% endif %}
+</div>
+{% endif %}
 <div class="row g-3">
   {# ---------- Catálogo ---------- #}
   <div class="col-lg-7 col-xl-8">
@@ -65,6 +71,12 @@
         <div class="d-flex align-items-center small mb-2 gap-2"><label for="descuento" class="mb-0">Descuento S/</label>
           <input type="number" id="descuento" class="form-control form-control-sm ms-auto text-end" style="width: 6.5rem" min="0" step="0.10" inputmode="decimal" placeholder="0.00"></div>
         {% endif %}
+        {% if personas_atienden %}
+        <div class="d-flex align-items-center small mb-2 gap-2"><label for="atendio" class="mb-0 text-nowrap"><i class="bi bi-person-badge"></i> Atendió</label>
+          <select id="atendio" class="form-select form-select-sm ms-auto" style="max-width: 12rem">
+            <option value="">—</option>{% for p in personas_atienden %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}
+          </select></div>
+        {% endif %}
         <div class="d-flex align-items-end mb-3"><span class="fw-semibold">Total</span><span class="ms-auto total-grande" id="total">S/ 0.00</span></div>
         <button type="button" class="btn btn-success btn-lg w-100" id="btn-cobrar" disabled><i class="bi bi-cash-coin me-1"></i>Cobrar <small class="opacity-75">(F9)</small></button>
         {% if con_delivery %}<button type="button" class="btn btn-outline-primary w-100 mt-2" id="btn-delivery" disabled><i class="bi bi-scooter me-1"></i>Enviar por delivery</button>{% endif %}
@@ -88,6 +100,7 @@
 
 {{ catalogo|json_script:"datos-catalogo" }}
 {{ categorias|json_script:"datos-categorias" }}
+{{ agregar|json_script:"datos-agregar" }}{{ citas|json_script:"datos-citas" }}
 {% endblock %}
 
 {% block extra_js %}
@@ -116,17 +129,19 @@
   });
 
   // ---------------- estado ----------------
-  var carrito = [], categoria = "", token = nuevoToken();
+  var carrito = [], categoria = "", token = nuevoToken(), citas = [];
   try {
     var g = JSON.parse(sessionStorage.getItem(GUARDADO) || "null");
     if (g && g.items) {
       carrito = g.items.filter(function (l) { return porVariante[l.vid]; }).map(function (l) { l.ops = l.ops || []; l.txt = l.txt || ""; return l; });
       token = g.token || token;
+      citas = g.citas || [];
+      if (g.atendio && $("atendio")) $("atendio").value = g.atendio;
       if (g.descuento && $("descuento")) $("descuento").value = g.descuento;
     }
   } catch (e) {}
   function guardar() {
-    try { sessionStorage.setItem(GUARDADO, JSON.stringify({items: carrito, token: token, descuento: $("descuento") ? $("descuento").value : ""})); } catch (e) {}
+    try { sessionStorage.setItem(GUARDADO, JSON.stringify({items: carrito, token: token, citas: citas, atendio: $("atendio") ? $("atendio").value : "", descuento: $("descuento") ? $("descuento").value : ""})); } catch (e) {}
   }
 
   // ---------------- catálogo ----------------
@@ -236,6 +251,8 @@
     var t = totales();
     Cobro.abrir({total: t.total, titulo: "Cobrar", onConfirmar: function (datos, terminar) {
       datos.token = token;
+      datos.citas = carrito.length ? citas : [];
+      if ($("atendio")) datos.atendio = $("atendio").value;
       datos.items = carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null, opciones: l.ops}; });
       datos.descuento = (t.desc / 100).toFixed(2);
       Cobro.enviar(URL_REGISTRAR, datos).then(function (d) {
@@ -300,7 +317,8 @@
   if ($("descuento")) $("descuento").addEventListener("input", function () { actualizarTotales(); guardar(); });
   $("vaciar").addEventListener("click", function () {
     if (carrito.length && !confirm("¿Vaciar la venta?")) return;
-    carrito = []; token = nuevoToken();
+    carrito = []; token = nuevoToken(); citas = [];
+    if ($("atendio")) $("atendio").value = "";
     if ($("descuento")) $("descuento").value = "";
     pintar(); $("buscar").focus();
   });
@@ -321,6 +339,17 @@
   });
 
   chips(); grid(); pintar();
+  (function () {  // llega desde una cita: agrega el servicio una sola vez
+    var ids = JSON.parse(document.getElementById("datos-agregar").textContent || "[]");
+    var deCitas = JSON.parse(document.getElementById("datos-citas").textContent || "[]");
+    deCitas.forEach(function (c) { if (citas.indexOf(c) < 0) citas.push(c); });
+    var deQuien = {{ atendio_inicial|default:"null" }};
+    if (deQuien && $("atendio") && !$("atendio").value) $("atendio").value = String(deQuien);
+    if (deCitas.length) guardar();
+    if (!ids.length) return;
+    ids.forEach(function (vid) { if (porVariante[vid]) agregar({vid: vid}); });
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  })();
 })();
 </script>
 {% endblock %}

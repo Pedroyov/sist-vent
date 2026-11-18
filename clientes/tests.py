@@ -117,3 +117,46 @@ class FiadoTests(TestCase):
                                                        "limite_credito": "0", "activo": "on"})
         self.assertContains(r, "Ya está registrado")
         self.assertEqual(self.client.get(reverse("clientes:lista") + "?excel=1").status_code, 200)
+
+
+class CelularTests(TestCase):
+    """Una sola forma de reconocer al cliente por su celular, para delivery, reservas y citas."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group, User
+
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": ["cocina"]})
+        self.u = User.objects.create_user("cajero", password="x-clave-123")
+        self.u.groups.add(Group.objects.get(name="Cajero"))
+
+    def test_recordar_y_historial_de_todo_el_negocio(self):
+        from datetime import time, timedelta
+
+        from django.utils import timezone
+
+        from mesas.servicios import abrir_delivery
+        from reservas.models import Reserva
+        from reservas.servicios import guardar, no_vino
+
+        from .servicios import historial, recordar
+
+        c = recordar("Rosa", "987 111 222", "Av. Grau 120", "delivery")
+        self.assertEqual(recordar("Otra", "+51987111222"), c)  # mismo celular: mismo cliente, aunque se escriba distinto
+        abrir_delivery(self.u, "Rosa", "987111222", "Av. Grau 130")
+        c.refresh_from_db()
+        self.assertEqual(c.direccion, "Av. Grau 130")  # recuerda la última dirección
+        r, _ = guardar(self.u, fecha=timezone.localdate() + timedelta(days=1), hora=time(20), personas=2, nombre="Rosa", telefono="987111222")
+        self.assertEqual(r.cliente, c)
+        no_vino(r, self.u)
+        h = historial("987111222")
+        self.assertEqual((h["nombre"], h["pedidos"], h["reservas"], h["no_vino"], h["cliente_id"]), ("Rosa", 1, 1, 1, c.pk))
+        self.client.force_login(self.u)
+        d = self.client.get("/clientes/celular/", {"tel": "987111222"}).json()
+        self.assertTrue(d["conocido"])
+        self.assertEqual(d["direccion"], "Av. Grau 130")
+        resp = self.client.get(f"/clientes/{c.pk}/")
+        self.assertContains(resp, "En el negocio")
+        self.assertContains(resp, "no vino")
+        self.assertEqual(Reserva.objects.get().cliente, c)

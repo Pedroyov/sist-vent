@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .permisos import puede
+from .turnos import por_confirmar
 
 
 def _pend(texto, url, icono="bi-exclamation-circle", color="warning", detalle=""):
@@ -47,6 +48,8 @@ class Tablero:
             self._mesas()
         if puede(self.user, "reservas.ver"):
             self._reservas()
+        if puede(self.user, "citas.ver", "citas.gestionar", "citas.mi_agenda"):
+            self._citas()
         if puede(self.user, "ventas.vender", "ventas.ver"):
             self._ventas()
         if puede(self.user, "cobranzas.ver"):
@@ -66,6 +69,14 @@ class Tablero:
             a.append({"texto": "Pantalla de cocina", "url": reverse("mesas:cocina"), "icono": "bi-fire", "color": "warning"})
         if puede(u, "mesas.atender", "mesas.cobrar"):
             a.append({"texto": "Mesas", "url": reverse("mesas:mapa"), "icono": "bi-grid-3x3-gap", "color": "danger"})
+        if puede(u, "citas.ver", "citas.gestionar"):
+            a.append({"texto": "Citas", "url": reverse("citas:agenda"), "icono": "bi-calendar2-week", "color": "primary"})
+        if puede(u, "citas.gestionar"):
+            a.append({"texto": "Nueva cita", "url": reverse("citas:nueva"), "icono": "bi-calendar-plus", "color": "info"})
+        if puede(u, "citas.mi_agenda") and not puede(u, "citas.gestionar"):
+            a.append({"texto": "Registrar servicio", "url": reverse("citas:registrar"), "icono": "bi-scissors", "color": "success"})
+        if puede(u, "citas.mi_agenda"):
+            a.append({"texto": "Mi agenda", "url": reverse("citas:mi_agenda"), "icono": "bi-person-badge", "color": "success"})
         if puede(u, "reservas.ver"):
             a.append({"texto": "Reservas", "url": reverse("reservas:agenda"), "icono": "bi-calendar-event", "color": "primary"})
         if puede(u, "delivery.atender", "delivery.cobrar"):
@@ -150,10 +161,39 @@ class Tablero:
             self.pendientes.append(_pend(f"{_plural(len(tarde), 'reserva')} sin llegar: {nombres}", url, "bi-hourglass-bottom", "danger",
                                          "Márcalas como «Llegaron» o «No vino»."))
         if puede(self.user, "reservas.gestionar"):
-            manana = self.hoy + timedelta(days=1)
-            n = Reserva.objects.filter(fecha__in=(self.hoy, manana), estado=Reserva.Estado.PENDIENTE).count()
+            n = por_confirmar(Reserva, self.hoy)
             if n:
                 self.pendientes.append(_pend(f"{_plural(n, 'reserva')} por confirmar (hoy y mañana)", url, "bi-whatsapp", "warning",
+                                             "Confírmalas por WhatsApp."))
+
+    def _citas(self):
+        from citas.models import Cita
+        from personal.models import Persona
+        from citas.servicios import cerrar_pasadas, resumen_dia
+
+        cerrar_pasadas(self.hoy)
+        todas = puede(self.user, "citas.ver", "citas.gestionar")
+        mio = None if todas else Persona.objects.filter(usuario=self.user, atiende_citas=True).first()
+        if not todas and mio is None:
+            return
+        r = resumen_dia(self.hoy, mio)
+        url = reverse("citas:agenda") if todas else reverse("citas:mi_agenda")
+        self.tarjetas.append({"titulo": "Citas de hoy" if todas else "Mis citas de hoy", "valor": r["n"], "icono": "bi-calendar2-week",
+                              "color": "primary" if r["n"] else "secondary", "url": url})
+        if todas and not Persona.objects.filter(atiende_citas=True).exists() and puede(self.user, "personal.editar"):
+            self.pendientes.append(_pend("Registra a tu personal y sus horarios para empezar a dar citas", reverse("personal:lista"),
+                                         "bi-people", "primary"))
+        if puede(self.user, "ventas.vender", "citas.gestionar"):
+            from citas.servicios import contar_por_cobrar
+
+            n = contar_por_cobrar()
+            if n:
+                self.pendientes.append(_pend(f"{_plural(n, 'servicio')} hecho{'s' if n != 1 else ''} por cobrar", reverse("citas:por_cobrar"),
+                                             "bi-scissors", "info", "El personal ya avisó: cóbralos en caja."))
+        if puede(self.user, "citas.gestionar"):
+            n = por_confirmar(Cita, self.hoy)
+            if n:
+                self.pendientes.append(_pend(f"{_plural(n, 'cita')} por confirmar (hoy y mañana)", url, "bi-whatsapp", "warning",
                                              "Confírmalas por WhatsApp."))
 
     def _ventas(self):

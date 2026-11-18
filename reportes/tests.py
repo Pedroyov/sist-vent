@@ -110,7 +110,7 @@ class ReportesTests(TestCase):
         self.client.force_login(self.jefe)
         r = self.client.get(reverse("reportes:inicio") + "?p=hoy")
         self.assertContains(r, "Lo más vendido")
-        self.assertContains(r, "Por mozo")       # restaurante: mesas activas
+        self.assertContains(r, "ventas que atendió como mozo")  # restaurante: mesas activas
         self.assertContains(r, "Deudores")       # clientes activo
         r = self.client.get(reverse("reportes:inicio") + "?p=30d&excel=1")
         hojas = load_workbook(BytesIO(r.content)).sheetnames
@@ -118,5 +118,5 @@ class ReportesTests(TestCase):
         self.assertIn("Platos quitados", hojas)
         Ajustes.objects.filter(pk=1).update(modulos_inactivos=["mesas", "clientes"])
         r = self.client.get(reverse("reportes:inicio"))
-        self.assertNotContains(r, "Por mozo")
+        self.assertNotContains(r, "ventas que atendió como mozo")
         self.assertNotContains(r, "Deudores (fiado)")

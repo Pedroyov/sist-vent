@@ -53,6 +53,10 @@ class Command(BaseCommand):
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m not in ("cobranzas", "clientes")]
         elif "cobranzas" not in a.modulos_inactivos:
             a.modulos_inactivos.append("cobranzas")
+        if rubro == Rubro.PELUQUERIA:
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "citas"]
+        elif "citas" not in a.modulos_inactivos:
+            a.modulos_inactivos.append("citas")
         a.razon_social = a.razon_social or f"{nombre.upper()} S.A.C."
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
@@ -106,10 +110,17 @@ class Command(BaseCommand):
 
             marcar_agotados_demo()
             nv = Venta.objects.count()
+        if rubro == Rubro.PELUQUERIA:
+            from citas.demo import cargar_citas
+
+            cargar_citas()
         if rubro == Rubro.ACADEMIA:
             from cobranzas.demo import cargar_cobranzas
 
             cargar_cobranzas()
+        from personal.demo import cargar_personal
+
+        cargar_personal(rubro)  # después de las mesas: ahí se crea el usuario del mozo
         from facturacion.demo import cargar_comprobantes
 
         cargar_comprobantes()
@@ -121,4 +132,4 @@ class Command(BaseCommand):
             SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA, punto__isnull=True).update(punto=principal)
         self.stdout.write(self.style.SUCCESS(
             f"Datos de ejemplo listos ({a.get_rubro_display()}, {n} productos, {nv} ventas). Usuarios: {', '.join(x[0] for x in USUARIOS)}"
-            f"{', mozo' if rubro == Rubro.RESTAURANTE else ''} (clave {CLAVE})."))
+            f"{', mozo' if rubro == Rubro.RESTAURANTE else ''}{', estilista' if rubro == Rubro.PELUQUERIA else ''} (clave {CLAVE})."))

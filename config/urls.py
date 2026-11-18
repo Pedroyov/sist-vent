@@ -23,6 +23,7 @@ urlpatterns = [
     path("cuenta/contrasena/listo/", auth_views.PasswordChangeDoneView.as_view(), name="password_change_done"),
     path("admin/", admin.site.urls),
     path("productos/", include("productos.urls")),
+    path("personal/", include("personal.urls")),
     path("ventas/", include("ventas.urls")),
     path("caja/", include("caja.urls")),
     path("mesas/", include("mesas.urls")),
@@ -31,6 +32,7 @@ urlpatterns = [
     path("facturacion/", include("facturacion.urls")),
     path("cobranzas/", include("cobranzas.urls")),
     path("reservas/", include("reservas.urls")),
+    path("citas/", include("citas.urls")),
     path("", include("core.urls")),
 ]
 

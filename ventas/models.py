@@ -46,6 +46,8 @@ class Venta(models.Model):
                                 verbose_name="vendedor")
     atendio = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
                                 verbose_name="mozo", help_text="Quien atendió la mesa (si no es quien cobró).")
+    atendio_persona = models.ForeignKey("personal.Persona", on_delete=models.SET_NULL, null=True, blank=True, related_name="ventas_atendidas",
+                                        verbose_name="atendió", help_text="Persona del personal que atendió al cliente (función «Quién atendió»).")
     sesion_caja = models.ForeignKey("caja.SesionCaja", on_delete=models.PROTECT, null=True, blank=True,
                                     related_name="ventas", verbose_name="caja")
     cliente = models.ForeignKey("clientes.Cliente", on_delete=models.PROTECT, null=True, blank=True, related_name="ventas")

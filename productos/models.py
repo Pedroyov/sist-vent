@@ -148,7 +148,7 @@ class Producto(models.Model):
                                        validators=[MinValueValidator(CERO)],
                                        help_text="Cuando quede esta cantidad o menos, avisa que hay que reponer. Con variantes, vale para cada una.")
     duracion_min = models.PositiveSmallIntegerField("duración (minutos)", null=True, blank=True,
-                                                    help_text="Para servicios. Sirve más adelante para las citas.")
+                                                    help_text="Para servicios: cuántos minutos dura. Las citas la usan para buscar horarios libres.")
     imagen = models.ImageField(upload_to="productos/", blank=True, validators=[TamanoMaximo(5)])
     area = models.CharField("se prepara en", max_length=3, choices=Area.choices, blank=True,
                             help_text="Vacío = como su categoría. Cámbialo solo si este producto va a otro lado.")

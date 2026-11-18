@@ -16,14 +16,16 @@ def _datos(request):
         "r": s.resumen(desde, hasta), "fechas": fechas, "mensual": mensual,
         "horas": s.por_hora(desde, hasta), "semana": s.por_dia_semana(desde, hasta),
         "productos": s.productos(desde, hasta), "categorias": s.categorias(desde, hasta),
-        "sin_ventas": s.sin_ventas(desde, hasta), "opciones": s.opciones(desde, hasta), "vendedores": s.por_usuario(desde, hasta, "usuario"),
+        "sin_ventas": s.sin_ventas(desde, hasta), "opciones": s.opciones(desde, hasta),
         "anuladas": s.anuladas(desde, hasta), "rebajas": s.cortesias_descuentos(desde, hasta), "cajas": s.cajas(desde, hasta),
         "ver_costos": puede(request.user, "productos.costos"),
         "con_mesas": modulo_activo(request.user, "mesas"), "con_clientes": modulo_activo(request.user, "clientes"),
         "con_productos": modulo_activo(request.user, "productos"), "con_delivery": modulo_activo(request.user, "delivery"),
+        "con_citas": modulo_activo(request.user, "citas"),
     }
-    if d["con_mesas"]:
-        d["mozos"] = s.por_usuario(desde, hasta, "atendio")
+    from personal.reportes import de_negocio
+
+    d["personal"] = de_negocio(desde, hasta)
     if d["con_mesas"] or d["con_delivery"]:
         d["mesas"] = s.mesas(desde, hasta)
     if d["con_clientes"]:
@@ -90,10 +92,49 @@ def _excel(d):
     hoja("Opciones y adicionales", ["Opción", "Grupo", "Veces", "Cobrado aparte"],
          [[f["etiqueta"], f["grupo"], f["veces"], f["ingreso"]] for f in d["opciones"]])
     hoja("Sin ventas", ["Producto", "Categoría"], [[p.nombre, p.categoria.nombre if p.categoria else ""] for p in d["sin_ventas"]])
-    hoja("Vendedores", ["Cobró", "Total", "Ventas", "Ticket promedio"], [[f["etiqueta"], f["total"], f["n"], f["promedio"]] for f in d["vendedores"]])
+    pe = d["personal"]
+    v = pe["ver"]
+    cab = ["Persona", "Cobró en caja", "Ventas que cobró", "Ventas S/", "Ticket promedio"]
+    if v["cuotas"]:
+        cab += ["Cuotas cobradas", "Cuotas S/"]
+    if v["deudas"]:
+        cab += ["Pagos de deudas", "Deudas S/"]
+    if v["atendio"]:
+        cab += ["Ventas que atendió", "Atendió S/"]
+    if v["propinas"]:
+        cab += ["Propinas"]
+    if v["servicios"]:
+        cab += ["Servicios", "Servicios S/", "Clientes", "Sin cita", "No vino", "Horas atendiendo", "Ocupación %", "Lo que más hizo"]
+    if v["entregas"]:
+        cab += ["Entregas"]
+    cab += ["Generó"]
+    if v["comisiones"]:
+        cab += ["Comisión %", "Comisión S/"]
+    filas = []
+    for f in pe["filas"]:
+        x = [f["nombre"], f["cobro"], f["ventas_n"], f["ventas"], f["promedio"] or ""]
+        if v["cuotas"]:
+            x += [f["cuotas_n"], f["cuotas"]]
+        if v["deudas"]:
+            x += [f["deudas_n"], f["deudas"]]
+        if v["atendio"]:
+            x += [f["atendio_n"], f["atendio"]]
+        if v["propinas"]:
+            x += [f["propinas"]]
+        if v["servicios"]:
+            x += [f["servicios"], f["servicios_total"], f["clientes"], f["sin_cita"], f["no_vino"], round(f["minutos"] / 60, 1),
+                  f["ocupacion"] if f["ocupacion"] is not None else "", ", ".join(f"{n} ({k})" for n, k in f["top"])]
+        if v["entregas"]:
+            x += [f["entregas"]]
+        x += [f["generado"]]
+        if v["comisiones"]:
+            x += [f["pct_comision"], f["comision"]]
+        filas.append(x)
+    hoja("Personal", cab, filas)
+    if pe["tabla"]:
+        hoja("Servicios por persona", ["Servicio"] + [p.nombre for p in pe["columnas"]] + ["Total"],
+             [[f["servicio"]] + f["por"] + [f["total"]] for f in pe["tabla"]])
     if d["con_mesas"]:
-        hoja("Mozos", ["Mozo", "Total", "Ventas", "Ticket promedio", "Propinas"],
-             [[f["etiqueta"], f["total"], f["n"], f["promedio"], f["propinas"]] for f in d["mozos"]])
         hoja("Platos quitados", ["Fecha", "Mesa", "Plato", "Cantidad", "Valor", "Motivo", "Mozo", "Quitó"],
              [[timezone.localtime(i.creado).strftime("%d/%m/%Y %H:%M"), i.cuenta.titulo, i.descripcion, i.cantidad, i.subtotal,
                i.motivo_anulacion, i.cuenta.mozo.get_full_name(), i.anulado_por.get_full_name() if i.anulado_por else ""]

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Citas{% endblock %}
+{% block page_title %}Citas{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Citas</li>{% endblock %}
+{% block content %}
+{% include "citas/partials/menu.html" with activo="agenda" %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <div class="btn-group">
+    <a href="?fecha={{ anterior|date:'Y-m-d' }}" class="btn btn-outline-secondary" title="Día anterior"><i class="bi bi-chevron-left"></i></a>
+    <a href="?fecha={{ siguiente|date:'Y-m-d' }}" class="btn btn-outline-secondary" title="Día siguiente"><i class="bi bi-chevron-right"></i></a>
+  </div>
+  <h5 class="mb-0 me-auto">{% if fecha == hoy %}Hoy, {% elif fecha == manana %}Mañana, {% endif %}{{ fecha|date:"l d/m" }}</h5>
+  <a href="?fecha={{ hoy|date:'Y-m-d' }}" class="btn btn-sm {% if fecha == hoy %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Hoy</a>
+  <a href="?fecha={{ manana|date:'Y-m-d' }}" class="btn btn-sm {% if fecha == manana %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Mañana</a>
+  <form method="get"><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm" onchange="this.form.submit()" aria-label="Elegir día"></form>
+  {% if gestiona %}<a href="{% url 'citas:registrar' %}" class="btn btn-outline-success" title="Cliente sin cita"><i class="bi bi-scissors me-1"></i>Registrar servicio</a>
+  <a href="{% url 'citas:nueva' %}?fecha={{ fecha|date:'Y-m-d' }}" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Nueva cita</a>{% endif %}
+</div>
+{% if n_por_cobrar %}<a href="{% url 'citas:por_cobrar' %}" class="alert alert-info py-2 d-flex align-items-center gap-2 text-decoration-none small">
+  <i class="bi bi-hourglass-split"></i><span><strong>{{ n_por_cobrar }}</strong> servicio{{ n_por_cobrar|pluralize }} hecho{{ n_por_cobrar|pluralize }} por cobrar en caja</span><i class="bi bi-chevron-right ms-auto"></i></a>{% endif %}
+
+{% if not hay_personal %}
+<div class="alert alert-info d-flex align-items-center gap-2"><i class="bi bi-people fs-4"></i>
+  <div class="flex-grow-1">Primero registra a quienes atienden, con sus horarios y servicios.</div>
+  {% if P.personal_editar %}<a href="{% url 'personal:nuevo' %}" class="btn btn-primary">Agregar personal</a>{% endif %}
+</div>
+{% else %}
+<div class="d-flex flex-wrap gap-3 small mb-2">
+  <span><strong>{{ r.n }}</strong> cita{{ r.n|pluralize }}</span>
+  {% if r.por_confirmar %}<span class="text-warning-emphasis"><strong>{{ r.por_confirmar }}</strong> por confirmar</span>{% endif %}
+  {% if r.atendidas %}<span class="text-success"><strong>{{ r.atendidas }}</strong> atendida{{ r.atendidas|pluralize }}</span>{% endif %}
+  {% if r.no_vino %}<span class="text-danger"><strong>{{ r.no_vino }}</strong> no vino</span>{% endif %}
+  {% if gestiona %}<span class="text-body-secondary ms-auto d-none d-md-inline">Toca un espacio libre para agendar ahí.</span>{% endif %}
+</div>
+{% if columnas %}
+<div class="card mb-3"><div class="agenda-scroll">
+  <div class="agenda" style="--alto: {{ alto|stringformat:'.0f' }}px">
+    <div class="agenda-eje">
+      <div class="agenda-cab"></div>
+      <div class="agenda-cuerpo">{% for h in horas %}<span class="agenda-hora" style="top: {{ h.top|stringformat:'.0f' }}px">{{ h.h|time:"H:i" }}</span>{% endfor %}</div>
+    </div>
+    {% for col in columnas %}
+    <div class="agenda-col">
+      <div class="agenda-cab">
+        <div class="fw-semibold text-truncate"><span class="agenda-punto" style="background: {{ col.p.color }}"></span>{{ col.p.nombre }}</div>
+        <div class="small text-body-secondary text-truncate">
+          {% if col.ausencia %}<i class="bi bi-airplane"></i> {{ col.ausencia.motivo|default:"No viene" }}
+          {% elif col.horario %}{{ col.horario.entrada|time:"G:i" }}–{{ col.horario.salida|time:"G:i" }} · {{ col.n }} cita{{ col.n|pluralize }}
+          {% else %}No trabaja{% endif %}
+        </div>
+      </div>
+      <div class="agenda-cuerpo">
+        {% for h in horas %}<span class="agenda-linea" style="top: {{ h.top|stringformat:'.0f' }}px"></span>{% endfor %}
+        {% for t in col.trabaja %}<span class="agenda-trabaja" style="top: {{ t.top|stringformat:'.0f' }}px; height: {{ t.alto|stringformat:'.0f' }}px"></span>{% endfor %}
+        {% for h in col.huecos %}<a class="agenda-hueco" style="top: {{ h.top|stringformat:'.0f' }}px; height: {{ h.alto|stringformat:'.0f' }}px" href="{% url 'citas:nueva' %}?profesional={{ col.p.pk }}&fecha={{ fecha|date:'Y-m-d' }}&hora={{ h.hora|time:'H:i' }}" title="Agendar con {{ col.p.nombre }} a las {{ h.hora|time:'H:i' }}">+ {{ h.hora|time:"H:i" }}</a>{% endfor %}
+        {% for b in col.bloques %}
+        <a href="{% url 'citas:detalle' b.c.pk %}" class="agenda-cita estado-{{ b.c.estado|lower }}" style="top: {{ b.top|stringformat:'.0f' }}px; height: {{ b.alto|stringformat:'.0f' }}px; --color: {{ col.p.color }}">
+          <span class="fw-semibold">{{ b.c.inicio|time:"H:i" }}</span> {{ b.c.nombre }}
+          {% if b.c.estado == "ATE" %}<i class="bi bi-check-circle-fill text-success"></i>{% elif b.c.estado == "PEN" %}<i class="bi bi-question-circle text-warning-emphasis" title="Por confirmar"></i>{% elif b.c.estado == "NOV" %}<i class="bi bi-person-x text-danger"></i>{% endif %}
+          <span class="d-block text-truncate opacity-75">{{ b.c.servicio_nombre }}</span>
+        </a>
+        {% endfor %}
+        {% if linea is not None %}<span class="agenda-ahora" style="top: {{ linea|stringformat:'.0f' }}px"></span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div></div>
+{% else %}
+<div class="alert alert-light border">Nadie trabaja este día.</div>
+{% endif %}
+
+{% if lista %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-ul me-1"></i> Citas del día</h3></div>
+  <div class="list-group list-group-flush small">
+    {% for c in lista %}
+    <a href="{% url 'citas:detalle' c.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 {% if not c.activa and c.estado != 'ATE' %}text-body-secondary{% endif %}">
+      <strong class="text-nowrap">{{ c.inicio|time:"H:i" }}</strong>
+      <span class="agenda-punto" style="background: {{ c.profesional.color }}"></span>
+      <span class="text-truncate {% if c.estado == 'CAN' %}text-decoration-line-through{% endif %}">{{ c.nombre }} · {{ c.servicio_nombre|default:"Cita" }} · {{ c.profesional.nombre }}</span>
+      <span class="ms-auto">{% include "citas/partials/estado.html" %}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

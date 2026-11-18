@@ -11,6 +11,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
+from core.turnos import TurnoBase
+
 
 class Config(models.Model):
     """Opciones de reservas (una sola fila)."""
@@ -38,7 +40,9 @@ class Config(models.Model):
         return obj
 
 
-class Reserva(models.Model):
+class Reserva(TurnoBase):
+    """Reserva de mesa. Lo común (cliente, nota, quién la tomó, estados) está en core.turnos.TurnoBase."""
+
     class Estado(models.TextChoices):
         PENDIENTE = "PEN", "Por confirmar"
         CONFIRMADA = "CON", "Confirmada"
@@ -51,18 +55,14 @@ class Reserva(models.Model):
     fecha = models.DateField()
     hora = models.TimeField()
     personas = models.PositiveSmallIntegerField(default=2, validators=[MinValueValidator(1), MaxValueValidator(200)])
-    nombre = models.CharField(max_length=60)
-    telefono = models.CharField("celular", max_length=20, blank=True)
-    cliente = models.ForeignKey("clientes.Cliente", on_delete=models.SET_NULL, null=True, blank=True, related_name="reservas")
-    mesa = models.ForeignKey("mesas.Mesa", on_delete=models.SET_NULL, null=True, blank=True, related_name="reservas")
+    mesa = models.ForeignKey("mesas.Mesa", on_delete=models.SET_NULL, null=True, blank=True, related_name="reservas",
+                             help_text="La mesa principal (ahí se abre la cuenta).")
+    mesas_extra = models.ManyToManyField("mesas.Mesa", blank=True, related_name="reservas_extra",
+                                         help_text="Otras mesas para el mismo grupo: se juntan con la principal al llegar.")
     nota = models.CharField(max_length=200, blank=True, help_text="Ej.: cumpleaños, silla para bebé, cerca de la ventana.")
     estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.PENDIENTE)
     cuenta = models.ForeignKey("mesas.Cuenta", on_delete=models.SET_NULL, null=True, blank=True, related_name="reservas",
                                help_text="La cuenta que se abrió cuando llegaron.")
-    creada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reservas_creadas")
-    creada_en = models.DateTimeField(default=timezone.now)
-    cambiada_en = models.DateTimeField(null=True, blank=True)
-    cambiada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta:
         verbose_name = "reserva"
@@ -73,13 +73,6 @@ class Reserva(models.Model):
     def __str__(self):
         return f"{self.nombre} · {self.fecha:%d/%m} {self.hora:%H:%M} ({self.personas})"
 
-    @property
-    def momento(self):
-        return timezone.make_aware(datetime.combine(self.fecha, self.hora))
-
-    @property
-    def activa(self):
-        return self.estado in self.ACTIVAS
 
     def atrasada(self, ahora=None, cfg=None):
         """Sigue activa y ya pasó la tolerancia (no llegaron)."""
@@ -87,7 +80,18 @@ class Reserva(models.Model):
         return self.activa and (ahora or timezone.now()) > self.momento + timedelta(minutes=cfg.tolerancia)
 
     @property
-    def whatsapp(self):
-        from core.utils import numero_whatsapp
+    def mesas(self):
+        """La principal y las que se juntan, en orden."""
+        if self.mesa_id is None:
+            return []
+        extra = sorted(self.mesas_extra.all(), key=lambda m: (m.zona_id, m.orden, m.nombre)) if self.pk else []
+        return [self.mesa] + [m for m in extra if m.pk != self.mesa_id]
 
-        return numero_whatsapp(self.telefono)
+    @property
+    def nombres_mesas(self):
+        return " + ".join(m.nombre for m in self.mesas)
+
+    @property
+    def capacidad(self):
+        return sum(m.capacidad for m in self.mesas)
+

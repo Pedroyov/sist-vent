@@ -23,7 +23,6 @@ urlpatterns = [
     path("cuenta/<int:pk>/delivery/", views.delivery_accion, name="delivery"),
     path("delivery/", views.pedidos, name="pedidos"),
     path("delivery/nuevo/", views.delivery_nuevo, name="delivery_nuevo"),
-    path("delivery/buscar/", views.delivery_buscar, name="delivery_buscar"),
     path("item/<int:pk>/cortesia/", views.cortesia_vista, name="cortesia"),
     path("cuenta/<int:pk>/servido/", views.servido, name="servido"),
     path("cocina/", views.cocina, name="cocina"),

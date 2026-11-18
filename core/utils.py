@@ -27,6 +27,23 @@ def numero_whatsapp(telefono):
     return d
 
 
+def enlace_whatsapp(telefono=None, texto=""):
+    """El único lugar donde se arma un enlace de WhatsApp (wa.me), con el mensaje listo si se da `texto`.
+
+    - Con teléfono: abre el chat con esa persona. Si el número no sirve, devuelve "" (para no mostrar el botón).
+    - Sin teléfono (None): abre WhatsApp para elegir a quién mandarlo (compartir un ticket, mis horarios…)."""
+    from urllib.parse import quote
+
+    if telefono is None:
+        base = "https://wa.me/"
+    else:
+        numero = numero_whatsapp(telefono)
+        if not numero:
+            return ""
+        base = f"https://wa.me/{numero}"
+    return f"{base}?text={quote(texto)}" if texto else base
+
+
 @deconstructible
 class TamanoMaximo:
     """Validador: límite de tamaño para archivos subidos (en MB)."""

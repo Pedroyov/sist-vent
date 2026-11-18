@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{% if c %}Cambiar cita{% else %}Nueva cita{% endif %}{% endblock %}
+{% block page_title %}{% if c %}Cambiar cita{% else %}Nueva cita{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% if gestiona %}{% url 'citas:agenda' %}{% else %}{% url 'citas:mi_agenda' %}{% endif %}">Citas</a></li><li class="breadcrumb-item active">{% if c %}Cambiar{% else %}Nueva{% endif %}</li>{% endblock %}
+{% block content %}
+<form method="post" novalidate id="f-cita" data-horarios="{% url 'citas:horarios' %}" data-historial="{% url 'clientes:celular' %}" data-excluir="{{ c.pk|default:'' }}">{% csrf_token %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card card-outline card-primary mb-3">
+      <div class="card-body">
+        {% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+        <div class="row g-2 mb-2">
+          <div class="col-8"><label class="form-label mb-1" for="f-servicio">Servicio</label>
+            <select name="servicio" id="f-servicio" class="form-select">
+              <option value="">Otro (escribe la duración)</option>
+              {% for v in servicios %}<option value="{{ v.pk }}" {% if datos.servicio == v.pk|stringformat:'s' %}selected{% endif %}>{{ v.nombre_completo }} · S/ {{ v.precio_venta }}</option>{% endfor %}
+            </select></div>
+          <div class="col-4"><label class="form-label mb-1" for="f-duracion">Minutos</label>
+            <input type="number" name="duracion" id="f-duracion" class="form-control" min="5" max="600" step="5" inputmode="numeric" value="{{ datos.duracion }}" placeholder="{{ cfg.duracion }}"></div>
+        </div>
+        {% if mio %}
+        <input type="hidden" name="profesional" id="f-prof" value="{{ mio.pk }}">
+        <p class="small mb-2">Atiendes tú: <strong>{{ mio.nombre }}</strong></p>
+        {% else %}
+        <label class="form-label mb-1" for="f-prof">Atiende</label>
+        <select name="profesional" id="f-prof" class="form-select mb-1">
+          <option value="">Cualquiera (ver quién está libre)</option>
+          {% for p in personal %}<option value="{{ p.pk }}" {% if datos.profesional == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+        </select>
+        <div class="small mb-2 text-body-secondary" id="f-pref"></div>
+        {% endif %}
+        <div class="row g-2 mb-2 align-items-end">
+          <div class="col-7"><label class="form-label mb-1" for="f-fecha">Día</label>
+            <input type="date" name="fecha" id="f-fecha" class="form-control" value="{{ datos.fecha }}"></div>
+          <div class="col-5"><label class="form-label mb-1" for="f-hora">Hora</label>
+            <input type="time" name="hora" id="f-hora" class="form-control" step="300" value="{{ datos.hora }}"></div>
+        </div>
+        <div class="d-flex gap-1 mb-3"><button type="button" class="btn btn-sm btn-outline-secondary" data-dias="0">Hoy</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-dias="1">Mañana</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-dias="2">Pasado</button></div>
+        <div class="d-lg-none mb-3" id="horarios-movil"></div>
+        <label class="form-label mb-1" for="f-tel">Celular</label>
+        <input type="tel" name="telefono" id="f-tel" class="form-control mb-1" inputmode="tel" maxlength="20" placeholder="987654321" value="{{ datos.telefono }}" autocomplete="off">
+        <div class="small mb-2" id="f-tel-info"></div>
+        <label class="form-label mb-1" for="f-nombre">Nombre <span class="text-danger">*</span></label>
+        <input type="text" name="nombre" id="f-nombre" class="form-control mb-2" maxlength="60" value="{{ datos.nombre }}" placeholder="Ej.: Carmen Ruiz">
+        <label class="form-label mb-1" for="f-nota">Nota</label>
+        <input type="text" name="nota" id="f-nota" class="form-control" maxlength="200" value="{{ datos.nota }}" placeholder="Ej.: tinte rubio cenizo, trae su foto de referencia">
+        {% if gestiona %}<div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="forzar" value="1" id="f-forzar">
+          <label class="form-check-label small" for="f-forzar">Agendar aunque no esté libre (fuera de su horario o cruzada con otra cita)</label></div>{% endif %}
+      </div>
+      <div class="card-footer d-flex gap-2 justify-content-end">
+        <a href="{% if c %}{% url 'citas:detalle' c.pk %}{% elif gestiona %}{% url 'citas:agenda' %}{% else %}{% url 'citas:mi_agenda' %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>{% if c %}Guardar cambios{% else %}Agendar{% endif %}</button>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6 d-none d-lg-block">
+    <div class="card mb-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-clock me-1"></i> Horarios libres</h3></div>
+      <div class="card-body" id="horarios-pc"></div></div>
+  </div>
+</div>
+</form>
+{{ duraciones|json_script:"d-duraciones" }}{{ hacen|json_script:"d-hacen" }}{{ producto_de|json_script:"d-producto" }}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var f = document.getElementById("f-cita"), $ = function (id) { return document.getElementById(id); };
+  var DUR = JSON.parse(JSON.parse($("d-duraciones").textContent)), HACEN = JSON.parse(JSON.parse($("d-hacen").textContent)),
+      PROD = JSON.parse(JSON.parse($("d-producto").textContent));
+  var serv = $("f-servicio"), dur = $("f-duracion"), prof = $("f-prof"), fecha = $("f-fecha"), hora = $("f-hora"), durTocada = !!dur.value;
+  function panel() { return window.matchMedia("(min-width: 992px)").matches ? $("horarios-pc") : $("horarios-movil"); }
+  function cargar() {
+    var q = new URLSearchParams({servicio: serv.value, duracion: dur.value, profesional: prof.value, fecha: fecha.value, hora: hora.value, excluir: f.dataset.excluir});
+    fetch(f.dataset.horarios + "?" + q, {credentials: "same-origin"}).then(function (r) { return r.text(); }).then(function (html) {
+      $("horarios-pc").innerHTML = ""; $("horarios-movil").innerHTML = "";
+      panel().innerHTML = html;
+    });
+  }
+  function filtrar() {  // solo quien hace ese servicio
+    if (prof.tagName !== "SELECT") return;
+    var pid = PROD[serv.value];
+    Array.prototype.forEach.call(prof.options, function (o) {
+      if (!o.value) return;
+      var h = HACEN[o.value] || [];
+      o.hidden = !!pid && h.length > 0 && h.indexOf(pid) < 0;
+      if (o.hidden && o.selected) prof.value = "";
+    });
+  }
+  serv.addEventListener("change", function () { if (!durTocada || !dur.value) dur.value = DUR[serv.value] || ""; filtrar(); cargar(); });
+  dur.addEventListener("input", function () { durTocada = true; });
+  dur.addEventListener("change", cargar);
+  [prof, fecha].forEach(function (el) { el.addEventListener("change", cargar); });
+  hora.addEventListener("change", cargar);
+  document.querySelectorAll("[data-dias]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var d = new Date(); d.setDate(d.getDate() + parseInt(b.dataset.dias, 10));
+      fecha.value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      cargar();
+    });
+  });
+  // tocar un horario libre: pone la hora (y la persona y el día, si vienen)
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest(".hora-chip");
+    if (!b) return;
+    var recargar = false;
+    if (b.dataset.prof && prof.value !== b.dataset.prof) { prof.value = b.dataset.prof; recargar = true; }
+    if (b.dataset.fecha && fecha.value !== b.dataset.fecha) { fecha.value = b.dataset.fecha; recargar = true; }
+    hora.value = b.dataset.hora;
+    if (recargar) { cargar(); return; }
+    document.querySelectorAll(".hora-chip.active").forEach(function (x) { x.classList.remove("active"); });
+    b.classList.add("active");
+  });
+  // celular: nombre, citas anteriores y con quién suele atenderse
+  var tel = $("f-tel"), info = $("f-tel-info"), t;
+  tel.addEventListener("input", function () {
+    clearTimeout(t);
+    var n = tel.value.replace(/\D/g, "");
+    if (n.length < 9) { info.textContent = ""; return; }
+    t = setTimeout(function () {
+      fetch(f.dataset.historial + "?tel=" + n, {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.conocido) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
+        if (!$("f-nombre").value) $("f-nombre").value = d.nombre;
+        var txt = d.citas ? "Vino antes (" + d.citas + " cita" + (d.citas > 1 ? "s" : "") + ")." : "Cliente conocido.";
+        if (d.preferido) {
+          txt += " Suele atenderse con " + d.preferido.nombre + " (" + d.preferido.veces + " de " + d.preferido.de + ").";
+          if (prof.tagName === "SELECT" && !prof.value) { prof.value = String(d.preferido.id); cargar(); }
+        }
+        if (d.no_vino) txt += " No vino " + d.no_vino + (d.no_vino > 1 ? " veces" : " vez") + ": conviene confirmar.";
+        info.className = "small mb-2 " + (d.no_vino ? "text-danger" : "text-success");
+        info.textContent = txt;
+      });
+    }, 300);
+  });
+  if (!dur.value && serv.value) dur.value = DUR[serv.value] || "";
+  filtrar(); cargar();
+})();
+</script>
+{% endblock %}

@@ -16,7 +16,8 @@ CAJERO = "Cajero"
 VENDEDOR = "Vendedor"
 COCINA = "Cocina"
 MOZO = "Mozo"  # restaurante: toma pedidos y entrega la precuenta; no cobra ni maneja caja
-ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, MOZO, COCINA]
+PROFESIONAL = "Profesional"  # peluquería, spa: ve su agenda y comparte sus horarios libres
+ROLES_BASE = [ADMINISTRACION, CAJERO, VENDEDOR, MOZO, COCINA, PROFESIONAL]
 
 # Módulos = lo que el negocio contrató. Los activa o apaga el superusuario (el proveedor del sistema) en
 # Configuración → Módulos. Cómo usa el dueño lo contratado (propina, nivel de pedidos, ancho del ticket…) va en
@@ -43,8 +44,11 @@ MODULOS = [
     ("reservas", "Reservas", "bi-calendar-event",
      "Para restaurantes: agenda de reservas con celular y personas, confirmación por WhatsApp, la mesa se ve «Reservada» en el mapa "
      "y al llegar se abre la cuenta.", None),
+    ("citas", "Citas y agenda", "bi-calendar2-week",
+     "Para peluquerías, spas y consultorios: personal con horarios y días libres, citas por servicio, horarios libres y la "
+     "próxima hora disponible; cada trabajador ve su agenda y comparte sus horarios.", None),
 ]
-MODULOS_BASE = ("config", "productos", "ventas")
+MODULOS_BASE = ("config", "productos", "ventas", "personal")
 NECESITA = {m[0]: m[4] for m in MODULOS}
 
 # (código, módulo, descripción, roles que lo tienen por defecto)
@@ -79,6 +83,11 @@ PERMISOS = [
     ("reservas.ver", "reservas", "Ver las reservas y marcar cuando llegan o no vienen (si también atiende mesas)", [CAJERO, VENDEDOR, MOZO]),
     ("reservas.gestionar", "reservas", "Tomar, cambiar, confirmar y cancelar reservas", [CAJERO]),
 
+    ("citas.ver", "citas", "Ver la agenda de citas de todo el personal", [CAJERO, VENDEDOR]),
+    ("citas.gestionar", "citas", "Agendar, cambiar, confirmar y cancelar citas de cualquiera; marcar atendidas", [CAJERO]),
+    ("citas.mi_agenda", "citas", "Ver su propia agenda y compartir sus horarios libres (quien atiende)", [PROFESIONAL]),
+    ("citas.agendar_propias", "citas", "Agendar sus propias citas en sus horarios libres (quien atiende)", []),
+
     ("reportes.ver", "reportes", "Ver los reportes del negocio", []),
 
     ("ventas.vender", "mostrador", "Vender en el mostrador y ver sus propias ventas", [CAJERO, VENDEDOR]),
@@ -96,12 +105,14 @@ PERMISOS = [
     ("facturacion.ver", "facturacion", "Ver los comprobantes electrónicos y reenviar los pendientes", [CAJERO]),
     ("facturacion.configurar", "facturacion", "Configurar la facturación electrónica (proveedor, series, IGV)", []),
 
+    ("personal.editar", "personal", "Registrar al personal (quién atiende, reparte o vende), sus horarios, días libres y comisiones", []),
+
     ("config.negocio", "config", "Datos del negocio (nombre, logo, RUC, contacto)", []),
     ("config.usuarios", "config", "Crear y editar usuarios (el rol Administración solo lo da Administración)", []),
 ]
 CODIGOS = [p[0] for p in PERMISOS]
 MODULO_DE = {p[0]: p[1] for p in PERMISOS}
-NOMBRE_MODULO = {"config": "Configuración", "productos": "Productos", "ventas": "Ventas", **{m[0]: m[1] for m in MODULOS}}
+NOMBRE_MODULO = {"config": "Configuración", "productos": "Productos", "ventas": "Ventas", "personal": "Personal", **{m[0]: m[1] for m in MODULOS}}
 
 
 def permisos_por_defecto(rol):

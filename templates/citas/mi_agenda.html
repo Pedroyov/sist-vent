@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Mi agenda{% endblock %}
+{% block page_title %}Mi agenda{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Mi agenda</li>{% endblock %}
+{% block content %}
+{% include "citas/partials/menu.html" with activo="mia" %}
+{% if sin_profesional %}
+<div class="alert alert-info">Tu usuario todavía no está enlazado a un profesional. Pídele al administrador que lo haga en <strong>Citas → Personal y horarios</strong>.</div>
+{% else %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h5 class="mb-0 me-auto"><span class="agenda-punto" style="background: {{ mio.color }}"></span>{{ mio.nombre }} · hoy {{ r.n }} cita{{ r.n|pluralize }}{% if r.atendidas %} ({{ r.atendidas }} atendida{{ r.atendidas|pluralize }}){% endif %}</h5>
+  <a href="{% url 'citas:registrar' %}" class="btn btn-success"><i class="bi bi-scissors me-1"></i>Registrar servicio</a>
+  {% if puede_agendar %}<a href="{% url 'citas:nueva' %}" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Agendar una cita</a>{% endif %}
+</div>
+{% with g=mes.0 %}
+<div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center small">
+  <span class="text-body-secondary">Este mes:</span>
+  <span><strong class="fs-5">{{ g.servicios|default:0 }}</strong> servicio{{ g.servicios|default:0|pluralize }}</span>
+  <span><strong class="fs-5">{{ g.generado|default:0|soles }}</strong> atendido</span>
+  {% if mes.1 and g %}<span class="text-success"><strong class="fs-5">{{ g.comision|soles }}</strong> de comisión ({{ mio.comision|floatformat:"-2" }} %)</span>{% endif %}
+  {% if g.top %}<span class="text-body-secondary">Lo que más hiciste: {% for n, k in g.top %}{{ n }} ({{ k }}){% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+</div></div>
+{% endwith %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-calendar2-week me-1"></i> Mis citas</h3></div>
+      {% if dias %}
+      <div class="list-group list-group-flush">
+        {% for f, txt, lista in dias %}
+        <div class="list-group-item bg-body-tertiary small fw-semibold py-1">{{ txt }}</div>
+        {% for c in lista %}
+        <a href="{% url 'citas:detalle' c.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+          <strong class="text-nowrap">{{ c.inicio|time:"H:i" }}</strong>
+          <span class="text-truncate">{{ c.nombre }} <span class="text-body-secondary">· {{ c.servicio_nombre|default:"Cita" }} · {{ c.minutos }} min{% if c.sin_cita %} · sin cita{% endif %}</span></span>
+          <span class="ms-auto">{% include "citas/partials/estado.html" %}</span>
+        </a>
+        {% endfor %}
+        {% endfor %}
+      </div>
+      {% else %}<div class="card-body text-body-secondary">No tienes citas en los próximos días.</div>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-outline card-success mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-whatsapp me-1"></i> Compartir mis horarios</h3></div>
+      <div class="card-body">
+        {% if libres %}
+        <ul class="list-unstyled small mb-3">{% for f, txt, rangos in libres %}<li class="mb-1"><strong>{{ txt }}:</strong> {{ rangos }}</li>{% endfor %}</ul>
+        {% else %}<p class="small text-body-secondary">No tienes horarios libres en los próximos días.</p>{% endif %}
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ wa }}" target="_blank" rel="noopener" class="btn btn-success"><i class="bi bi-whatsapp me-1"></i>Enviar por WhatsApp</a>
+          <button type="button" class="btn btn-outline-secondary" id="copiar"><i class="bi bi-clipboard me-1"></i>Copiar</button>
+        </div>
+        <p class="small text-body-secondary mt-2 mb-0">Se arma con lo que está libre en este momento: siempre está al día.</p>
+        <textarea id="texto" class="visually-hidden" readonly>{{ texto }}</textarea>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-clock me-1"></i> Mi horario</h3></div>
+      <ul class="list-group list-group-flush small">
+        {% for h in horario %}<li class="list-group-item d-flex"><span>{{ h.get_dia_display }}</span><span class="ms-auto">{{ h.entrada|time:"G:i" }}–{{ h.salida|time:"G:i" }}{% if h.descanso_desde %} <span class="text-body-secondary">(refrigerio {{ h.descanso_desde|time:"G:i" }}–{{ h.descanso_hasta|time:"G:i" }})</span>{% endif %}</span></li>
+        {% empty %}<li class="list-group-item text-body-secondary">Sin horario registrado.</li>{% endfor %}
+        {% for a in ausencias %}<li class="list-group-item text-body-secondary"><i class="bi bi-airplane me-1"></i>{{ a.motivo|default:"Ausencia" }}: {{ a.desde|date:"d/m" }}{% if a.hasta != a.desde %} al {{ a.hasta|date:"d/m" }}{% endif %}{% if not a.todo_el_dia %} ({{ a.hora_desde|time:"G:i" }}–{{ a.hora_hasta|time:"G:i" }}){% endif %}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+var b = document.getElementById("copiar");
+if (b) b.addEventListener("click", function () {
+  var t = document.getElementById("texto").value;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { b.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado'; },
+    function () { var x = document.getElementById("texto"); x.classList.remove("visually-hidden"); x.select(); });
+});
+</script>
+{% endblock %}

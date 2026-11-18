@@ -697,7 +697,7 @@ class DeliveryTests(TestCase):
         c.refresh_from_db()
         self.assertEqual((c.estado, c.estado_envio), (Cuenta.Estado.COBRADA, "ENT"))
         # la próxima vez, por el celular aparecen el nombre y la dirección
-        r = self.client.get(reverse("mesas:delivery_buscar"), {"tel": "987111222"})
+        r = self.client.get(reverse("clientes:celular"), {"tel": "987111222"})
         self.assertEqual((r.json()["nombre"], r.json()["direccion"]), ("Rosa", "Av. Grau 120"))
 
     def test_cambiar_envio_y_validaciones(self):

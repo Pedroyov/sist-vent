@@ -32,9 +32,22 @@
     {% for e in form.personas.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
     <div class="mb-3"></div>
     {{ form.telefono|as_crispy_field }}
-    <div class="small mb-2" id="tel-info" data-url="{% url 'reservas:historial' %}"></div>
+    <div class="small mb-2" id="tel-info" data-url="{% url 'clientes:celular' %}"></div>
     {{ form.nombre|as_crispy_field }}
-    {% if form.mesa %}{{ form.mesa|as_crispy_field }}{% endif %}
+    {% if form.mesas %}
+    <label class="form-label mb-1">Mesa <span class="small text-body-secondary">(opcional)</span></label>
+    <div class="small text-body-secondary mb-2">Para un grupo grande marca varias: se juntan solas al llegar. Sin marcar, la mesa se elige al llegar.</div>
+    {% for z, lista in mesas_zonas %}
+    <div class="small fw-semibold mb-1">{{ z.nombre }}</div>
+    <div class="row g-2 mb-2">
+      {% for m in lista %}<div class="col-3 col-sm-2">
+        <input type="checkbox" class="btn-check" name="mesas" value="{{ m.pk }}" id="rm{{ m.pk }}" data-cap="{{ m.capacidad }}" {% if m.pk|stringformat:'s' in elegidas %}checked{% endif %}>
+        <label class="mesa mesa-sm libre w-100" for="rm{{ m.pk }}"><span class="num">{{ m.nombre }}</span><span class="info"><i class="bi bi-people"></i> {{ m.capacidad }}</span></label>
+      </div>{% endfor %}
+    </div>
+    {% endfor %}
+    <div class="small mb-3" id="cap-info"></div>
+    {% endif %}
     {{ form.nota|as_crispy_field }}
   </div>
   <div class="card-footer d-flex gap-2 justify-content-end">
@@ -66,6 +79,21 @@
     b.addEventListener("click", function () { pers.value = b.dataset.n; marcar(); });
   });
   pers.addEventListener("input", marcar); marcar();
+  // Mesas elegidas: cuántas personas entran
+  var cajas = document.querySelectorAll("input[name=mesas]"), cap = document.getElementById("cap-info");
+  function capacidad() {
+    if (!cap) return;
+    var el = Array.prototype.filter.call(cajas, function (c) { return c.checked; });
+    if (!el.length) { cap.textContent = ""; return; }
+    var total = el.reduce(function (a, c) { return a + parseInt(c.dataset.cap, 10); }, 0), n = parseInt(pers.value, 10) || 0;
+    cap.className = "small mb-3 " + (n > total ? "text-danger" : "text-success");
+    cap.textContent = (el.length > 1 ? el.length + " mesas juntas: " : "La mesa es ") + "para " + total + " persona" + (total !== 1 ? "s" : "") +
+      (n > total ? ". Faltan lugares para " + (n - total) + "." : ".");
+  }
+  cajas.forEach(function (c) { c.addEventListener("change", capacidad); });
+  pers.addEventListener("input", capacidad);
+  document.querySelectorAll("#atajos-personas [data-n]").forEach(function (b) { b.addEventListener("click", capacidad); });
+  capacidad();
 
   // Al escribir el celular: el nombre y cómo le fue antes
   var tel = document.getElementById("id_telefono"), info = document.getElementById("tel-info"), nombre = document.getElementById("id_nombre"), t;
@@ -75,11 +103,12 @@
     if (n.length < 9) { info.textContent = ""; return; }
     t = setTimeout(function () {
       fetch(info.dataset.url + "?tel=" + encodeURIComponent(n), {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
-        if (!d.nombre) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
+        if (!d.conocido) { info.className = "small mb-2 text-body-secondary"; info.textContent = "Cliente nuevo."; return; }
         if (!nombre.value) nombre.value = d.nombre;
-        if (!d.reservas) { info.className = "small mb-2 text-success"; info.textContent = "Cliente registrado."; return; }
         function veces(n) { return n + (n > 1 ? " veces" : " vez"); }
-        var txt = "Ya reservó " + veces(d.reservas) + (d.llego ? " · vino " + d.llego : "");
+        var txt = d.reservas ? "Ya reservó " + veces(d.reservas) + (d.llego ? " · vino " + d.llego : "") : "Cliente conocido";
+        if (d.citas) txt += " · " + d.citas + " cita" + (d.citas > 1 ? "s" : "");
+        if (d.pedidos) txt += " · " + d.pedidos + " pedido" + (d.pedidos > 1 ? "s" : "") + " de delivery";
         if (d.no_vino) txt += " · no vino " + veces(d.no_vino) + ": conviene confirmar por WhatsApp.";
         info.className = "small mb-2 " + (d.no_vino ? "text-danger" : "text-success");
         info.textContent = txt;
