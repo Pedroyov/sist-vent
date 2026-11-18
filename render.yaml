@@ -1,16 +1,21 @@
-# Demo gratuita en Render (https://render.com). Ver DEMO_RENDER.md.
-# Cada vez que Render reinicia el servicio, la demo vuelve a los datos de ejemplo.
+# Demos gratuitas en Render (https://render.com), una por tipo de negocio. Ver DEMO_RENDER.md.
+# Cada vez que se despliega, la demo vuelve a los datos de ejemplo con las fechas de ese día.
+# No se actualizan solas con cada push (autoDeployTrigger: off) para no gastar los minutos de
+# construcción gratis: antes de mostrar una demo, en Render → Manual Deploy → Deploy latest commit.
+# Solo para demostración: para un negocio real se usa otra configuración con PostgreSQL.
 services:
+  # restaurante
   - type: web
     name: sistema-ventas-demo
     runtime: python
     plan: free
     region: oregon
+    autoDeployTrigger: "off"
     buildCommand: >-
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput &&
       python manage.py migrate --noinput &&
-      python manage.py datos_demo --rubro "${DEMO_RUBRO:-RES}"
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
     startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
     envVars:
       - key: PYTHON_VERSION
@@ -24,7 +29,162 @@ services:
       - key: ALLOWED_HOSTS
         value: ".onrender.com"
       - key: DEMO_RUBRO
-        value: "RES"   # RES restaurante, TIE tienda, ROP ropa, LIB librería, PEL peluquería, ACA academia o gimnasio
+        value: "RES"
+      - key: NEGOCIO_NOMBRE
+        value: "Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Demo"
+
+  # tienda / bodega
+  - type: web
+    name: sistema-ventas-tienda
+    runtime: python
+    plan: free
+    region: oregon
+    autoDeployTrigger: "off"
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "TIE"
+      - key: NEGOCIO_NOMBRE
+        value: "Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Demo"
+
+  # ropa y calzado
+  - type: web
+    name: sistema-ventas-ropa
+    runtime: python
+    plan: free
+    region: oregon
+    autoDeployTrigger: "off"
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "ROP"
+      - key: NEGOCIO_NOMBRE
+        value: "Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Demo"
+
+  # librería / útiles
+  - type: web
+    name: sistema-ventas-libreria
+    runtime: python
+    plan: free
+    region: oregon
+    autoDeployTrigger: "off"
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "LIB"
+      - key: NEGOCIO_NOMBRE
+        value: "Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Demo"
+
+  # peluquería / barbería / spa
+  - type: web
+    name: sistema-ventas-peluqueria
+    runtime: python
+    plan: free
+    region: oregon
+    autoDeployTrigger: "off"
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "PEL"
+      - key: NEGOCIO_NOMBRE
+        value: "Demo"
+      - key: NEGOCIO_NOMBRE_CORTO
+        value: "Demo"
+
+  # academia / gimnasio (cobranzas)
+  - type: web
+    name: sistema-ventas-academia
+    runtime: python
+    plan: free
+    region: oregon
+    autoDeployTrigger: "off"
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput &&
+      python manage.py migrate --noinput &&
+      python manage.py datos_demo --rubro "${DEMO_RUBRO}"
+    startCommand: gunicorn config.wsgi --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DEBUG
+        value: "False"
+      - key: DEMO
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DEMO_RUBRO
+        value: "ACA"
       - key: NEGOCIO_NOMBRE
         value: "Demo"
       - key: NEGOCIO_NOMBRE_CORTO

@@ -245,7 +245,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
   - Exportes a Excel sin fórmulas (`core/excel.a_bytes`).
   - Ids recibidos por GET/POST siempre pasan por `core.utils.entero`.
   - Límite de tamaño para archivos subidos (`TamanoMaximo`).
-  - Modo demo (`DEMO=True`): bloquea cambios de clave, usuarios y admin (`core/middleware.py`).
+  - Modo demo (`DEMO=True`): bloquea cambios de clave, usuarios y admin (`core/middleware.py`). La pantalla de ingreso lista solo los usuarios de prueba que sirven en ese negocio (`core.roles.usuarios_demo`, según su rol y los módulos activos).
 - **WhatsApp:**
   - Enlaces `wa.me` con el mensaje ya armado: **todos** salen de `core.utils.enlace_whatsapp(telefono, texto)` (usa `numero_whatsapp`, que agrega el 51; devuelve "" si el número no sirve; con `telefono=None` abre WhatsApp para elegir a quién mandarlo). En plantillas: filtro `|wa_enlace`. No armar `wa.me` a mano en otro lugar.
   - Los botones que además anotan el aviso usan la clase `.btn-recordar` con `data-aviso-url` (en `static/js/app.js`).
@@ -253,7 +253,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Respaldos:** `python manage.py respaldo` (o `respaldo.bat`). Guarda la base de datos y `media/` en un zip y conserva los últimos 30.
 - **Pruebas:** `python manage.py test core productos ventas caja mesas clientes reportes`. `core/tests.py` recorre todas las pantallas con cada rol sobre la demo y falla si alguna da error.
 - **HTMX:** el token CSRF va en `hx-headers` del `<body>`. Nunca poner `hx-post` en un `<a href>`, porque bloquea el enlace.
-- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, una carta de 47 productos con opciones, un segundo mozo (`mozo`), dos semanas de mesas cobradas (con propinas, cortesías, descuentos y platos quitados) y mesas ocupadas en distintos momentos (`mesas/demo.py`). Los agotados del día se marcan al final (`marcar_agotados_demo`). `demo.bat` los carga en una base aparte.
+- **Datos de ejemplo:** `python manage.py datos_demo --rubro ROP` (TIE, RES, ROP, LIB o PEL; en `core/management/commands`) carga un negocio de ejemplo de ese rubro, los usuarios `admin`, `gerente`, `cajero` y `vendedor` (clave `demo1234`), su catálogo (`productos/demo.py`) una semana de ventas con sus cajas abiertas y cerradas (`ventas/demo.py`) y, en restaurante, una carta de 47 productos con opciones, un segundo mozo (`mozo`), dos semanas de mesas cobradas (con propinas, cortesías, descuentos y platos quitados) y mesas ocupadas en distintos momentos (`mesas/demo.py`). Los agotados del día se marcan al final (`marcar_agotados_demo`). `demo.bat` los carga en una base aparte. `render.yaml` define una demo gratis en Render por cada rubro, con SQLite y sin despliegue automático (ver `DEMO_RENDER.md`).
 
 ## Convenciones
 

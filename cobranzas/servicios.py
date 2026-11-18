@@ -282,7 +282,7 @@ def anular_pago(pago, usuario, motivo):
     if not motivo:
         raise CobranzaError("Indica el motivo.")
     with transaction.atomic():
-        p = Pago.objects.select_for_update().select_related("sesion_caja").get(pk=pago.pk)
+        p = Pago.objects.select_for_update(of=("self",)).select_related("sesion_caja").get(pk=pago.pk)
         if p.anulado:
             raise CobranzaError("Ese pago ya estaba anulado.")
         if p.metodo == MetodoPago.EFECTIVO and p.sesion_caja_id and not p.sesion_caja.abierta:

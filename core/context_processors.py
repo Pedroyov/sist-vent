@@ -18,6 +18,10 @@ def negocio(request):
         "T": palabras(datos),
     }
     user = getattr(request, "user", None)
+    if settings.DEMO and not (user is not None and user.is_authenticated):
+        from .roles import usuarios_demo
+
+        contexto["DEMO_USUARIOS"] = usuarios_demo(datos)
     if user is not None and user.is_authenticated:
         contexto.update({"MIS_ROLES": roles_de(user), "P": PermisosPlantilla(user)})
         from ventas.models import MetodoPago

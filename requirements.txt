@@ -19,3 +19,6 @@ Pillow>=10.4
 
 # Servidor para producción / Render
 gunicorn>=23.0
+
+# PostgreSQL en producción (con SQLite no se usa)
+psycopg[binary]>=3.2

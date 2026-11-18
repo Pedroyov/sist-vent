@@ -109,7 +109,7 @@ class FiadoTests(TestCase):
         r = self.client.post(reverse("clientes:abonar", args=[self.maria.pk]), {"monto": "5", "metodo": "EFE"})
         self.assertEqual(self.maria.saldo, D("15"))
         self.assertContains(self.client.get(r["Location"]), "Estado de cuenta")
-        self.assertContains(self.client.get(reverse("clientes:imprimir", args=[self.maria.pk]) + "?pago=1"), "CONSTANCIA DE PAGO")
+        self.assertContains(self.client.get(reverse("clientes:imprimir", args=[self.maria.pk]) + f"?pago={self.maria.abonos.latest('id').pk}"), "CONSTANCIA DE PAGO")
         r = self.client.post(reverse("clientes:nuevo"), {"tipo_documento": "RUC", "numero_documento": "20100047218", "nombre": "Banco",
                                                        "limite_credito": "0", "activo": "on"})
         self.assertEqual(Cliente.objects.get(numero_documento="20100047218").nombre, "Banco")

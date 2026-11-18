@@ -196,7 +196,7 @@ def anular_abono(abono, usuario, motivo):
     if not motivo:
         raise ClienteError("Indica el motivo.")
     with transaction.atomic():
-        a = Abono.objects.select_for_update().select_related("sesion_caja").get(pk=abono.pk)
+        a = Abono.objects.select_for_update(of=("self",)).select_related("sesion_caja").get(pk=abono.pk)
         if a.anulado:
             raise ClienteError("Ese pago ya estaba anulado.")
         # Si su caja ya cerró, el efectivo devuelto sale de la caja abierta de quien anula
