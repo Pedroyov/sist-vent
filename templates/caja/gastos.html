@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Gastos{% endblock %}
+{% block page_title %}Gastos <small class="text-body-secondary fs-6">{{ desde|date:"d/m/Y" }}{% if desde != hasta %} al {{ hasta|date:"d/m/Y" }}{% endif %}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Gastos</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div class="btn-group btn-group-sm flex-wrap" role="group">
+    {% for k, t in atajos %}<a href="?p={{ k }}{% if motivo %}&motivo={{ motivo }}{% endif %}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
+  </div>
+  <form class="d-flex gap-1 align-items-end" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
+    {% if motivo %}<input type="hidden" name="motivo" value="{{ motivo }}">{% endif %}
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+  <a href="{% url 'caja:gasto_nuevo' %}" class="btn btn-danger ms-sm-auto"><i class="bi bi-plus-lg me-1"></i>Gasto fuera de caja</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-5">
+    <div class="card h-100 mb-0">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-wallet2 me-1"></i> Por motivo</h3></div>
+      {% if g.filas %}
+      <ul class="list-group list-group-flush">
+        {% for f in g.filas %}
+        <li class="list-group-item">
+          <a href="?{{ filtro|urlencode }}&motivo={{ f.categoria }}" class="d-flex text-reset text-decoration-none"><span>{{ f.etiqueta }} <span class="small text-body-secondary">({{ f.n }})</span></span><span class="ms-auto fw-semibold">{{ f.total|soles }}</span></a>
+          <div class="progress mt-1" style="height: .35rem"><div class="progress-bar bg-danger" style="width: {{ f.pct }}%"></div></div>
+        </li>
+        {% endfor %}
+        <li class="list-group-item d-flex fw-bold"><span>Total gastos</span><span class="ms-auto text-danger">{{ g.total|soles }}</span></li>
+      </ul>
+      {% else %}<div class="card-body small text-body-secondary">Sin gastos en el periodo.</div>{% endif %}
+      <div class="card-footer small text-body-secondary">
+        {% if g.fuera %}{{ g.fuera|soles }} se pagaron fuera de caja.<br>{% endif %}
+        {% if g.retiros %}Retiros del dueño: {{ g.retiros|soles }} (no son gasto).<br>{% endif %}
+        La ganancia real está en <a href="{% url 'reportes:inicio' %}?{{ filtro|urlencode }}#gastos">Reportes</a>.
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100 mb-0">
+      <div class="card-header d-flex align-items-center flex-wrap gap-2">
+        <h3 class="card-title mb-0"><i class="bi bi-list-ul me-1"></i> Detalle</h3>
+        <form method="get" class="ms-auto">
+          {% for k, v in filtro.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+          <select name="motivo" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Todos los motivos</option>
+            {% for v, t in motivos %}<option value="{{ v }}" {% if motivo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+        </form>
+      </div>
+      {% if pagina.object_list %}
+      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <tbody>
+          {% for m in pagina.object_list %}
+          <tr>
+            <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m" }}<div class="text-body-secondary">{{ m.fecha|date:"H:i" }}</div></td>
+            <td>{{ m.concepto }}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}
+              <div class="small text-body-secondary">{{ m.motivo }} ·
+                {% if m.sesion %}<a href="{% url 'caja:sesion' m.sesion_id %}">Caja {{ m.sesion.numero }}</a>{% else %}fuera de caja{% endif %} · {{ m.usuario|nombre }}
+                {% if not m.es_gasto %}· <span class="text-warning-emphasis">no es gasto</span>{% endif %}</div></td>
+            <td class="text-end text-nowrap fw-semibold">{{ m.monto|soles }}</td>
+            <td class="pe-3 text-end">{% if not m.sesion %}
+              <form method="post" action="{% url 'caja:gasto_quitar' m.pk %}" onsubmit="return confirm('¿Quitar este gasto?')">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+      {% if pagina.has_other_pages %}<div class="card-footer d-flex gap-2 justify-content-center">
+        {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+        <span class="small align-self-center">{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
+        {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+      </div>{% endif %}
+      {% else %}<div class="card-body small text-body-secondary">Nada que mostrar.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

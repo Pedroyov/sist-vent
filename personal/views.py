@@ -17,6 +17,12 @@ def _comisiones():
     return Ajustes.cargar().usa_comisiones
 
 
+def _pagos():
+    from core.models import Ajustes
+
+    return Ajustes.cargar().usa_pagos
+
+
 @permiso_requerido("personal.editar")
 def lista(request):
     modulos = modulos_activos()
@@ -27,7 +33,7 @@ def lista(request):
         if con_citas:
             p.dias = [h.get_dia_display()[:3] for h in p.horarios.all()]
             p.proxima_ausencia = p.ausencias.filter(hasta__gte=hoy).first()
-    ctx = {"lista": personas, "con_citas": con_citas, "con_delivery": "delivery" in modulos, "comisiones": _comisiones()}
+    ctx = {"lista": personas, "con_citas": con_citas, "con_delivery": "delivery" in modulos, "comisiones": _comisiones(), "pagos": _pagos()}
     if con_citas:
         from citas.forms import ConfigForm
         from citas.models import Config
@@ -41,7 +47,7 @@ def ficha(request, pk=None):
     p = get_object_or_404(Persona, pk=pk) if pk else None
     modulos = modulos_activos()
     con_citas = "citas" in modulos
-    kw = {"modulos": modulos, "comisiones": _comisiones()}
+    kw = {"modulos": modulos, "comisiones": _comisiones(), "pagos": _pagos()}
     dias = None
     if con_citas:
         from citas.forms import HorariosFormSet
@@ -72,6 +78,26 @@ def ficha(request, pk=None):
         ctx.update({"dias": dias, "filas": list(zip(DIAS, dias.forms)), "form_aus": AusenciaForm(initial={"desde": hoy, "hasta": hoy}),
                     "ausencias": p.ausencias.filter(hasta__gte=hoy - timedelta(days=30)).order_by("-desde") if p else []})
     return render(request, "personal/ficha.html", ctx)
+
+
+@permiso_requerido("personal.editar")
+def pagos(request):
+    """Cuánto le toca a cada persona en el periodo, cuánto ya se le pagó y cuánto falta (función «Pagos al personal»)."""
+    from caja.models import SesionCaja
+    from core.permisos import puede
+    from reportes.servicios import ATAJOS, periodo
+
+    from .pagos import cuentas
+
+    if not _pagos():
+        messages.info(request, "Activa «Pagos al personal» en Configuración → Módulos del sistema.")
+        return redirect("personal:lista")
+    desde, hasta, atajo = periodo(request, defecto="mes")
+    caja = SesionCaja.abierta_de(request.user) if puede(request.user, "caja.usar") else None
+    return render(request, "personal/pagos.html", {
+        "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": ATAJOS, "c": cuentas(desde, hasta), "caja": caja,
+        "fuera": puede(request.user, "caja.ver"), "volver": request.get_full_path(),
+    })
 
 
 def _dar_rol(user):

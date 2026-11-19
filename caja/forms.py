@@ -60,19 +60,56 @@ class PuntoCajaForm(forms.ModelForm):
 
 
 class MovimientoForm(forms.ModelForm):
+    """Sacar o meter dinero de la caja. Con «Pagos al personal», el pago a personal se liga a la persona."""
+
     class Meta:
         model = MovimientoCaja
-        fields = ["categoria", "monto", "concepto"]
+        fields = ["categoria", "persona", "monto", "concepto"]
         widgets = {"monto": forms.NumberInput(attrs={**DINERO, "autofocus": True})}
 
     def __init__(self, *args, tipo=MovimientoCaja.Tipo.EGRESO, **kwargs):
         super().__init__(*args, **kwargs)
+        from core.models import Ajustes
+        from personal.models import Persona
+
         C = MovimientoCaja.Categoria
         if tipo == MovimientoCaja.Tipo.INGRESO:
             opciones = [C.SENCILLO, C.OTRO]
         else:
-            opciones = [C.PROVEEDOR, C.GASTO, C.PERSONAL, C.RETIRO, C.DEVOLUCION, C.OTRO]
+            opciones = self.EGRESOS
         self.fields["categoria"].choices = [(c.value, c.label) for c in opciones]
+        if tipo == MovimientoCaja.Tipo.EGRESO and Ajustes.cargar().usa_pagos:
+            self.fields["persona"].queryset = Persona.objects.filter(activo=True)
+            self.fields["persona"].empty_label = "—"
+            self.fields["persona"].help_text = "Solo para «Pago o adelanto a personal»."
+        else:
+            del self.fields["persona"]
+
+    EGRESOS = [MovimientoCaja.Categoria.PROVEEDOR, MovimientoCaja.Categoria.GASTO, MovimientoCaja.Categoria.PERSONAL,
+               MovimientoCaja.Categoria.RETIRO, MovimientoCaja.Categoria.DEVOLUCION, MovimientoCaja.Categoria.OTRO]
+
+    def clean(self):
+        d = super().clean()
+        if "persona" in self.fields and d.get("categoria") == MovimientoCaja.Categoria.PERSONAL and not d.get("persona"):
+            self.add_error("persona", "Elige a quién se le paga.")
+        return d
+
+
+class GastoForm(MovimientoForm):
+    """Gasto pagado fuera de caja (transferencia, Yape, dinero del dueño): no descuadra ninguna caja."""
+
+    dia = forms.DateField(label="Fecha", widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+
+    class Meta(MovimientoForm.Meta):
+        fields = ["categoria", "persona", "monto", "concepto"]
+
+    EGRESOS = [MovimientoCaja.Categoria.PROVEEDOR, MovimientoCaja.Categoria.GASTO, MovimientoCaja.Categoria.PERSONAL,
+               MovimientoCaja.Categoria.DEVOLUCION, MovimientoCaja.Categoria.OTRO]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, tipo=MovimientoCaja.Tipo.EGRESO, **kwargs)
+        self.order_fields(["dia"])
+        self.fields["concepto"].help_text = 'Ej.: "Alquiler de noviembre, transferencia BCP".'
 
 
 class CerrarForm(forms.Form):

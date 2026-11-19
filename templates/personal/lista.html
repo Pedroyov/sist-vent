@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load crispy_forms_tags %}
+{% load crispy_forms_tags sis %}
 {% block title %}Personal{% endblock %}
 {% block page_title %}Personal{% endblock %}
 {% block breadcrumb %}<li class="breadcrumb-item active">Personal</li>{% endblock %}
@@ -8,7 +8,8 @@
   <div class="col-lg-{% if con_citas %}8{% else %}9{% endif %}">
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-people me-1"></i> Quienes trabajan aquí</h3>
-        <a href="{% url 'personal:nuevo' %}" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-person-plus me-1"></i>Agregar</a></div>
+        {% if pagos %}<a href="{% url 'personal:pagos' %}" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-cash-coin me-1"></i>Pagos</a>{% endif %}
+        <a href="{% url 'personal:nuevo' %}" class="btn btn-sm btn-primary {% if not pagos %}ms-auto{% endif %}{% if pagos %}ms-2{% endif %}"><i class="bi bi-person-plus me-1"></i>Agregar</a></div>
       {% if lista %}
       <div class="list-group list-group-flush">
         {% for p in lista %}
@@ -20,6 +21,7 @@
             {% if con_citas and p.atiende_citas %}<span class="badge text-bg-primary-subtle text-primary-emphasis">Atiende citas</span>{% endif %}
             {% if con_delivery and p.reparte %}<span class="badge text-bg-warning-subtle text-warning-emphasis">Reparte</span>{% endif %}
             {% if comisiones %}<span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle">{{ p.comision|floatformat:"-2" }} % comisión</span>{% endif %}
+            {% if pagos and p.sueldo %}<span class="badge text-bg-light border">{{ p.sueldo|soles }} {{ p.get_sueldo_cada_display|lower }}</span>{% endif %}
             {% if con_citas and p.atiende_citas %}<span class="ms-auto small text-body-secondary">{{ p.dias|join:", "|default:"Sin horario" }}</span>{% endif %}
           </div>
           {% if con_citas and p.atiende_citas %}<div class="small text-body-secondary mt-1">

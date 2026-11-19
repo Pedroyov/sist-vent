@@ -98,14 +98,15 @@ class MovimientoCaja(models.Model):
 
     class Categoria(models.TextChoices):
         PROVEEDOR = "PRO", "Pago a proveedor"
-        GASTO = "GAS", "Gasto del local (luz, limpieza, movilidad…)"
+        GASTO = "GAS", "Gasto del local (alquiler, luz, limpieza, movilidad…)"
         PERSONAL = "PER", "Pago o adelanto a personal"
         RETIRO = "RET", "Retiro del dueño / depósito al banco"
         DEVOLUCION = "DEV", "Devolución a cliente"
         SENCILLO = "SEN", "Sencillo o aporte de efectivo"
         OTRO = "OTR", "Otro"
 
-    sesion = models.ForeignKey(SesionCaja, on_delete=models.CASCADE, related_name="movimientos")
+    # Sin caja = «fuera de caja»: un gasto pagado por transferencia, Yape o con dinero que no estaba en el cajón (alquiler, sueldo).
+    sesion = models.ForeignKey(SesionCaja, on_delete=models.CASCADE, related_name="movimientos", null=True, blank=True)
     tipo = models.CharField(max_length=3, choices=Tipo.choices)
     categoria = models.CharField("motivo", max_length=3, choices=Categoria.choices, default=Categoria.OTRO)
     monto = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
@@ -113,6 +114,8 @@ class MovimientoCaja(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     automatico = models.BooleanField(default=False, help_text="Lo creó el sistema (por ejemplo, al anular una venta de otro turno).")
+    persona = models.ForeignKey("personal.Persona", on_delete=models.SET_NULL, null=True, blank=True, related_name="pagos",
+                                verbose_name="a quién", help_text="Pagos y adelantos al personal (función «Pagos al personal»).")
 
     class Meta:
         verbose_name = "movimiento de caja"
@@ -121,6 +124,20 @@ class MovimientoCaja(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} {self.monto} · {self.concepto}"
+
+    @property
+    def motivo(self):
+        """El motivo sin la explicación entre paréntesis: «Gasto del local»."""
+        return self.get_categoria_display().split(" (")[0]
+
+    @property
+    def fuera_de_caja(self):
+        return self.sesion_id is None
+
+    @property
+    def es_gasto(self):
+        """Cuenta como gasto del negocio: no lo es un retiro del dueño ni lo que el sistema devolvió al anular un cobro."""
+        return self.tipo == self.Tipo.EGRESO and not self.automatico and self.categoria != self.Categoria.RETIRO
 
     @property
     def signo(self):

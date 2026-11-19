@@ -26,6 +26,20 @@ def _datos(request):
     from personal.reportes import de_negocio
 
     d["personal"] = de_negocio(desde, hasta)
+    d["con_caja"] = modulo_activo(request.user, "caja")
+    if d["con_caja"]:
+        from caja.servicios import gastos
+
+        g = d["gastos"] = gastos(desde, hasta)
+        # Ganancia real: la de las ventas (ya resta el costo de lo vendido) menos los demás gastos. Lo pagado a proveedores
+        # no se resta otra vez: es mercadería, y su costo sale cuando se vende.
+        g["ganancia_real"] = d["r"]["ganancia"] - g["operativos"]
+    from core.models import Ajustes
+
+    if Ajustes.cargar().usa_pagos:
+        from personal.pagos import cuentas
+
+        d["pagos"] = cuentas(desde, hasta)
     if d["con_mesas"] or d["con_delivery"]:
         d["mesas"] = s.mesas(desde, hasta)
     if d["con_clientes"]:
@@ -79,6 +93,11 @@ def _excel(d):
              ["Periodo anterior", r["anterior"]["total"]], ["Variación %", r["variacion"]]]
     if d["ver_costos"]:
         filas.append(["Ganancia aproximada", r["ganancia"]])
+    if d.get("gastos"):
+        g = d["gastos"]
+        filas += [["Gastos (sin proveedores)", g["operativos"]], ["Pagos a proveedores", g["proveedores"]], ["Retiros del dueño", g["retiros"]]]
+        if d["ver_costos"]:
+            filas.append(["Ganancia real", g["ganancia_real"]])
     filas += [[f"Cobrado con {m['metodo']}", m["total"]] for m in r["metodos"]]
     hoja("Resumen", ["Concepto", "Valor"], filas, primera=True)
     hoja("Por mes" if d["mensual"] else "Por día", ["Fecha", "Total", "Ventas"], [[f["etiqueta"], f["total"], f["n"]] for f in d["fechas"]])
@@ -137,6 +156,18 @@ def _excel(d):
     if pe["tiempos"]:
         hoja("Tiempo real por servicio", ["Servicio", "Veces", "Real promedio (min)", "Mínimo (min)", "Máximo (min)", "Catálogo (min)", "Diferencia (min)"],
              [[t["servicio"], t["veces"], t["real"], t["minimo"], t["maximo"], t["catalogo"], t["diferencia"]] for t in pe["tiempos"]])
+    if d.get("pagos"):
+        hoja("Pagos al personal", ["Persona", "Sueldo", "Comisión", "Le toca", "Pagado", "Falta"],
+             [[f["persona"].nombre, f["sueldo"], f["comision"], f["toca"], f["pagado"], f["falta"]] for f in d["pagos"]["filas"]])
+    if d.get("gastos"):
+        from caja.models import MovimientoCaja
+
+        hoja("Gastos", ["Motivo", "Veces", "Total"], [[f["etiqueta"], f["n"], f["total"]] for f in d["gastos"]["filas"]])
+        hoja("Gastos (detalle)", ["Fecha", "Motivo", "Detalle", "Persona", "Monto", "De dónde", "Registró"],
+             [[timezone.localtime(m.fecha).strftime("%d/%m/%Y %H:%M"), m.motivo, m.concepto, m.persona.nombre if m.persona else "", m.monto,
+               f"Caja {m.sesion.numero}" if m.sesion else "Fuera de caja", m.usuario.get_full_name() or m.usuario.username]
+              for m in MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, fecha__date__gte=d["desde"], fecha__date__lte=d["hasta"])
+              .select_related("sesion", "usuario", "persona").order_by("fecha") if m.es_gasto])
     if d["con_mesas"]:
         hoja("Platos quitados", ["Fecha", "Mesa", "Plato", "Cantidad", "Valor", "Motivo", "Mozo", "Quitó"],
              [[timezone.localtime(i.creado).strftime("%d/%m/%Y %H:%M"), i.cuenta.titulo, i.descripcion, i.cantidad, i.subtotal,

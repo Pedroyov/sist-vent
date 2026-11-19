@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Pagos al personal{% endblock %}
+{% block page_title %}Pagos al personal <small class="text-body-secondary fs-6">{{ desde|date:"d/m/Y" }}{% if desde != hasta %} al {{ hasta|date:"d/m/Y" }}{% endif %}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'personal:lista' %}">Personal</a></li><li class="breadcrumb-item active">Pagos</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div class="btn-group btn-group-sm flex-wrap" role="group">
+    {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
+  </div>
+  <form class="d-flex gap-1 align-items-end" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+</div>
+
+<div class="card card-outline card-success mb-3" style="max-width: 32rem">
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item d-flex"><span>Le toca</span><span class="ms-auto fw-semibold">{{ c.toca|soles }}</span></li>
+    <li class="list-group-item d-flex"><span>Ya pagado</span><span class="ms-auto fw-semibold">{{ c.pagado|soles }}</span></li>
+    <li class="list-group-item d-flex fs-5 fw-bold"><span>Falta pagar</span><span class="ms-auto text-success">{{ c.falta|soles }}</span></li>
+  </ul>
+</div>
+
+<div class="card mb-3">
+  {% if c.filas %}
+  <div class="list-group list-group-flush">
+    {% for f in c.filas %}{% with p=f.persona %}
+    <div class="list-group-item">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="agenda-punto" style="background: {{ p.color }}"></span><strong>{{ p.nombre }}</strong>
+        {% if p.sueldo %}<span class="small text-body-secondary">{{ p.sueldo|soles }} {{ p.get_sueldo_cada_display|lower }}</span>{% endif %}
+        <span class="ms-auto fw-bold {% if f.falta > 0 %}text-success{% elif f.falta < 0 %}text-warning-emphasis{% endif %}">
+          {% if f.falta > 0 %}Falta {{ f.falta|soles }}{% elif f.falta < 0 %}Pagado de más {{ f.falta|soles|cut:"-" }}{% else %}<i class="bi bi-check-circle"></i> Al día{% endif %}</span>
+      </div>
+      <div class="small text-body-secondary mt-1">
+        {% if f.sueldo %}Sueldo {{ f.sueldo|soles }}{% endif %}{% if f.sueldo and f.comision %} + {% endif %}{% if f.comision %}comisión {{ f.comision|soles }}{% endif %}
+        {% if f.sueldo or f.comision %} = <strong>{{ f.toca|soles }}</strong> · {% endif %}pagado {{ f.pagado|soles }}{% if f.pagos %}
+        {% if fuera %}(<a href="{% url 'caja:gastos' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&motivo=PER&persona={{ p.pk }}">{{ f.pagos }} pago{{ f.pagos|pluralize }}</a>){% else %}({{ f.pagos }} pago{{ f.pagos|pluralize }}){% endif %}{% endif %}
+      </div>
+      {% if caja or fuera %}
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        {% with monto=f.falta|stringformat:"s" concepto="Pago a "|add:p.nombre %}
+        {% if caja %}<a class="btn btn-sm btn-outline-danger" href="{% url 'caja:egreso' caja.pk %}?categoria=PER&persona={{ p.pk }}{% if f.falta > 0 %}&monto={{ monto }}{% endif %}&concepto={{ concepto|urlencode }}&next={{ volver|urlencode }}"><i class="bi bi-box-arrow-up me-1"></i>Pagar de mi caja</a>{% endif %}
+        {% if fuera %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'caja:gasto_nuevo' %}?categoria=PER&persona={{ p.pk }}{% if f.falta > 0 %}&monto={{ monto }}{% endif %}&concepto={{ concepto|urlencode }}&next={{ volver|urlencode }}"><i class="bi bi-bank me-1"></i>Pagó fuera de caja</a>{% endif %}
+        {% endwith %}
+      </div>
+      {% endif %}
+    </div>
+    {% endwith %}{% endfor %}
+  </div>
+  {% else %}<div class="card-body text-body-secondary">Nadie tiene sueldo{% if c.con_comision %} ni comisión{% endif %} en este periodo. Ponle el sueldo a cada persona en su ficha de <a href="{% url 'personal:lista' %}">Personal</a>.</div>{% endif %}
+</div>
+<p class="small text-body-secondary px-1">El sueldo se cuenta por los días del periodo: «Este mes» muestra lo que va hasta hoy; «Mes pasado», el mes completo. Los adelantos se registran igual que un pago y se descuentan de lo que falta.{% if not caja and not fuera %} Para registrar pagos necesitas tener tu caja abierta.{% endif %}</p>
+{% endblock %}

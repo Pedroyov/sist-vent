@@ -22,8 +22,8 @@ def c(valor):
 ATAJOS = [("hoy", "Hoy"), ("ayer", "Ayer"), ("7d", "7 días"), ("30d", "30 días"), ("mes", "Este mes"), ("mes_pasado", "Mes pasado")]
 
 
-def periodo(request):
-    """(desde, hasta, clave del atajo). Por defecto, los últimos 7 días."""
+def periodo(request, defecto="7d"):
+    """(desde, hasta, clave del atajo). Por defecto, los últimos 7 días (o «Este mes» con defecto="mes")."""
     hoy = timezone.localdate()
     p = request.GET.get("p", "")
     if p == "hoy":
@@ -46,6 +46,8 @@ def periodo(request):
             desde = hasta - timedelta(days=366 * 3)
         return desde, hasta, ""
     except ValueError:
+        if defecto == "mes":
+            return hoy.replace(day=1), hoy, "mes"
         return hoy - timedelta(days=6), hoy, "7d"
 
 

@@ -128,3 +128,72 @@ class CobrosTests(Base):
         self.assertTrue(rp["ver"]["cuotas"] and rp["ver"]["deudas"])
         self.client.force_login(self.jefe)
         self.assertContains(self.client.get(reverse("reportes:inicio")), "pago de deuda")
+
+
+class PagosTests(Base):
+    """Pagos al personal: sueldo del periodo + comisión, menos lo pagado (de la caja o fuera de caja)."""
+
+    def test_sueldo_del_periodo(self):
+        from datetime import date
+
+        from .pagos import sueldo_del_periodo
+
+        p = Persona(nombre="X", sueldo=D("1500"), sueldo_cada="MES")
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 2, 1), date(2026, 2, 28)), D("1500"))
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 11, 1), date(2026, 11, 15)), D("750"))
+        p.sueldo_cada = "QUI"
+        p.sueldo = D("700")
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 11, 1), date(2026, 11, 30)), D("1400"))
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 11, 16), date(2026, 11, 30)), D("700"))
+        p.sueldo_cada = "SEM"
+        p.sueldo = D("350")
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 11, 2), date(2026, 11, 15)), D("700"))
+        p.sueldo = D("0")
+        self.assertEqual(sueldo_del_periodo(p, date(2026, 11, 2), date(2026, 11, 15)), D("0"))
+
+    def test_cuenta_y_pantalla(self):
+        from caja.models import MovimientoCaja, SesionCaja
+        from caja.servicios import gasto_fuera_de_caja, movimiento
+
+        from .pagos import cuentas, sueldo_del_periodo
+
+        a = Ajustes.cargar()
+        a.funciones_inactivas = []  # quién atendió, comisiones y pagos encendidos
+        a.save()
+        self.ana.sueldo, self.ana.sueldo_cada = D("900"), "MES"
+        self.ana.save()
+        Persona.objects.create(nombre="Sin sueldo")
+        v = registrar_venta(self.cajero, [{"variante": self.polo.pk, "cantidad": "2"}], [{"metodo": "EFE", "monto": "100"}])
+        v.atendio_persona = self.ana  # comisión: 10 % de 100
+        v.save(update_fields=["atendio_persona"])
+        s = SesionCaja.abierta_de(self.cajero)
+        C = MovimientoCaja.Categoria
+        movimiento(s, MovimientoCaja.Tipo.EGRESO, D("200"), "Adelanto", self.cajero, C.PERSONAL, persona=self.ana)
+        gasto_fuera_de_caja(D("100"), "Yape", self.jefe, C.PERSONAL, persona=self.ana)
+        c = cuentas(self.hoy, self.hoy)
+        self.assertEqual([f["persona"] for f in c["filas"]], [self.ana])
+        f = c["filas"][0]
+        self.assertEqual(f["comision"], D("10"))
+        self.assertEqual(f["sueldo"], sueldo_del_periodo(self.ana, self.hoy, self.hoy))
+        self.assertEqual(f["pagado"], D("300"))
+        self.assertEqual(f["pagos"], 2)
+        self.assertEqual(f["falta"], f["sueldo"] + D("10") - D("300"))
+
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("personal:pagos"))
+        self.assertContains(r, "Pagó fuera de caja")
+        self.assertContains(self.client.get(reverse("reportes:inicio")), "Pagos al personal")
+        # la ficha pide el sueldo solo con la función encendida
+        self.client.post(reverse("personal:persona", args=[self.ana.pk]),
+                         {"nombre": "Ana", "color": "#0d6efd", "orden": 0, "activo": "on", "comision": "10", "sueldo": "1200", "sueldo_cada": "QUI"})
+        self.ana.refresh_from_db()
+        self.assertEqual((self.ana.sueldo, self.ana.sueldo_cada), (D("1200"), "QUI"))
+        # el egreso de la caja pide a quién
+        self.client.force_login(self.cajero)
+        r = self.client.post(reverse("caja:egreso", args=[s.pk]), {"categoria": C.PERSONAL, "monto": "50", "concepto": "Pago"})
+        self.assertContains(r, "Elige a quién")
+        a.funciones_inactivas = ["atendio", "pagos"]
+        a.save()
+        self.assertNotIn("persona", self.client.get(reverse("caja:egreso", args=[s.pk])).context["form"].fields)
+        self.client.force_login(self.jefe)
+        self.assertRedirects(self.client.get(reverse("personal:pagos")), reverse("personal:lista"))

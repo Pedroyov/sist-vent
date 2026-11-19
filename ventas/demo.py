@@ -39,6 +39,14 @@ def cargar_ventas(dias=7, por_dia=(6, 14)):
             m = movimiento(cajas[0], MovimientoCaja.Tipo.EGRESO, Decimal(azar.choice([25, 40, 60, 85])), "Pago a proveedor de bebidas",
                            cajas[0].usuario, MovimientoCaja.Categoria.PROVEEDOR)
             MovimientoCaja.objects.filter(pk=m.pk).update(fecha=apertura + timedelta(hours=3))
+        if azar.random() < .3:
+            m = movimiento(cajas[0], MovimientoCaja.Tipo.EGRESO, Decimal(azar.choice([8, 12, 15, 20])),
+                           azar.choice(["Movilidad", "Útiles de limpieza", "Bolsas"]), cajas[0].usuario, MovimientoCaja.Categoria.GASTO)
+            MovimientoCaja.objects.filter(pk=m.pk).update(fecha=apertura + timedelta(hours=5))
+        if d == dias - 1:  # un pago grande que no sale del cajón
+            from caja.servicios import gasto_fuera_de_caja
+
+            gasto_fuera_de_caja(Decimal("800"), "Alquiler del local (transferencia)", vendedores[-1], MovimientoCaja.Categoria.GASTO, dia)
         horas = sorted(time(azar.randint(8, 20), azar.randint(0, 59)) for _ in range(azar.randint(*por_dia)))
         for hora in horas:
             fecha = timezone.make_aware(datetime.combine(dia, hora))

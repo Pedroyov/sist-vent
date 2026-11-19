@@ -1,4 +1,5 @@
 """Abrir, mover y cerrar la caja. El efectivo esperado se calcula siempre igual: aquí."""
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.db import IntegrityError, transaction
@@ -48,11 +49,52 @@ def abrir(usuario, monto_inicial, nota="", punto=None):
         raise CajaError("Ya tienes una caja abierta.")
 
 
-def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False):
+def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False, persona=None):
     if not sesion.abierta:
         raise CajaError("La caja ya está cerrada.")
-    return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150],
-                                         categoria=categoria, usuario=usuario, automatico=automatico)
+    return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150], categoria=categoria,
+                                         usuario=usuario, automatico=automatico, persona=_persona(categoria, persona))
+
+
+def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona=None):
+    """Un gasto que no salió del cajón (transferencia, Yape, dinero del dueño): cuenta en los reportes, no en el cuadre de caja."""
+    C = MovimientoCaja.Categoria
+    if categoria == C.RETIRO:
+        raise CajaError("Un retiro del dueño solo tiene sentido saliendo de una caja.")
+    momento = timezone.now()
+    if fecha is not None:
+        if fecha > timezone.localdate():
+            raise CajaError("La fecha no puede ser futura.")
+        if fecha != timezone.localdate():  # un día pasado: al mediodía, para que no cambie de día por la zona horaria
+            momento = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 12, 0))
+    return MovimientoCaja.objects.create(sesion=None, tipo=MovimientoCaja.Tipo.EGRESO, monto=monto, concepto=concepto[:150],
+                                         categoria=categoria, usuario=usuario, fecha=momento, persona=_persona(categoria, persona))
+
+
+def _persona(categoria, persona):
+    return persona if categoria == MovimientoCaja.Categoria.PERSONAL else None
+
+
+def gastos(desde, hasta):
+    """Gastos del periodo por motivo (de las cajas y fuera de caja). No son gastos: los retiros del dueño ni lo que el
+    sistema devolvió al anular un cobro (la venta anulada ya no suma). Las compras a proveedores van aparte en la ganancia:
+    el costo de lo vendido ya se resta en la ganancia de las ventas."""
+    C = MovimientoCaja.Categoria
+    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, automatico=False, fecha__date__gte=desde, fecha__date__lte=hasta)
+          .exclude(categoria=C.RETIRO))
+    datos = {r["categoria"]: r for r in qs.values("categoria").annotate(total=Sum("monto"), n=Count("id"))}
+    filas = [{"categoria": c.value, "etiqueta": c.label.split(" (")[0], "total": datos[c.value]["total"], "n": datos[c.value]["n"]}
+             for c in C if c.value in datos]
+    filas.sort(key=lambda f: -f["total"])
+    total = sum((f["total"] for f in filas), CERO)
+    maximo = max((f["total"] for f in filas), default=0) or 1
+    for f in filas:
+        f["pct"] = round(float(f["total"]) / float(maximo) * 100, 1)
+    proveedores = datos.get(C.PROVEEDOR, {}).get("total") or CERO
+    retiros = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=C.RETIRO, fecha__date__gte=desde,
+                                             fecha__date__lte=hasta).aggregate(t=Sum("monto"))["t"] or CERO)
+    return {"filas": filas, "total": total, "proveedores": proveedores, "operativos": total - proveedores, "retiros": retiros,
+            "fuera": qs.filter(sesion__isnull=True).aggregate(t=Sum("monto"))["t"] or CERO}
 
 
 def calcular(sesion):

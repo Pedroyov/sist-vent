@@ -90,3 +90,77 @@ class CajaTests(TestCase):
         otro.groups.add(Group.objects.get(name="Vendedor"))
         self.client.force_login(otro)
         self.assertEqual(self.client.get(reverse("caja:sesion", args=[s.pk])).status_code, 403)
+
+
+class GastosTests(TestCase):
+    """Gastos del periodo (de las cajas y fuera de caja), ganancia real y pagos ligados a la persona."""
+
+    def setUp(self):
+        from personal.models import Persona
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"funciones_inactivas": []})
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.ana = Persona.objects.create(nombre="Ana")
+        p = Producto.objects.create(nombre="Gaseosa", precio=D("10"), costo=D("4"))
+        self.v = asegurar_variante_unica(p)
+        mover_stock(self.v, 50, MovimientoStock.Tipo.INGRESO)
+
+    def test_gastos_y_ganancia_real(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .servicios import gasto_fuera_de_caja, gastos
+
+        C, E = MovimientoCaja.Categoria, MovimientoCaja.Tipo.EGRESO
+        hoy = timezone.localdate()
+        s = abrir(self.cajero, D("100"))
+        v = registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "10"}], [{"metodo": "EFE", "monto": "100"}])  # ganancia 60
+        movimiento(s, E, D("30"), "Gaseosas", self.cajero, C.PROVEEDOR)
+        movimiento(s, E, D("20"), "Movilidad", self.cajero, C.GASTO)
+        movimiento(s, E, D("50"), "Adelanto", self.cajero, C.PERSONAL, persona=self.ana)
+        movimiento(s, E, D("40"), "Para el banco", self.cajero, C.RETIRO, persona=self.ana)  # retiro: no es gasto ni se liga
+        v2 = registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "10"}])
+        cerrar(s, D("70"), self.cajero)
+        anular_venta(v2, self.jefe, "error")  # caja cerrada: devolución automática, no es gasto
+        alquiler = gasto_fuera_de_caja(D("300"), "Alquiler", self.jefe, C.GASTO, hoy)
+        self.assertIsNone(alquiler.sesion)
+        self.assertEqual(MovimientoCaja.objects.filter(persona=self.ana).count(), 1)
+        with self.assertRaises(CajaError):
+            gasto_fuera_de_caja(D("10"), "Retiro", self.jefe, C.RETIRO)
+        with self.assertRaises(CajaError):
+            gasto_fuera_de_caja(D("10"), "Mañana", self.jefe, C.GASTO, hoy + timedelta(days=1))
+
+        g = gastos(hoy, hoy)
+        self.assertEqual(g["total"], D("400"))          # 30 + 20 + 50 + 300
+        self.assertEqual(g["proveedores"], D("30"))
+        self.assertEqual(g["operativos"], D("370"))
+        self.assertEqual(g["retiros"], D("40"))
+        self.assertEqual(g["fuera"], D("300"))
+        self.assertEqual([f["etiqueta"] for f in g["filas"]][0], "Gasto del local")
+        self.assertEqual(calcular(s)["egresos"], D("140"))  # el gasto fuera de caja no toca la caja
+
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("reportes:inicio") + "?p=hoy")
+        self.assertContains(r, "Ganancia real")
+        self.assertEqual(r.context["gastos"]["ganancia_real"], v.total - D("40") - D("370"))  # 60 − 370
+        self.assertEqual(self.client.get(reverse("reportes:inicio") + "?p=hoy&excel=1").status_code, 200)
+        r = self.client.get(reverse("caja:gastos"))
+        self.assertContains(r, "Alquiler")
+        self.assertContains(r, "no es gasto")
+        r = self.client.post(reverse("caja:gasto_nuevo"), {"dia": hoy.isoformat(), "categoria": C.PERSONAL, "monto": "80", "concepto": "Sueldo"})
+        self.assertContains(r, "Elige a quién")
+        r = self.client.post(reverse("caja:gasto_nuevo"), {"dia": hoy.isoformat(), "categoria": C.PERSONAL, "persona": self.ana.pk,
+                                                           "monto": "80", "concepto": "Sueldo"})
+        self.assertRedirects(r, reverse("caja:gastos"))
+        self.assertEqual(MovimientoCaja.objects.filter(persona=self.ana).count(), 2)
+        self.client.post(reverse("caja:gasto_quitar", args=[alquiler.pk]))
+        self.assertFalse(MovimientoCaja.objects.filter(pk=alquiler.pk).exists())
+        m = MovimientoCaja.objects.get(concepto="Movilidad")
+        self.client.post(reverse("caja:gasto_quitar", args=[m.pk]))  # los de una caja no se quitan
+        self.assertTrue(MovimientoCaja.objects.filter(pk=m.pk).exists())
+        self.client.force_login(self.cajero)
+        self.assertEqual(self.client.get(reverse("caja:gastos")).status_code, 403)

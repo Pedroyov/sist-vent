@@ -81,7 +81,7 @@
         {% endif %}
         {% if P.caja_usar or P.caja_ver %}
         <li class="nav-item">
-          <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' %}active{% endif %}">
+          <a href="{% if P.caja_usar %}{% url 'caja:mi_caja' %}{% else %}{% url 'caja:historial' %}{% endif %}" class="nav-link {% if ns == 'caja' and 'gasto' not in url %}active{% endif %}">
             <i class="nav-icon bi bi-safe2"></i>
             <p>Caja</p>
           </a>
@@ -110,7 +110,7 @@
         {% endif %}
 
         {# ---------- Gestión ---------- #}
-        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver %}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver or P.caja_ver %}
         <li class="nav-header">GESTIÓN</li>
         {% endif %}
         {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar %}
@@ -179,6 +179,22 @@
           </a>
         </li>
         {% endif %}
+        {% if P.caja_ver %}
+        <li class="nav-item">
+          <a href="{% url 'caja:gastos' %}" class="nav-link {% if ns == 'caja' and 'gasto' in url %}active{% endif %}">
+            <i class="nav-icon bi bi-wallet2"></i>
+            <p>Gastos</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.personal_editar and NEGOCIO.usa_pagos %}
+        <li class="nav-item">
+          <a href="{% url 'personal:pagos' %}" class="nav-link {% if ns == 'personal' and url == 'pagos' %}active{% endif %}">
+            <i class="nav-icon bi bi-cash-coin"></i>
+            <p>Pagos al personal</p>
+          </a>
+        </li>
+        {% endif %}
 
         {% if P.config_negocio or P.config_usuarios or P.acceso_total or P.facturacion_configurar or P.personal_editar %}
         <li class="nav-header">CONFIGURACIÓN</li>
@@ -201,7 +217,7 @@
         {% endif %}
         {% if P.personal_editar %}
         <li class="nav-item">
-          <a href="{% url 'personal:lista' %}" class="nav-link {% if ns == 'personal' %}active{% endif %}">
+          <a href="{% url 'personal:lista' %}" class="nav-link {% if ns == 'personal' and url != 'pagos' %}active{% endif %}">
             <i class="nav-icon bi bi-person-vcard"></i>
             <p>Personal</p>
           </a>

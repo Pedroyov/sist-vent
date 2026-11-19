@@ -23,6 +23,10 @@ class Persona(models.Model):
     comision = models.DecimalField("comisión (%)", max_digits=5, decimal_places=2, default=Decimal("0"),
                                    validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
                                    help_text="Porcentaje de lo que atiende que se le paga (solo si el negocio paga comisiones).")
+    sueldo = models.DecimalField("sueldo fijo", max_digits=10, decimal_places=2, default=Decimal("0"), validators=[MinValueValidator(Decimal("0"))],
+                                 help_text="Lo que se le paga aparte de la comisión. 0 si solo gana comisión.")
+    sueldo_cada = models.CharField("se paga", max_length=3, default="MES",
+                                   choices=[("SEM", "Por semana"), ("QUI", "Por quincena"), ("MES", "Por mes")])
     # Qué hace (cada módulo muestra solo lo suyo)
     atiende_citas = models.BooleanField("atiende citas", default=True, help_text="Sale en la agenda de citas (estilista, barbero, terapeuta).")
     reparte = models.BooleanField("reparte delivery", default=False, help_text="Sale en la lista de repartidores.")

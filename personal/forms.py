@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -9,11 +11,12 @@ class PersonaForm(forms.ModelForm):
 
     class Meta:
         model = Persona
-        fields = ["nombre", "telefono", "usuario", "color", "comision", "atiende_citas", "reparte", "servicios", "orden", "activo"]
-        widgets = {"servicios": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}), "color": forms.RadioSelect,
+        fields = ["nombre", "telefono", "usuario", "color", "comision", "sueldo", "sueldo_cada", "atiende_citas", "reparte", "servicios",
+                  "orden", "activo"]
+        widgets = {"sueldo": forms.NumberInput(attrs={"step": "0.10", "min": "0", "inputmode": "decimal"}), "servicios": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}), "color": forms.RadioSelect,
                    "telefono": forms.TextInput(attrs={"type": "tel", "inputmode": "tel"})}
 
-    def __init__(self, *args, modulos=(), comisiones=False, **kwargs):
+    def __init__(self, *args, modulos=(), comisiones=False, pagos=False, **kwargs):
         super().__init__(*args, **kwargs)
         from productos.models import Producto
 
@@ -32,3 +35,14 @@ class PersonaForm(forms.ModelForm):
             del self.fields["reparte"]
         if not comisiones:
             del self.fields["comision"]
+        if not pagos:
+            del self.fields["sueldo"]
+            del self.fields["sueldo_cada"]
+        else:
+            self.fields["sueldo"].required = self.fields["sueldo_cada"].required = False
+
+    def clean_sueldo(self):
+        return self.cleaned_data.get("sueldo") or Decimal("0")
+
+    def clean_sueldo_cada(self):
+        return self.cleaned_data.get("sueldo_cada") or "MES"

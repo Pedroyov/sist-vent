@@ -20,6 +20,7 @@
             <input type="radio" name="color" value="{{ v }}" {% if form.color.value == v %}checked{% endif %}><span class="agenda-punto m-0" style="background: {{ v }}"></span>{{ n }}</label>{% endfor %}
         </div>
         {% if form.comision %}{{ form.comision|as_crispy_field }}{% endif %}
+        {% if form.sueldo %}<div class="row g-2"><div class="col-7">{{ form.sueldo|as_crispy_field }}</div><div class="col-5">{{ form.sueldo_cada|as_crispy_field }}</div></div>{% endif %}
         {% if form.reparte %}{{ form.reparte|as_crispy_field }}{% endif %}
         {% if form.atiende_citas %}{{ form.atiende_citas|as_crispy_field }}
         <div id="caja-servicios">

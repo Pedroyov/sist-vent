@@ -25,7 +25,7 @@ def modulos_inactivos_iniciales():
 
 def funciones_inactivas_iniciales():
     """Una instalación nueva empieza como tienda: solo variantes (ver core/rubros.py)."""
-    return ["combos", "servicios", "agotados", "atendio", "comisiones"]
+    return ["combos", "servicios", "agotados", "atendio", "comisiones", "pagos"]
 
 
 class Ajustes(models.Model):
@@ -130,6 +130,10 @@ class Ajustes(models.Model):
     @property
     def usa_atendio(self):
         return self.usa("atendio")
+
+    @property
+    def usa_pagos(self):
+        return self.usa("pagos")
 
     @property
     def usa_variantes(self):

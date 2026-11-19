@@ -9,9 +9,9 @@ from django.utils import timezone
 from core.permisos import permiso_requerido, puede
 from core.utils import entero, url_segura
 
-from .forms import AbrirForm, CerrarForm, MovimientoForm, PuntoCajaForm
+from .forms import AbrirForm, CerrarForm, GastoForm, MovimientoForm, PuntoCajaForm
 from .models import DENOMINACIONES, MovimientoCaja, PuntoCaja, SesionCaja
-from .servicios import CajaError, abrir, calcular, cerrar, movimiento, resumen_guardado, total_conteo
+from .servicios import CajaError, abrir, calcular, cerrar, gasto_fuera_de_caja, gastos, movimiento, resumen_guardado, total_conteo
 
 User = get_user_model()
 
@@ -46,7 +46,7 @@ def sesion(request, pk):
         raise PermissionDenied
     r = calcular(s) if s.abierta else resumen_guardado(s)
     return render(request, "caja/sesion.html", {
-        "s": s, "r": r, "movimientos": s.movimientos.select_related("usuario"),
+        "s": s, "r": r, "movimientos": s.movimientos.select_related("usuario", "persona"),
         "es_mia": s.usuario_id == request.user.pk,
         "puede_operar": s.abierta and (s.usuario_id == request.user.pk or puede(request.user, "caja.ver")),
         "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)],
@@ -70,18 +70,18 @@ def nuevo_movimiento(request, pk, tipo):
     if not (s.usuario_id == request.user.pk or puede(request.user, "caja.ver")):
         raise PermissionDenied
     tipo = MovimientoCaja.Tipo.INGRESO if tipo == "ingreso" else MovimientoCaja.Tipo.EGRESO
-    form = MovimientoForm(request.POST or None, tipo=tipo)
+    form = MovimientoForm(request.POST or None, tipo=tipo, initial=_inicial(request))
+    url = reverse("caja:sesion", args=[s.pk])
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
         try:
-            movimiento(s, tipo, d["monto"], d["concepto"], request.user, d["categoria"])
+            movimiento(s, tipo, d["monto"], d["concepto"], request.user, d["categoria"], persona=d.get("persona"))
             messages.success(request, f"{MovimientoCaja.Tipo(tipo).label} de S/ {d['monto']:.2f} registrado.")
         except CajaError as e:
             messages.error(request, str(e))
-        return redirect("caja:sesion", pk=s.pk)
+        return redirect(url_segura(request, request.GET.get("next"), url))
     titulo = "Ingreso de dinero" if tipo == MovimientoCaja.Tipo.INGRESO else "Salida de dinero (egreso)"
-    url = reverse("caja:sesion", args=[s.pk])
-    return render(request, "core/form.html", {"form": form, "titulo": titulo, "cancelar": url,
+    return render(request, "core/form.html", {"form": form, "titulo": titulo, "cancelar": url_segura(request, request.GET.get("next"), url),
                                               "breadcrumb": [("Caja", url)], "subtitulo": f"Caja {s.numero}"})
 
 
@@ -131,6 +131,65 @@ def historial(request):
         "abiertas": SesionCaja.objects.filter(estado=SesionCaja.Estado.ABIERTA).select_related("usuario", "punto"),
         "hoy": timezone.localdate(),
     })
+
+
+def _inicial(request):
+    """Datos que llegan por la URL (desde «Pagos al personal»: a quién, cuánto y por qué)."""
+    g = request.GET
+    return {k: g[k] for k in ("categoria", "persona", "monto", "concepto") if g.get(k)}
+
+
+# --- Gastos: todo lo que salió (de las cajas y fuera de caja) -------------------------------
+
+@permiso_requerido("caja.ver")
+def lista_gastos(request):
+    from reportes.servicios import ATAJOS, periodo
+
+    desde, hasta, atajo = periodo(request, defecto="mes")
+    C = MovimientoCaja.Categoria
+    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, fecha__date__gte=desde, fecha__date__lte=hasta)
+          .select_related("sesion", "usuario", "persona"))
+    motivo = request.GET.get("motivo", "")
+    if motivo in C.values:
+        qs = qs.filter(categoria=motivo)
+    persona = entero(request.GET.get("persona"))
+    if persona:
+        qs = qs.filter(persona_id=persona)
+    query = request.GET.copy()
+    query.pop("page", None)
+    filtro = {k: v for k, v in query.items() if k in ("p", "desde", "hasta")}
+    return render(request, "caja/gastos.html", {
+        "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": ATAJOS, "g": gastos(desde, hasta),
+        "pagina": Paginator(qs, 50).get_page(request.GET.get("page")), "query": query, "motivo": motivo,
+        "motivos": [(c.value, c.label.split(" (")[0]) for c in C], "persona": persona, "filtro": filtro,
+    })
+
+
+@permiso_requerido("caja.ver")
+def gasto_nuevo(request):
+    form = GastoForm(request.POST or None, initial={"dia": timezone.localdate(), **_inicial(request)})
+    volver = url_segura(request, request.GET.get("next"), reverse("caja:gastos"))
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        try:
+            gasto_fuera_de_caja(d["monto"], d["concepto"], request.user, d["categoria"], d["dia"], d.get("persona"))
+            messages.success(request, f"Gasto de S/ {d['monto']:.2f} registrado (fuera de caja).")
+            return redirect(volver)
+        except CajaError as e:
+            form.add_error(None, str(e))
+    return render(request, "core/form.html", {"form": form, "titulo": "Gasto pagado fuera de caja", "cancelar": volver,
+                                              "breadcrumb": [("Gastos", reverse("caja:gastos"))],
+                                              "ayuda": "Para lo que se pagó por transferencia, Yape o con dinero que no estaba en el cajón (alquiler, sueldos). Sale en los reportes pero no descuadra ninguna caja."})
+
+
+@permiso_requerido("caja.ver")
+def gasto_quitar(request, pk):
+    """Solo los de fuera de caja: los de una caja quedan en su cierre."""
+    m = get_object_or_404(MovimientoCaja, pk=pk, sesion__isnull=True)
+    if request.method == "POST":
+        m.delete()
+        messages.success(request, f"Se quitó el gasto «{m.concepto}».")
+    return redirect(url_segura(request, request.POST.get("next"), reverse("caja:gastos")))
 
 
 # --- Cajas (puntos de cobro) y sus series -------------------------------------------------

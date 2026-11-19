@@ -14,6 +14,8 @@ FUNCIONES = [
     ("atendio", "Quién atendió la venta", "En Vender se elige qué persona del personal atendió al cliente (vendedores a comisión, "
                 "servicios cobrados directo). Sale en el reporte de Personal."),
     ("comisiones", "Comisiones del personal", "A cada persona se le pone un % de lo que atiende y el reporte de Personal dice cuánto le toca."),
+    ("pagos", "Pagos al personal", "Sueldo fijo de cada persona (por semana, quincena o mes), pagos y adelantos ligados a la persona "
+              "y cuánto falta pagarle a cada uno."),
 ]
 CODIGOS_FUNCIONES = [f[0] for f in FUNCIONES]
 
@@ -62,6 +64,11 @@ def en_uso(funcion):
         from ventas.models import Venta
 
         return Venta.objects.filter(atendio_persona__isnull=False).exists()
+    if funcion == "pagos":
+        from caja.models import MovimientoCaja
+        from personal.models import Persona
+
+        return Persona.objects.filter(sueldo__gt=0).exists() or MovimientoCaja.objects.filter(persona__isnull=False).exists()
     if funcion == "agotados":
         return False  # se reinicia cada día: apagarla no pierde nada
     return False

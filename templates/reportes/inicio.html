@@ -43,6 +43,7 @@
 <nav class="indice bg-body-tertiary py-2 mb-3 no-print">
   <ul class="nav nav-pills flex-nowrap overflow-auto small">
     <li class="nav-item"><a class="nav-link" href="#resumen">Resumen</a></li>
+    {% if con_caja %}<li class="nav-item"><a class="nav-link" href="#gastos">Gastos</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link" href="#tiempo">Días y horas</a></li>
     {% if con_productos %}<li class="nav-item"><a class="nav-link" href="#productos">Productos</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link" href="#personal">Personal</a></li>
@@ -70,6 +71,36 @@
   </ul></div></div>
 </div>
 </section>
+
+{# ---------- Gastos y ganancia real ---------- #}
+{% if con_caja %}
+<section id="gastos">
+<div class="row g-3 mb-3">
+  {% with g=gastos %}
+  {% if ver_costos %}
+  <div class="col-lg-5"><div class="card h-100 mb-0 card-outline card-info">
+    <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-piggy-bank me-1"></i> Ganancia real</h3></div>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item d-flex"><span>Ganancia de las ventas</span><span class="ms-auto">{{ r.ganancia|soles }}</span></li>
+      <li class="list-group-item d-flex"><span>− Gastos</span><span class="ms-auto text-danger">{{ g.operativos|soles }}</span></li>
+      <li class="list-group-item d-flex fw-bold fs-5"><span>Queda</span><span class="ms-auto {% if g.ganancia_real < 0 %}text-danger{% else %}text-success{% endif %}">{{ g.ganancia_real|soles }}</span></li>
+    </ul>
+    <div class="card-footer small text-body-secondary">Ganancia de las ventas = precio − costo de lo vendido. {% if g.proveedores %}Lo pagado a proveedores ({{ g.proveedores|soles }}) no se resta aquí: es mercadería y su costo ya se resta al venderla. {% endif %}{% if r.sin_costo %}<span class="text-warning-emphasis">Hay productos sin costo: la ganancia sale más alta de lo real.</span>{% endif %}</div>
+  </div></div>
+  {% endif %}
+  <div class="col-lg-{% if ver_costos %}7{% else %}12{% endif %}"><div class="card h-100 mb-0">
+    <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-wallet2 me-1"></i> Gastos <small class="text-body-secondary">{{ g.total|soles }}</small></h3>
+      {% if P.caja_ver %}<a href="{% url 'caja:gastos' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary ms-auto no-print">Ver detalle</a>{% endif %}</div>
+    {% if g.filas %}<div class="card-body">
+      {% for f in g.filas %}<div class="mb-2"><div class="d-flex small"><span>{{ f.etiqueta }} <span class="text-body-secondary">({{ f.n }})</span></span><span class="ms-auto fw-semibold">{{ f.total|soles }}</span></div>
+        <div class="hbarra"><div class="bg-danger" style="width: {{ f.pct }}%"></div></div></div>{% endfor %}
+    </div>{% else %}<div class="card-body small text-body-secondary">Sin gastos registrados en el periodo. Se registran en la caja con <strong>Sacar dinero</strong>{% if P.caja_ver %} o en <a href="{% url 'caja:gastos' %}">Gastos</a> si se pagaron fuera de caja{% endif %}.</div>{% endif %}
+    {% if g.retiros or g.fuera %}<div class="card-footer small text-body-secondary">{% if g.fuera %}{{ g.fuera|soles }} pagados fuera de caja. {% endif %}{% if g.retiros %}Retiros del dueño: {{ g.retiros|soles }} (no son gasto).{% endif %}</div>{% endif %}
+  </div></div>
+  {% endwith %}
+</div>
+</section>
+{% endif %}
 
 {# ---------- Tiempo ---------- #}
 <section id="tiempo">
@@ -211,6 +242,17 @@
 </div>
 {% endif %}
 {% endwith %}
+{% if pagos %}
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Pagos al personal</h3>
+    {% if P.personal_editar %}<a href="{% url 'personal:pagos' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary ms-auto no-print">Pagar</a>{% endif %}</div>
+  {% if pagos.filas %}<div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="small"><tr><th class="ps-3">Persona</th><th class="text-end">Sueldo</th>{% if pagos.con_comision %}<th class="text-end">Comisión</th>{% endif %}<th class="text-end">Le toca</th><th class="text-end">Pagado</th><th class="text-end pe-3">Falta</th></tr></thead>
+    <tbody>{% for f in pagos.filas %}<tr><td class="ps-3">{{ f.persona.nombre }}</td><td class="text-end">{{ f.sueldo|soles }}</td>{% if pagos.con_comision %}<td class="text-end">{{ f.comision|soles }}</td>{% endif %}
+      <td class="text-end">{{ f.toca|soles }}</td><td class="text-end">{{ f.pagado|soles }}</td><td class="text-end pe-3 fw-semibold {% if f.falta > 0 %}text-success{% elif f.falta < 0 %}text-warning-emphasis{% endif %}">{{ f.falta|soles }}</td></tr>{% endfor %}</tbody>
+  </table></div>{% else %}<div class="card-body small text-body-secondary">Nadie tiene sueldo ni pagos en el periodo.</div>{% endif %}
+</div>
+{% endif %}
 </section>
 
 {# ---------- Mesas ---------- #}

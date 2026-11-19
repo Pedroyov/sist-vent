@@ -81,7 +81,7 @@
             {% for m in movimientos %}
             <tr>
               <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m H:i" }}</td>
-              <td>{{ m.concepto }}<div class="small text-body-secondary">{{ m.get_categoria_display }}{% if m.usuario_id != s.usuario_id %} · {{ m.usuario|nombre }}{% endif %}{% if m.automatico %} · automático{% endif %}</div></td>
+              <td>{{ m.concepto }}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}<div class="small text-body-secondary">{{ m.motivo }}{% if m.usuario_id != s.usuario_id %} · {{ m.usuario|nombre }}{% endif %}{% if m.automatico %} · automático{% endif %}</div></td>
               <td class="text-end pe-3 fw-semibold text-nowrap {% if m.tipo == 'ING' %}text-success{% else %}text-danger{% endif %}">{% if m.tipo == 'ING' %}+{% else %}−{% endif %}{{ m.monto|soles }}</td>
             </tr>
             {% endfor %}
