@@ -197,6 +197,19 @@
   </table></div>
 </div>
 {% endif %}
+{% if a.tiempos %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-stopwatch me-1"></i> Tiempo real por servicio</h3></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead class="small"><tr><th class="ps-3">Servicio</th><th class="text-end">Veces</th><th class="text-end">Real (promedio)</th><th class="text-end">De … a …</th><th class="text-end">Catálogo</th><th class="text-end pe-3">Diferencia</th></tr></thead>
+    <tbody>{% for t in a.tiempos %}<tr><td class="ps-3">{{ t.servicio }}</td><td class="text-end">{{ t.veces }}</td>
+      <td class="text-end fw-semibold">{{ t.real }} min</td><td class="text-end small text-body-secondary">{{ t.minimo }}–{{ t.maximo }} min</td>
+      <td class="text-end">{% if t.catalogo %}{{ t.catalogo }} min{% else %}—{% endif %}</td>
+      <td class="text-end pe-3 {% if t.diferencia and t.diferencia > 10 %}text-danger{% elif t.diferencia and t.diferencia < -10 %}text-success{% endif %}">{% if t.diferencia is not None %}{% if t.diferencia > 0 %}+{% endif %}{{ t.diferencia }} min{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer small text-body-secondary">Solo cuenta lo marcado con <strong>Empezar</strong> y <strong>Terminar</strong>, cuando en esa atención se hizo un solo servicio. Si la diferencia es grande, ajusta la duración del servicio en Productos: así la agenda bloquea el tiempo correcto.</div>
+</div>
+{% endif %}
 {% endwith %}
 </section>
 

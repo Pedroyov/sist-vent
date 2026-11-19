@@ -10,9 +10,10 @@
 {% else %}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
   <h5 class="mb-0 me-auto"><span class="agenda-punto" style="background: {{ mio.color }}"></span>{{ mio.nombre }} · hoy {{ r.n }} cita{{ r.n|pluralize }}{% if r.atendidas %} ({{ r.atendidas }} atendida{{ r.atendidas|pluralize }}){% endif %}</h5>
-  <a href="{% url 'citas:registrar' %}" class="btn btn-success"><i class="bi bi-scissors me-1"></i>Registrar servicio</a>
+  <a href="{% url 'citas:registrar' %}" class="btn btn-success"><i class="bi bi-person-plus me-1"></i>Cliente sin cita</a>
   {% if puede_agendar %}<a href="{% url 'citas:nueva' %}" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Agendar una cita</a>{% endif %}
 </div>
+{% include "citas/partials/en_atencion.html" %}
 {% with g=mes.0 %}
 <div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center small">
   <span class="text-body-secondary">Este mes:</span>

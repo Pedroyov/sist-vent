@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Registrar servicio{% endblock %}
-{% block page_title %}{% if cita %}Agregar otro servicio{% else %}Registrar servicio{% endif %}{% endblock %}
-{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% if mio %}{% url 'citas:mi_agenda' %}{% else %}{% url 'citas:agenda' %}{% endif %}">Citas</a></li><li class="breadcrumb-item active">Registrar servicio</li>{% endblock %}
+{% block title %}{% if cita %}Agregar otro servicio{% else %}Cliente sin cita{% endif %}{% endblock %}
+{% block page_title %}{% if cita %}Agregar otro servicio{% else %}Cliente sin cita{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% if mio %}{% url 'citas:mi_agenda' %}{% else %}{% url 'citas:agenda' %}{% endif %}">Citas</a></li><li class="breadcrumb-item active">{% if cita %}Agregar otro servicio{% else %}Cliente sin cita{% endif %}</li>{% endblock %}
 {% block content %}
 <div class="row"><div class="col-lg-7 col-xl-6">
 <form method="post" class="card card-outline card-primary mb-4" id="f-reg">{% csrf_token %}
@@ -12,7 +12,22 @@
     {% if cita %}
     <p class="mb-3">Para <strong>{{ cita.nombre }}</strong>, que vino a {{ cita.servicio_nombre|default:"su cita" }} con <strong>{{ cita.profesional.nombre }}</strong>. Marca lo que se le hizo además:</p>
     {% else %}
-    <p class="small text-body-secondary mb-3">Para un cliente que llegó sin cita: marca lo que se le hizo y caja lo cobra.</p>
+    <p class="small text-body-secondary mb-2">Para alguien que llegó sin cita. Lo mejor es <strong>empezar ahora</strong>: queda ocupado en la agenda hasta que toques <strong>Terminar</strong>, y se guarda el tiempo real.</p>
+    {% with m=datos.momento|default:"ahora" %}
+    <div class="btn-group w-100 mb-2" role="group" aria-label="Cuándo">
+      <input type="radio" class="btn-check" name="momento" id="m-ahora" value="ahora" {% if m == "ahora" %}checked{% endif %}>
+      <label class="btn btn-outline-primary" for="m-ahora"><i class="bi bi-play-circle me-1"></i>Empieza ahora</label>
+      <input type="radio" class="btn-check" name="momento" id="m-termino" value="termino" {% if m == "termino" %}checked{% endif %}>
+      <label class="btn btn-outline-secondary" for="m-termino"><i class="bi bi-check2-circle me-1"></i>Ya terminó</label>
+    </div>
+    <div class="mb-3 {% if m != 'termino' %}d-none{% endif %}" id="r-hace">
+      <div class="small mb-1">¿Cuándo empezó? <span class="text-body-secondary">(queda como tiempo estimado)</span></div>
+      <div class="d-flex flex-wrap gap-1">
+        {% for v, t in hace_opciones %}<input type="radio" class="btn-check" name="hace" id="h-{{ v|default:'0' }}" value="{{ v }}" {% if datos.hace|default:'' == v %}checked{% endif %}>
+        <label class="btn btn-sm btn-outline-secondary" for="h-{{ v|default:'0' }}">{{ t }}</label>{% endfor %}
+      </div>
+    </div>
+    {% endwith %}
     {% endif %}
     {% if gestiona %}
     <label class="form-label mb-1" for="r-prof">Atendió</label>
@@ -52,7 +67,7 @@
   </div>
   <div class="card-footer d-flex gap-2 justify-content-end">
     <a href="{% if cita %}{% url 'citas:detalle' cita.pk %}{% elif mio %}{% url 'citas:mi_agenda' %}{% else %}{% url 'citas:agenda' %}{% endif %}" class="btn btn-outline-secondary">Cancelar</a>
-    <button class="btn btn-primary btn-lg d-none d-lg-inline-block r-listo" disabled><i class="bi bi-send me-1"></i>Listo, avisar a caja</button>
+    <button class="btn btn-primary btn-lg d-none d-lg-inline-block r-listo" disabled><i class="bi bi-send me-1"></i><span class="r-texto">Listo, avisar a caja</span></button>
   </div>
 </form>
 </div></div>
@@ -61,7 +76,7 @@
 <div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">
   <div class="d-flex align-items-center gap-2">
     <span class="small text-nowrap"><span id="r-n">0 servicios</span> · <strong class="fs-5" id="r-total-m">S/ 0.00</strong></span>
-    <button type="submit" form="f-reg" class="btn btn-primary ms-auto text-nowrap r-listo" disabled><i class="bi bi-send me-1"></i>Avisar a caja</button>
+    <button type="submit" form="f-reg" class="btn btn-primary ms-auto text-nowrap r-listo" disabled><i class="bi bi-send me-1"></i><span class="r-texto">Avisar a caja</span></button>
   </div>
 </div>
 {{ hacen|json_script:"datos-hacen" }}
@@ -106,6 +121,16 @@
     cant.addEventListener("input", total);
   });
   todos.addEventListener("click", function () { verTodos = !verTodos; filtrar(); });
+  // Empieza ahora (queda en atención) o ya terminó (¿cuándo empezó?)
+  var hace = document.getElementById("r-hace");
+  function momento() {
+    var ya = document.getElementById("m-termino");
+    if (!ya) return;
+    hace.classList.toggle("d-none", !ya.checked);
+    document.querySelectorAll(".r-texto").forEach(function (s) { s.textContent = ya.checked ? "Avisar a caja" : "Empezar atención"; });
+  }
+  document.querySelectorAll("[name=momento]").forEach(function (r) { r.addEventListener("change", momento); });
+  momento();
   prof.addEventListener("change", filtrar);
   total();
   filtrar();

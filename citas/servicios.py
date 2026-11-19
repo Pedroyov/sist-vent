@@ -88,9 +88,13 @@ class Dia:
     def libres(self, prof, ahora=None):
         """Rangos libres: jornada − citas − lo que ya pasó (si es hoy)."""
         rangos = self.jornada(prof)
-        for c in self.citas.get(prof.pk, []):
-            rangos = _restar(rangos, (m(c.inicio), m(c.fin)))
         ahora = timezone.localtime(ahora or timezone.now())
+        es_hoy = self.fecha == timezone.localdate()
+        for c in self.citas.get(prof.pk, []):
+            fin = m(c.fin)
+            if c.estado == Cita.Estado.EN_ATENCION and es_hoy:  # se pasó del tiempo: sigue ocupada hasta que toquen «Terminar»
+                fin = max(fin, _minuto(timezone.localtime()) + 5)
+            rangos = _restar(rangos, (m(c.inicio), fin))
         if self.fecha == ahora.date():
             rangos = _restar(rangos, (0, ahora.hour * 60 + ahora.minute))
         elif self.fecha < ahora.date():
@@ -217,8 +221,63 @@ def confirmar(c, usuario):
 
 
 def atender(c, usuario):
-    """Atendida: pasa a «Por cobrar» en caja."""
+    """Atendida: pasa a «Por cobrar» en caja (con la duración agendada). Si estaba en atención, es «Terminar»."""
+    if c.estado == Cita.Estado.EN_ATENCION:
+        terminar(c, usuario)
+        c.refresh_from_db()
+        return c
     return _estado(c, usuario, Cita.Estado.ATENDIDA)
+
+
+def _minuto(momento):
+    return momento.hour * 60 + momento.minute
+
+
+def empezar(c, usuario):
+    """El cliente de una cita se sentó: queda «En atención» desde ahora, con la duración agendada como estimado.
+    Ocupa a la persona hasta que toquen «Terminar» (aunque se pase)."""
+    hoy = timezone.localdate()
+    if c.fecha != hoy:
+        raise CitaError("Solo se empieza el mismo día de la cita.")
+    ahora = _minuto(timezone.localtime())
+    duracion = max(c.minutos, 5)
+    _estado(c, usuario, Cita.Estado.EN_ATENCION)
+    c.inicio, c.fin = a_hora(ahora), a_hora(min(ahora + duracion, 24 * 60 - 1))
+    c.save(update_fields=["inicio", "fin"])
+    return c
+
+
+def de_la_atencion(c):
+    """Todo lo que está en atención en el mismo registro que `c` (la cita y lo «algo más», o los servicios de un cliente sin cita)."""
+    from django.db.models import Q
+
+    clave = clave_cuenta(c)
+    return list(Cita.objects.filter(Q(cuenta=clave) | Q(pk=clave), estado=Cita.Estado.EN_ATENCION).order_by("inicio", "pk"))
+
+
+def terminar(c, usuario):
+    """Terminó: se guarda la hora real de fin y pasa a «Por cobrar». Si en esa atención hubo varios servicios seguidos,
+    el tiempo real se reparte entre ellos según lo que dura cada uno. Devuelve los servicios terminados."""
+    citas = de_la_atencion(c)
+    if not citas:
+        raise CitaError("Esa atención ya terminó.")
+    ahora = timezone.localtime()
+    real = citas[0].fecha == ahora.date()
+    if real:
+        desde = m(citas[0].inicio)
+        total = max(1, _minuto(ahora) - desde)
+        estimado = sum(x.minutos for x in citas) or 1
+        t = desde
+        for i, x in enumerate(citas):
+            dur = total - (t - desde) if i == len(citas) - 1 else max(1, round(x.minutos * total / estimado))
+            x.inicio, x.fin = a_hora(t), a_hora(min(t + dur, 24 * 60 - 1))
+            t += dur
+    with transaction.atomic():
+        for x in citas:
+            x.estado, x.tiempo_real = Cita.Estado.ATENDIDA, real
+            x.cambiada_por, x.cambiada_en = usuario, timezone.now()
+            x.save(update_fields=["estado", "tiempo_real", "inicio", "fin", "cambiada_por", "cambiada_en"])
+    return citas
 
 
 def no_vino(c, usuario):
@@ -235,11 +294,15 @@ def reabrir(c, usuario):
         raise CitaError("Este servicio ya se cobró: no se puede volver a activar.")
     if c.estado in (Cita.Estado.NO_VINO, Cita.Estado.CANCELADA) and not Dia(c.fecha, c).cabe(c.profesional, m(c.inicio), m(c.fin), ahora=c.momento):
         raise CitaError("Ese horario ya se ocupó con otra cita: cámbiala de hora.")
-    return _estado(c, usuario, Cita.Estado.CONFIRMADA, desde=(Cita.Estado.NO_VINO, Cita.Estado.CANCELADA, Cita.Estado.ATENDIDA))
+    return _estado(c, usuario, Cita.Estado.CONFIRMADA,
+                   desde=(Cita.Estado.NO_VINO, Cita.Estado.CANCELADA, Cita.Estado.ATENDIDA, Cita.Estado.EN_ATENCION))
 
 
 def cerrar_pasadas(hoy=None):
-    """Las citas de días anteriores que nadie marcó quedan como «No vino»."""
+    """Las citas de días anteriores que nadie marcó quedan como «No vino»; lo que quedó «En atención» (nadie tocó Terminar)
+    pasa a «Por cobrar» con el tiempo estimado."""
+    Cita.objects.filter(fecha__lt=hoy or timezone.localdate(), estado=Cita.Estado.EN_ATENCION).update(
+        estado=Cita.Estado.ATENDIDA, cambiada_en=timezone.now())
     return turnos.cerrar_pasadas(Cita, hoy)
 
 
@@ -305,7 +368,8 @@ def resumen_dia(fecha, prof=None):
         qs = qs.filter(profesional=prof)
     estados = Counter(qs.values_list("estado", flat=True))
     return {"n": sum(v for k, v in estados.items() if k != Cita.Estado.CANCELADA), "por_confirmar": estados[Cita.Estado.PENDIENTE],
-            "atendidas": estados[Cita.Estado.ATENDIDA], "no_vino": estados[Cita.Estado.NO_VINO]}
+            "atendidas": estados[Cita.Estado.ATENDIDA], "no_vino": estados[Cita.Estado.NO_VINO],
+            "en_atencion": estados[Cita.Estado.EN_ATENCION]}
 
 
 # --- Servicios hechos y cobro en caja ----------------------------------------------------
@@ -313,24 +377,32 @@ def resumen_dia(fecha, prof=None):
 SIN_NOMBRE = "Cliente sin cita"  # quien llegó sin cita y no dio su nombre
 
 
-def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="", nota="", cita=None):
-    """El trabajador avisa qué servicios hizo (cliente sin cita, o algo más en una cita): quedan «por cobrar» en caja.
-    No revisa horarios (ya se hizo). Devuelve las citas creadas (una por servicio, una tras otra)."""
+def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="", nota="", cita=None, *, empezar=False, empezo_hace=None):
+    """Cliente sin cita (o algo más en una cita). Devuelve las citas creadas (una por servicio, una tras otra).
+    - `empezar`: el cliente recién se sienta → «En atención» desde ahora; ocupa a la persona hasta «Terminar» (tiempo real).
+    - si no, ya terminó → «Por cobrar»; empezó hace `empezo_hace` minutos o, si no se sabe, lo que duran los servicios
+      (tiempo estimado). Lo «algo más» de una cita en atención sigue en atención con ella."""
     servicios = [s for s in servicios if s is not None]
     if profesional is None:
         raise CitaError("Elige quién atendió.")
     if not servicios:
         raise CitaError("Marca al menos un servicio.")
     cfg = Config.cargar()
+    estado = Cita.Estado.ATENDIDA
     if cita is not None:
         nombre, telefono = cita.nombre, cita.telefono
         fecha, inicio = cita.fecha, m(cita.fin)
+        if cita.estado == Cita.Estado.EN_ATENCION:
+            estado = Cita.Estado.EN_ATENCION
     else:
         ahora = timezone.localtime()
         fecha = ahora.date()
-        total = sum(duracion_de(s, cfg) for s in servicios)
-        inicio = max(0, ahora.hour * 60 + ahora.minute - total)  # se registra al terminar: empezó hace un rato
-        inicio -= inicio % 5
+        if empezar:
+            inicio, estado = _minuto(ahora), Cita.Estado.EN_ATENCION
+        else:
+            hace = empezo_hace if empezo_hace else sum(duracion_de(s, cfg) for s in servicios)
+            inicio = max(0, _minuto(ahora) - hace)  # se registra al terminar: empezó hace un rato
+            inicio -= inicio % 5
     nombre = _limpio(nombre, 60) or SIN_NOMBRE
     creadas = []
     with transaction.atomic():
@@ -340,7 +412,7 @@ def registrar_servicios(usuario, profesional, servicios, nombre="", telefono="",
             c = Cita(fecha=fecha, inicio=a_hora(inicio), fin=a_hora(fin), profesional=profesional, servicio=s,
                      servicio_nombre=s.nombre_completo[:120], precio=s.precio_venta, nombre=nombre,
                      telefono="".join(ch for ch in str(telefono or "") if ch.isdigit() or ch == "+")[:20], nota=_limpio(nota, 200),
-                     estado=Cita.Estado.ATENDIDA, sin_cita=cita is None, creada_por=usuario)
+                     estado=estado, sin_cita=cita is None, creada_por=usuario)
             if cita is not None and cita.cliente_id:
                 c.cliente_id = cita.cliente_id
             else:
@@ -396,19 +468,35 @@ def editar_cuenta(cuenta, usuario, nombre, telefono):
 
 def quitar_de_cuenta(cita, usuario):
     """Un servicio marcado por error, antes de cobrarlo: queda como cancelado (no se borra) y sale de «Por cobrar»."""
-    if not cita.por_cobrar:
+    if not (cita.por_cobrar or cita.en_atencion):
         raise CitaError("Ese servicio ya se cobró o ya no está por cobrar.")
     if not se_puede_quitar(cita):
         raise CitaError("Es la cita de la agenda: para quitarla, ábrela y usa «Volver a activar».")
-    return turnos.cambiar_estado(cita, usuario, Cita.Estado.CANCELADA, (Cita.Estado.ATENDIDA,), CitaError)
+    return turnos.cambiar_estado(cita, usuario, Cita.Estado.CANCELADA, (Cita.Estado.ATENDIDA, Cita.Estado.EN_ATENCION), CitaError)
 
 
 def por_cobrar(desde_dias=7):
     """Servicios hechos que caja todavía no cobra, una tarjeta por registro (aunque sea el mismo cliente o «Cliente sin cita»):
     [{cuenta, nombre, telefono, citas, total, profesionales}]. Si paga uno por varios, caja los cobra juntos."""
     desde = timezone.localdate() - timedelta(days=desde_dias)
-    qs = (Cita.objects.filter(estado=Cita.Estado.ATENDIDA, cobrada=False, fecha__gte=desde)
-          .select_related("profesional", "servicio__producto").order_by("fecha", "inicio"))
+    return _por_registro(Cita.objects.filter(estado=Cita.Estado.ATENDIDA, cobrada=False, fecha__gte=desde))
+
+
+def en_atencion_ahora(prof=None):
+    """Lo que se está atendiendo ahora, una tarjeta por registro (para «Terminar»), con la hora estimada de fin."""
+    qs = Cita.objects.filter(estado=Cita.Estado.EN_ATENCION, fecha=timezone.localdate())
+    if prof is not None:
+        qs = qs.filter(profesional=prof)
+    grupos = _por_registro(qs)
+    ahora = _minuto(timezone.localtime())
+    for g in grupos:
+        g["empezo"] = g["citas"][0].inicio
+        g["pasado"] = ahora > m(g["desde"])  # ya se pasó del tiempo estimado
+    return grupos
+
+
+def _por_registro(qs):
+    qs = qs.select_related("profesional", "servicio__producto").order_by("fecha", "inicio", "pk")
     grupos = {}
     for c in qs:
         clave = clave_cuenta(c)

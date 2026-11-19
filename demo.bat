@@ -1,13 +1,13 @@
 @echo off
-REM Abre el sistema con DATOS DE EJEMPLO en una base aparte (db_demo.sqlite3).
-REM Tu base real (db.sqlite3) no se toca.
-REM   demo.bat          solo en esta PC
-REM   demo.bat red      tambien desde celulares conectados al mismo WiFi
-REM   demo.bat nuevo    vuelve a generar los datos de ejemplo (se puede combinar: demo.bat nuevo red)
-REM   demo.bat nuevo res   ejemplo de restaurante (tie tienda, res restaurante, rop ropa, lib libreria, pel peluqueria, aca academia o gimnasio)
+REM Abre una DEMO con datos de ejemplo, igual que las demos de Render. Hay una base por tipo de negocio
+REM (db_demo_tie.sqlite3, db_demo_pel.sqlite3...): cambiar de negocio no borra las otras. Tu base real (db.sqlite3) no se toca.
+REM   demo.bat            tienda / bodega
+REM   demo.bat pel        peluqueria  (tie tienda, res restaurante, rop ropa, lib libreria, pel peluqueria, aca academia o gimnasio)
+REM   demo.bat pel nuevo  vuelve a generar los datos de ejemplo de ese negocio (con las fechas de hoy)
+REM   demo.bat pel red    tambien desde celulares conectados al mismo WiFi
+REM Se abre una demo a la vez. Como en Render, no se pueden cambiar claves, usuarios ni modulos.
 cd /d "%~dp0"
 if exist .venv\Scripts\activate.bat call .venv\Scripts\activate.bat
-set DATABASE_URL=sqlite:///db_demo.sqlite3
 set NUEVO=
 set RED=
 set RUBRO=TIE
@@ -21,17 +21,22 @@ for %%a in (%*) do (
   if /i "%%a"=="pel" set RUBRO=PEL
   if /i "%%a"=="aca" set RUBRO=ACA
 )
-if defined NUEVO if exist db_demo.sqlite3 del db_demo.sqlite3
-if not exist db_demo.sqlite3 (
-  echo Creando la base de ejemplo, espera unos segundos...
+set BASE=db_demo_%RUBRO%.sqlite3
+set DATABASE_URL=sqlite:///%BASE%
+set DEMO=True
+if defined NUEVO if exist %BASE% del %BASE%
+if not exist %BASE% (
+  echo Creando la demo %RUBRO%, espera unos segundos...
   python manage.py migrate -v0 || goto :error
   python manage.py datos_demo --rubro %RUBRO% || goto :error
+) else (
+  python manage.py migrate -v0 || goto :error
 )
 echo.
+echo  Demo %RUBRO% (base %BASE%). Los usuarios de prueba aparecen al ingresar (clave demo1234).
+echo  Para volver a generarla con las fechas de hoy: demo.bat %RUBRO% nuevo
 if defined RED goto :red
-echo  Abre http://127.0.0.1:8000  (usuario: gerente  clave: demo1234)
-echo  Para volver a generar los datos: demo.bat nuevo
-echo  Para abrirlo tambien desde un celular: demo.bat red
+echo  Abre http://127.0.0.1:8000
 echo.
 python manage.py runserver
 goto :eof
@@ -43,7 +48,6 @@ echo  En esta PC:        http://127.0.0.1:8000
 if defined IP echo  En el celular:     http://%IP%:8000   (mismo WiFi o datos compartidos desde tu celular)
 if not defined IP echo  En el celular: escribe ipconfig en otra ventana y usa la "Direccion IPv4" con :8000
 echo  Si Windows pregunta por el firewall, marca "Redes privadas" y pulsa Permitir.
-echo  Usuario: gerente  clave: demo1234
 echo.
 python manage.py runserver 0.0.0.0:8000
 goto :eof

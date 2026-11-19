@@ -209,7 +209,7 @@ class CobroTests(Base):
 
         self.client.force_login(self.u_carla)
         resp = self.client.post(reverse("citas:registrar"), {f"s{self.corte.pk}": "1", f"s{self.tinte.pk}": "1", "nombre": "Lucía",
-                                                             "telefono": "986002233", "profesional": self.ana.pk})
+                                                             "telefono": "986002233", "profesional": self.ana.pk, "momento": "termino"})
         self.assertRedirects(resp, reverse("citas:mi_agenda"))
         hechas = list(Cita.objects.filter(nombre="Lucía").order_by("inicio"))
         self.assertEqual([c.profesional for c in hechas], [self.carla, self.carla])  # siempre ella misma
@@ -359,6 +359,107 @@ class CobroTests(Base):
         self.assertTrue(c.cobrada)
         with self.assertRaisesMessage(CitaError, "ya se cobró"):
             reabrir(c, self.cajero)
+
+
+class AtencionTests(Base):
+    """Empezar y Terminar: quien atiende queda ocupado desde que empieza hasta que termina (aunque se pase) y se guarda el tiempo real."""
+
+    def a_las(self, hora, minuto=0, fecha=None):
+        from unittest import mock
+
+        momento = timezone.make_aware(datetime.combine(fecha or self.lunes, time(hora, minuto)))
+        return mock.patch("django.utils.timezone.now", return_value=momento)
+
+    def test_sin_cita_ocupa_hasta_terminar(self):
+        from .servicios import por_cobrar, registrar_servicios, terminar
+
+        with self.a_las(15):
+            c = registrar_servicios(self.cajero, self.carla, [self.corte], empezar=True)[0]
+            self.assertEqual((c.estado, c.inicio, c.fin), (Cita.Estado.EN_ATENCION, time(15), time(15, 30)))
+            libres = Dia(self.lunes).horarios_libres(self.carla, 30, 15)
+            self.assertEqual(libres[0], 15 * 60 + 30)  # mientras atiende no le dan citas
+            self.assertEqual(por_cobrar(), [])  # todavía no está para cobrar
+        with self.a_las(15, 50):  # se pasó del tiempo: sigue ocupada
+            libres = Dia(self.lunes).horarios_libres(self.carla, 30, 15)
+            self.assertNotIn(15 * 60 + 30, libres)
+            self.assertNotIn(15 * 60 + 45, libres)
+            terminar(c, self.cajero)
+        c.refresh_from_db()
+        self.assertEqual((c.estado, c.inicio, c.fin, c.tiempo_real), (Cita.Estado.ATENDIDA, time(15), time(15, 50), True))
+        with self.a_las(15, 50):
+            self.assertEqual(len(por_cobrar()), 1)
+
+    def test_cita_de_la_agenda_y_algo_mas(self):
+        """Se empieza a la hora real; lo «algo más» sigue en atención con ella; el tiempo real se reparte entre los dos."""
+        from .servicios import empezar, registrar_servicios, terminar
+
+        c = self.cita(self.carla, time(10))
+        with self.assertRaisesMessage(CitaError, "mismo día"):
+            empezar(c, self.cajero)
+        with self.a_las(10, 10):
+            empezar(c, self.cajero)
+            self.assertEqual((c.inicio, c.fin), (time(10, 10), time(10, 40)))
+            extra = registrar_servicios(self.cajero, self.carla, [self.tinte], cita=c)[0]
+            self.assertEqual((extra.estado, extra.inicio), (Cita.Estado.EN_ATENCION, time(10, 40)))
+        with self.a_las(12, 10):  # 120 minutos reales para 150 estimados
+            hechos = terminar(extra, self.cajero)
+        self.assertEqual([(x.inicio, x.fin) for x in hechos], [(time(10, 10), time(10, 34)), (time(10, 34), time(12, 10))])
+        self.assertTrue(all(x.tiempo_real and x.estado == Cita.Estado.ATENDIDA for x in Cita.objects.filter(pk__in=[c.pk, extra.pk])))
+
+    def test_ya_termino_y_olvidadas(self):
+        from .servicios import cerrar_pasadas, registrar_servicios
+
+        with self.a_las(16):
+            ya = registrar_servicios(self.cajero, self.ana, [self.manicure], empezo_hace=45)[0]
+            olvidada = registrar_servicios(self.cajero, self.carla, [self.corte], empezar=True)[0]
+        self.assertEqual((ya.estado, ya.inicio, ya.tiempo_real), (Cita.Estado.ATENDIDA, time(15, 15), False))
+        cerrar_pasadas(self.lunes + timedelta(days=1))  # nadie tocó Terminar: al día siguiente pasa a Por cobrar (tiempo estimado)
+        olvidada.refresh_from_db()
+        self.assertEqual((olvidada.estado, olvidada.tiempo_real), (Cita.Estado.ATENDIDA, False))
+
+    def test_reporte_tiempo_real(self):
+        """El promedio real por servicio sale solo de lo marcado con Empezar/Terminar y con un solo servicio en la atención."""
+        from personal.reportes import de_negocio
+
+        from .servicios import registrar_servicios, terminar
+
+        for empieza, termina in (((10, 0), (10, 40)), ((11, 0), (11, 50))):
+            with self.a_las(*empieza):
+                c = registrar_servicios(self.cajero, self.carla, [self.corte], empezar=True)[0]
+            with self.a_las(*termina):
+                terminar(c, self.cajero)
+        with self.a_las(14):
+            dos = registrar_servicios(self.cajero, self.ana, [self.corte, self.manicure], empezar=True)  # dos servicios: no cuenta
+        with self.a_las(15):
+            terminar(dos[0], self.cajero)
+            registrar_servicios(self.cajero, self.ana, [self.corte], empezo_hace=90)  # estimado: no cuenta
+            t = de_negocio(self.lunes, self.lunes)["tiempos"]
+        self.assertEqual([(x["servicio"], x["veces"], x["real"], x["minimo"], x["maximo"], x["catalogo"], x["diferencia"]) for x in t],
+                         [("Corte", 2, 45, 40, 50, 30, 15)])
+
+    def test_pantallas(self):
+        from caja.servicios import abrir
+
+        self.client.force_login(self.u_carla)
+        r = self.client.post(reverse("citas:registrar"), {f"s{self.corte.pk}": "1", "momento": "ahora"})
+        self.assertRedirects(r, reverse("citas:mi_agenda"))
+        c = Cita.objects.get(estado=Cita.Estado.EN_ATENCION)
+        r = self.client.get(reverse("citas:mi_agenda"))
+        self.assertContains(r, "Atendiendo ahora")
+        self.assertContains(r, reverse("citas:accion", args=[c.pk, "terminar"]))
+        self.assertContains(self.client.get(reverse("citas:registrar")), "Empieza ahora")
+        abrir(self.cajero, D("0"))
+        self.client.force_login(self.cajero)
+        self.assertContains(self.client.get(reverse("citas:agenda")), "Atendiendo ahora")
+        self.assertContains(self.client.get(reverse("citas:por_cobrar")), "Terminar y cobrar")
+        r = self.client.post(reverse("citas:accion", args=[c.pk, "terminar"]), {"cobrar": "1"})
+        self.assertRedirects(r, f"{reverse('ventas:pos')}?citas={c.pk}", fetch_redirect_response=False)
+        c.refresh_from_db()
+        self.assertTrue(c.por_cobrar and c.tiempo_real)
+        # una cita de hoy: Empezar desde su ficha
+        hoy = self.cita(self.ana, time(23, 0), fecha=timezone.localdate(), forzar=True) if timezone.localtime().hour < 22 else None
+        if hoy:
+            self.assertContains(self.client.get(reverse("citas:detalle", args=[hoy.pk])), "Empezar")
 
 
 class ReporteTests(Base):

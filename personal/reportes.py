@@ -4,7 +4,8 @@ Junta lo que hace cada persona según los módulos que use el negocio:
 - **Cobró en caja** (siempre): todo lo que cobró con su usuario: ventas, y también cuotas (Cobranzas) y pagos de
   deudas (Clientes), con el detalle de cada uno y el ticket promedio de sus ventas.
 - **Atendió** (Mesas o la función «Quién atendió»): ventas que atendió como mozo o vendedor, y las propinas.
-- **Servicios** (Citas): servicios hechos, clientes, sin cita, no vino, ocupación y lo que más hizo.
+- **Servicios** (Citas): servicios hechos, clientes, sin cita, no vino, ocupación y lo que más hizo; y el **tiempo real por
+  servicio** (solo lo que se marcó con Empezar y Terminar, con un solo servicio en esa atención) frente al del catálogo.
 - **Entregas** (Delivery): pedidos que repartió.
 - **Comisión** (función «Comisiones»): su % sobre lo que generó (servicios + lo que atendió).
 
@@ -85,13 +86,15 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
             f[f"{campo}_n"] += 1
             f[campo] += p.monto
 
-    tabla, columnas, ocupacion = [], [], (hasta - desde).days <= 92
+    tabla, columnas, tiempos, ocupacion = [], [], [], (hasta - desde).days <= 92
     if "citas" in modulos:
         from citas.models import Cita
         from citas.servicios import Dia
 
         servicios = {}
-        for c in Cita.objects.filter(fecha__gte=desde, fecha__lte=hasta).select_related("profesional", "servicio__producto"):
+        citas = list(Cita.objects.filter(fecha__gte=desde, fecha__lte=hasta).select_related("profesional", "servicio__producto"))
+        tiempos = _tiempos_reales(citas)
+        for c in citas:
             f = de_persona(c.profesional)
             if c.estado == Cita.Estado.ATENDIDA:
                 f["servicios"] += 1
@@ -149,9 +152,33 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
         f["pct"] = round(float(f["generado"] or f["cobro"]) / float(maximo) * 100, 1)
     ver = {"cuotas": "cobranzas" in modulos, "deudas": "clientes" in modulos, "atendio": con_atendio, "propinas": "mesas" in modulos, "servicios": "citas" in modulos,
            "ocupacion": "citas" in modulos and ocupacion, "entregas": "delivery" in modulos, "comisiones": comisiones}
-    return {"filas": lista, "ver": ver, "tabla": tabla, "columnas": columnas,
+    return {"filas": lista, "ver": ver, "tabla": tabla, "columnas": columnas, "tiempos": tiempos,
             "servicios": sum(f["servicios"] for f in lista), "generado": sum((f["generado"] for f in lista), CERO),
             "comision_total": sum((f["comision"] or CERO for f in lista), CERO)}
+
+
+def _tiempos_reales(citas):
+    """Cuánto dura de verdad cada servicio: promedio de lo marcado con Empezar y Terminar, contando solo las atenciones de un
+    solo servicio (con varios, el tiempo se reparte y no es exacto). Frente a la duración del catálogo, para ajustarla."""
+    from citas.models import Config
+    from citas.servicios import clave_cuenta, duracion_de
+
+    atendidas = [c for c in citas if c.estado == c.Estado.ATENDIDA]
+    por_atencion = Counter(clave_cuenta(c) for c in atendidas)
+    cfg = Config.cargar()
+    reales, catalogo = {}, {}
+    for c in atendidas:
+        if c.tiempo_real and por_atencion[clave_cuenta(c)] == 1:
+            nombre = c.servicio.nombre_completo if c.servicio_id else (c.servicio_nombre or "Otro")
+            reales.setdefault(nombre, []).append(c.minutos)
+            catalogo[nombre] = duracion_de(c.servicio, cfg) if c.servicio_id else None
+    salida = []
+    for nombre, minutos in reales.items():
+        real = round(sum(minutos) / len(minutos))
+        cat = catalogo[nombre]
+        salida.append({"servicio": nombre, "veces": len(minutos), "real": real, "minimo": min(minutos), "maximo": max(minutos),
+                       "catalogo": cat, "diferencia": real - cat if cat else None})
+    return sorted(salida, key=lambda x: (-x["veces"], x["servicio"]))
 
 
 def de_negocio(desde, hasta):

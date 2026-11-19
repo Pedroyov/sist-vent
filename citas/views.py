@@ -23,7 +23,8 @@ from .models import Ausencia, Cita, Config, Horario
 from .servicios import (CitaError, Dia, a_esa_hora, dia_corto, a_hora, agendar, atender, cancelar, cerrar_pasadas, confirmar, dia_texto, duracion_de,
                         enlace_cita, enlace_horarios, hora_texto, m, mensaje_horarios, mis_horarios, no_vino, profesionales,
                         proximos, rangos_texto, reabrir, resumen_dia, registrar_servicios, por_cobrar as lista_por_cobrar,
-                        marcar_cobradas, contar_por_cobrar, clave_cuenta, de_la_cuenta, editar_cuenta, quitar_de_cuenta, se_puede_quitar, SIN_NOMBRE)
+                        marcar_cobradas, contar_por_cobrar, clave_cuenta, de_la_cuenta, editar_cuenta, quitar_de_cuenta, se_puede_quitar, SIN_NOMBRE,
+                        empezar, terminar, en_atencion_ahora)
 
 VER = ("citas.ver", "citas.gestionar")
 PPM = 1.4  # alto de la agenda: píxeles por minuto
@@ -43,7 +44,7 @@ def _puede_cita(user, c, accion):
     mio = _mio(user)
     if mio is None or c.profesional_id != mio.pk:
         return False
-    if accion in ("atender", "no_vino", "ver"):
+    if accion in ("atender", "no_vino", "ver", "empezar", "terminar"):
         return True
     return puede(user, "citas.agendar_propias")
 
@@ -95,7 +96,11 @@ def agenda(request):
         for c in suyas:
             if c.estado == Cita.Estado.CANCELADA:
                 continue
-            bloques.append({"c": c, "top": (m(c.inicio) - desde) * PPM, "alto": max(c.minutos * PPM, 22)})
+            minutos = c.minutos
+            if c.en_atencion and fecha == hoy:  # se pasó del tiempo: el bloque crece hasta ahora
+                ahora_min = timezone.localtime().hour * 60 + timezone.localtime().minute
+                minutos = max(minutos, ahora_min - m(c.inicio))
+            bloques.append({"c": c, "top": (m(c.inicio) - desde) * PPM, "alto": max(minutos * PPM, 22)})
         trabaja = [{"top": (a - desde) * PPM, "alto": (b - a) * PPM} for a, b in jornada]
         huecos = []
         if gestiona:
@@ -116,6 +121,7 @@ def agenda(request):
         "r": resumen_dia(fecha), "hay_personal": bool(personal), "cfg": cfg,
         "lista": [c for c in citas], "gestiona": gestiona,
         "n_por_cobrar": contar_por_cobrar() if puede(request.user, "ventas.vender", "citas.gestionar") else 0,
+        "en_atencion": en_atencion_ahora() if fecha == hoy else [], "cobrar": _puede_cobrar(request.user),
     })
 
 
@@ -140,7 +146,12 @@ def detalle(request, pk):
     })
 
 
-ACCIONES = {"confirmar": confirmar, "cancelar": cancelar, "no_vino": no_vino, "reabrir": reabrir, "atender": atender}
+ACCIONES = {"confirmar": confirmar, "cancelar": cancelar, "no_vino": no_vino, "reabrir": reabrir, "atender": atender,
+            "empezar": empezar, "terminar": terminar}
+
+
+def _puede_cobrar(user):
+    return modulo_activo(user, "mostrador") and puede(user, "ventas.vender")
 
 
 @require_POST
@@ -152,15 +163,21 @@ def accion(request, pk, accion):
     if not _puede_cita(request.user, c, accion):
         raise PermissionDenied
     try:
-        ACCIONES[accion](c, request.user)
+        hecho = ACCIONES[accion](c, request.user)
     except CitaError as e:
         messages.error(request, str(e))
         return redirect(_destino(request, c))
+    if accion == "terminar":  # toda la atención (la cita y lo «algo más»), con la hora real
+        ids = ",".join(str(x.pk) for x in hecho)
+        messages.success(request, f"Terminó {', '.join(x.servicio_nombre or 'el servicio' for x in hecho)} de {c.nombre}: "
+                                  "ya está en «Por cobrar».")
+        if request.POST.get("cobrar") and _puede_cobrar(request.user):
+            return redirect(f"{reverse('ventas:pos')}?citas={ids}")
+        return redirect(_destino(request, c))
     textos = {"confirmar": "confirmada", "cancelar": "cancelada", "no_vino": "marcada como «No vino»", "reabrir": "activa otra vez",
-              "atender": "atendida"}
+              "atender": "atendida", "empezar": "en atención: toca «Terminar» cuando acabe"}
     messages.success(request, f"Cita de {c.nombre} {textos[accion]}.")
-    if accion == "atender" and request.POST.get("cobrar") and c.servicio_id and modulo_activo(request.user, "mostrador") \
-            and puede(request.user, "ventas.vender"):
+    if accion == "atender" and request.POST.get("cobrar") and c.servicio_id and _puede_cobrar(request.user):
         return redirect(f"{reverse('ventas:pos')}?citas={c.pk}")
     return redirect(_destino(request, c))
 
@@ -276,7 +293,7 @@ def mi_agenda(request):
         "libres": [(f, dia_corto(f), rangos_texto(rangos)) for f, rangos in mis_horarios(mio, cfg=cfg)], "wa": enlace_horarios(mio, cfg),
         "texto": mensaje_horarios(mio, cfg=cfg), "r": resumen_dia(hoy, mio), "puede_agendar": puede(request.user, "citas.agendar_propias"),
         "horario": list(mio.horarios.all()), "ausencias": mio.ausencias.filter(hasta__gte=hoy)[:5],
-        "mes": de_persona(mio, hoy.replace(day=1), hoy),
+        "mes": de_persona(mio, hoy.replace(day=1), hoy), "en_atencion": en_atencion_ahora(mio), "cobrar": _puede_cobrar(request.user),
     })
 
 
@@ -375,20 +392,26 @@ def registrar(request):
         elegidos = []
         for v in servicios:  # cada servicio marcado, tantas veces como se indicó
             elegidos += [v] * max(0, min(entero(d.get(f"s{v.pk}")) or 0, 10))
+        ahora = cita is None and d.get("momento", "ahora") == "ahora"
         try:
-            hechos = registrar_servicios(request.user, prof, elegidos, d.get("nombre", ""), d.get("telefono", ""), d.get("nota", ""), cita)
+            hechos = registrar_servicios(request.user, prof, elegidos, d.get("nombre", ""), d.get("telefono", ""), d.get("nota", ""), cita,
+                                         empezar=ahora, empezo_hace=entero(d.get("hace")) or None)
         except CitaError as e:
             error = str(e)
         else:
             total = sum(c.servicio.precio_venta for c in hechos)
-            messages.success(request, f"Listo: {', '.join(c.servicio_nombre for c in hechos)} de {hechos[0].nombre} (S/ {total:.2f}). "
-                                      "Caja ya lo ve en «Por cobrar».")
+            servicios_txt = f"{', '.join(c.servicio_nombre for c in hechos)} de {hechos[0].nombre} (S/ {total:.2f})"
+            if hechos[0].en_atencion:
+                messages.success(request, f"En atención: {servicios_txt}. Toca «Terminar» cuando acabe y pasa a caja.")
+            else:
+                messages.success(request, f"Listo: {servicios_txt}. Caja ya lo ve en «Por cobrar».")
             if cita is not None:
                 return redirect(_destino(request, cita))  # «Agregar servicio» desde Por cobrar vuelve a la tarjeta
             return redirect("citas:agenda" if gestiona and not mio else "citas:mi_agenda")
     return render(request, "citas/registrar.html", {
         "cita": cita, "personal": personal, "mio": mio, "gestiona": gestiona, "servicios": servicios, "error": error,
         "hacen": {str(p.pk): [s.pk for s in p.servicios.all()] for p in personal + ([cita.profesional] if cita else [])},
+        "hace_opciones": [("", "Según el servicio"), ("15", "Hace 15 min"), ("30", "30 min"), ("45", "45 min"), ("60", "1 h"), ("90", "1 h 30")],
         "datos": request.POST if request.method == "POST" else {"profesional": str(cita.profesional_id if cita else (mio.pk if mio else ""))},
     })
 
@@ -396,7 +419,8 @@ def registrar(request):
 @permiso_requerido("ventas.vender", "citas.gestionar")
 def por_cobrar(request):
     return render(request, "citas/por_cobrar.html", {"grupos": lista_por_cobrar(), "hoy": timezone.localdate(),
-                                                     "vender": modulo_activo(request.user, "mostrador") and puede(request.user, "ventas.vender")})
+                                                     "vender": _puede_cobrar(request.user), "cobrar": _puede_cobrar(request.user),
+                                                     "en_atencion": en_atencion_ahora()})
 
 
 @permiso_requerido("ventas.vender", "citas.gestionar")

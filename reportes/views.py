@@ -134,6 +134,9 @@ def _excel(d):
     if pe["tabla"]:
         hoja("Servicios por persona", ["Servicio"] + [p.nombre for p in pe["columnas"]] + ["Total"],
              [[f["servicio"]] + f["por"] + [f["total"]] for f in pe["tabla"]])
+    if pe["tiempos"]:
+        hoja("Tiempo real por servicio", ["Servicio", "Veces", "Real promedio (min)", "Mínimo (min)", "Máximo (min)", "Catálogo (min)", "Diferencia (min)"],
+             [[t["servicio"], t["veces"], t["real"], t["minimo"], t["maximo"], t["catalogo"], t["diferencia"]] for t in pe["tiempos"]])
     if d["con_mesas"]:
         hoja("Platos quitados", ["Fecha", "Mesa", "Plato", "Cantidad", "Valor", "Motivo", "Mozo", "Quitó"],
              [[timezone.localtime(i.creado).strftime("%d/%m/%Y %H:%M"), i.cuenta.titulo, i.descripcion, i.cantidad, i.subtotal,

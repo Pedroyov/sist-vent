@@ -92,12 +92,13 @@ class Cita(TurnoBase):
     class Estado(models.TextChoices):
         PENDIENTE = "PEN", "Por confirmar"
         CONFIRMADA = "CON", "Confirmada"
+        EN_ATENCION = "ENC", "En atención"  # empezó y todavía no termina: ocupa a la persona hasta que toquen «Terminar»
         ATENDIDA = "ATE", "Atendida"
         NO_VINO = "NOV", "No vino"
         CANCELADA = "CAN", "Cancelada"
 
     ACTIVAS = (Estado.PENDIENTE, Estado.CONFIRMADA)
-    OCUPAN = (Estado.PENDIENTE, Estado.CONFIRMADA, Estado.ATENDIDA)
+    OCUPAN = (Estado.PENDIENTE, Estado.CONFIRMADA, Estado.EN_ATENCION, Estado.ATENDIDA)
 
     fecha = models.DateField()
     inicio = models.TimeField()
@@ -112,6 +113,8 @@ class Cita(TurnoBase):
     cobrada = models.BooleanField(default=False, help_text="El servicio ya se cobró (o se marcó como cobrado aparte).")
     venta = models.ForeignKey("ventas.Venta", on_delete=models.SET_NULL, null=True, blank=True, related_name="citas",
                               help_text="La venta en la que se cobró.")
+    tiempo_real = models.BooleanField(default=False, help_text="Inicio y fin marcados al empezar y al terminar (no estimados con la "
+                                                                "duración del servicio): son los que valen para los tiempos reales.")
     cuenta = models.PositiveIntegerField(null=True, blank=True, db_index=True,
                                          help_text="Servicios de un mismo registro, que caja cobra juntos: el número del primero. "
                                                    "Vacío: la cita va sola.")
@@ -128,6 +131,10 @@ class Cita(TurnoBase):
     @property
     def por_cobrar(self):
         return self.estado == self.Estado.ATENDIDA and not self.cobrada
+
+    @property
+    def en_atencion(self):
+        return self.estado == self.Estado.EN_ATENCION
 
 
     @property

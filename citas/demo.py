@@ -15,7 +15,7 @@ from productos.models import Producto, Variante
 from personal.models import Persona
 
 from .models import Ausencia, Cita, Horario
-from .servicios import Dia, a_hora, duracion_de
+from .servicios import Dia, a_hora, duracion_de, m
 
 CLIENTES = [("Carmen Ruiz", "987001122"), ("Lucía Paredes", "986002233"), ("Milagros Soto", "985003344"), ("Sofía Ramírez", "984004455"),
             ("Andrea Cáceres", "983005566"), ("Valeria Núñez", "982006677"), ("Rocío Flores", "981007788"), ("Jimena Vela", "980008899"),
@@ -121,6 +121,18 @@ def cargar_citas():
     barba = variantes.get("Corte + barba")
     if barba:
         registrar_servicios(cajero, luis, [barba[0]], "Martín Gómez", "979009900", "Pidió perfilado de cejas, ya incluido")
+    # Lo atendido días atrás se marcó con Empezar y Terminar: tiempos reales (para el reporte «Tiempo real por servicio»)
+    for c in Cita.objects.filter(fecha__lt=hoy, estado=Cita.Estado.ATENDIDA):
+        if rnd.random() < .8:
+            fin = min(m(c.inicio) + max(10, c.minutos + rnd.choice([-5, 0, 0, 5, 10, 15, 25])), 24 * 60 - 1)
+            c.fin, c.tiempo_real = a_hora(fin), True
+            c.save(update_fields=["fin", "tiempo_real"])
+    # Alguien que llegó sin cita y Ana está atendiendo ahora (empezó hace 20 minutos)
+    manicure = variantes.get("Manicure")
+    if manicure and 9 * 60 + 20 <= min_ahora <= 19 * 60:
+        for c in registrar_servicios(cajero, ana, [manicure[0]], "Lucía Prado", "986441122", empezar=True):
+            c.inicio, c.fin = a_hora(min_ahora - 20), a_hora(min_ahora - 20 + c.minutos)
+            c.save(update_fields=["inicio", "fin"])
     # Próximos días
     for dias in range(1, 6):
         for p in (carla, ana, rosa, luis):

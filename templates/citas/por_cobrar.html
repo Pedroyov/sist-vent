@@ -4,6 +4,7 @@
 {% block breadcrumb %}<li class="breadcrumb-item active">Por cobrar</li>{% endblock %}
 {% block content %}
 <p class="small text-body-secondary">Lo que el personal ya hizo y avisó: una tarjeta por cada registro. Pulsa <strong>Cobrar</strong>: se abre Vender con esos servicios; al cobrar, salen de esta lista.{% if vender %} Si una persona paga por varias (papá e hijo, amigas), marca sus tarjetas y pulsa <strong>Cobrar juntos</strong>.{% endif %}</p>
+{% include "citas/partials/en_atencion.html" %}
 {% if grupos %}
 <div class="row g-3">
   {% for g in grupos %}

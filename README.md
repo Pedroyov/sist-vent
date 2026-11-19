@@ -101,7 +101,7 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 
 ## Ver el sistema con datos de ejemplo
 
-Doble clic en `demo.bat`. Crea una base aparte, `db_demo.sqlite3`, con un negocio de ejemplo (bodega). Para otro rubro: `python manage.py datos_demo --rubro ROP` (ROP ropa, RES restaurante, LIB librería, PEL peluquería, ACA academia o gimnasio con cobranzas) sobre una base vacía. **Tu base real (`db.sqlite3`) no se toca.**
+Doble clic en `demo.bat` (bodega) o, en una ventana de comandos, `demo.bat pel` (TIE tienda, RES restaurante, ROP ropa, LIB librería, PEL peluquería, ACA academia o gimnasio). Cada negocio tiene su propia base (`db_demo_pel.sqlite3`…), así que cambiar de negocio no borra las demás; `demo.bat pel nuevo` la vuelve a generar con las fechas de hoy. Funciona como las demos de Render (modo demo: la pantalla de ingreso muestra los usuarios de prueba). **Tu base real (`db.sqlite3`) no se toca.**
 
 Usuarios (clave `demo1234`): `admin` (administrador principal: módulos del sistema), `gerente` (Administración), `cajero`, `vendedor`.
-Para regenerar los datos: `demo.bat nuevo`.
+Para regenerar los datos de un negocio con las fechas de hoy: `demo.bat pel nuevo`.

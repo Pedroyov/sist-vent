@@ -24,7 +24,15 @@
       {% if request.GET.nueva and wa %}<div class="alert alert-primary py-2 small mt-3 mb-0"><i class="bi bi-info-circle"></i> Envíale la confirmación por WhatsApp.</div>{% endif %}
     </div>
     <div class="card-footer d-flex flex-wrap gap-2">
-      {% if c.activa %}
+      {% if c.en_atencion %}
+        {% if p_atender %}
+          <form method="post" action="{% url 'citas:accion' c.pk 'terminar' %}">{% csrf_token %}<button class="btn btn-success"><i class="bi bi-stop-circle me-1"></i>Terminar</button></form>
+          {% if cobrar %}<form method="post" action="{% url 'citas:accion' c.pk 'terminar' %}">{% csrf_token %}<input type="hidden" name="cobrar" value="1"><button class="btn btn-primary"><i class="bi bi-cart-check me-1"></i>Terminar y cobrar</button></form>{% endif %}
+          <a href="{% url 'citas:registrar' %}?cita={{ c.pk }}" class="btn btn-outline-success"><i class="bi bi-plus-lg me-1"></i>Agregar otro servicio</a>
+        {% endif %}
+        {% if p_editar %}<form method="post" action="{% url 'citas:accion' c.pk 'reabrir' %}" class="ms-auto" onsubmit="return confirm('¿Se empezó por error? Vuelve a quedar como cita confirmada.')">{% csrf_token %}<button class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Volver a activar</button></form>{% endif %}
+      {% elif c.activa %}
+        {% if p_atender and c.fecha == hoy %}<form method="post" action="{% url 'citas:accion' c.pk 'empezar' %}">{% csrf_token %}<button class="btn btn-warning" title="El cliente se sentó: ocupa a {{ c.profesional.nombre }} hasta que toques Terminar"><i class="bi bi-play-circle me-1"></i>Empezar</button></form>{% endif %}
         {% if p_atender %}
           {% if cobrar %}<form method="post" action="{% url 'citas:accion' c.pk 'atender' %}">{% csrf_token %}<input type="hidden" name="cobrar" value="1"><button class="btn btn-primary"><i class="bi bi-cart-check me-1"></i>Atender y cobrar</button></form>
           {% else %}<form method="post" action="{% url 'citas:accion' c.pk 'atender' %}">{% csrf_token %}<button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Atendida</button></form>{% endif %}
