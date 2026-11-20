@@ -129,6 +129,8 @@ class MovimientoCaja(models.Model):
     anulado_en = models.DateTimeField(null=True, blank=True)
     anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
     motivo_anulacion = models.CharField("motivo de la anulación", max_length=200, blank=True)
+    compra = models.ForeignKey("compras.Compra", on_delete=models.PROTECT, null=True, blank=True, related_name="pagos",
+                               help_text="Pago de una compra registrada (módulo Compras).")
     persona = models.ForeignKey("personal.Persona", on_delete=models.SET_NULL, null=True, blank=True, related_name="pagos",
                                 verbose_name="a quién", help_text="Pagos y adelantos al personal (función «Pagos al personal»).")
 

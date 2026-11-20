@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Proveedores{% endblock %}
+{% block page_title %}Proveedores{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'compras:lista' %}">Compras</a></li><li class="breadcrumb-item active">Proveedores</li>{% endblock %}
+{% block content %}
+{% include "compras/_menu.html" with activo="proveedores" %}
+<div class="card mb-4">
+  <div class="card-header">
+    <form class="d-flex flex-wrap gap-2" method="get">
+      <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width: 20rem" placeholder="Nombre, RUC o contacto" aria-label="Buscar">
+      <select name="ver" class="form-select form-select-sm" style="width: auto" onchange="this.form.submit()" aria-label="Ver"><option value="">Activos</option><option value="todos" {% if ver == "todos" %}selected{% endif %}>Todos</option></select>
+      {% if P.compras_registrar %}<a href="{% url 'compras:proveedor_nuevo' %}" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-lg me-1"></i>Nuevo proveedor</a>{% endif %}
+    </form>
+  </div>
+  {% if lista %}
+  <div class="list-group list-group-flush">
+    {% for p in lista %}
+    <a href="{% url 'compras:proveedor' p.pk %}" class="list-group-item list-group-item-action {% if not p.activo %}text-body-secondary{% endif %}">
+      <div class="d-flex align-items-center gap-2">
+        <strong class="min-w-0 text-truncate">{{ p }}</strong>{% if p.ruc %}<span class="small text-body-secondary">{{ p.ruc }}</span>{% endif %}
+        {% if p.d %}<span class="ms-auto text-nowrap fw-semibold {% if p.d.vencido %}text-danger{% endif %}">{{ p.d.deuda|soles }}</span>{% endif %}
+      </div>
+      <div class="small text-body-secondary">{% if p.contacto %}{{ p.contacto }} · {% endif %}{% if p.telefono %}{{ p.telefono }} · {% endif %}{% if p.plazo %}{{ p.plazo }} días de plazo{% else %}al contado{% endif %}
+        {% if p.d.vencido %} · <span class="text-danger">vencido {{ p.d.vencido|soles }}</span>{% elif p.d.proxima %} · vence {{ p.d.proxima|date:"d/m" }}{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}<div class="card-body text-body-secondary">Todavía no hay proveedores.</div>{% endif %}
+</div>
+{% endblock %}

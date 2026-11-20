@@ -1,0 +1,7 @@
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% if P.compras_registrar %}<a href="{% url 'compras:nueva' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nueva compra</a>{% endif %}
+  <a href="{% url 'compras:lista' %}" class="btn btn-outline-secondary {% if activo == 'lista' %}active{% endif %}">Compras</a>
+  <a href="{% url 'compras:por_pagar' %}" class="btn btn-outline-secondary {% if activo == 'por_pagar' %}active{% endif %}">Por pagar</a>
+  <a href="{% url 'compras:proveedores' %}" class="btn btn-outline-secondary {% if activo == 'proveedores' %}active{% endif %}">Proveedores</a>
+  <a href="{% url 'compras:reponer' %}" class="btn btn-outline-secondary {% if activo == 'reponer' %}active{% endif %}">Reponer</a>
+</div>

@@ -62,11 +62,13 @@ def bloquear_abierta(sesion):
     return s
 
 
-def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False, persona=None):
+def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False, persona=None,
+               compra=None):
     with transaction.atomic():
         bloquear_abierta(sesion)
         return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150], categoria=categoria,
-                                             usuario=usuario, automatico=automatico, persona=_persona(categoria, persona))
+                                             usuario=usuario, automatico=automatico, persona=_persona(categoria, persona),
+                                             compra=compra)
 
 
 def devolver_efectivo(sesion_origen, monto, usuario, concepto):
@@ -83,7 +85,7 @@ def devolver_efectivo(sesion_origen, monto, usuario, concepto):
                       automatico=True)
 
 
-def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona=None):
+def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona=None, compra=None):
     """Un gasto que no salió del cajón (transferencia, Yape, dinero del dueño): cuenta en los reportes, no en el cuadre de caja."""
     C = MovimientoCaja.Categoria
     if categoria == C.RETIRO:
@@ -95,7 +97,8 @@ def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona
         if fecha != timezone.localdate():  # un día pasado: al mediodía, para que no cambie de día por la zona horaria
             momento = timezone.make_aware(datetime(fecha.year, fecha.month, fecha.day, 12, 0))
     return MovimientoCaja.objects.create(sesion=None, tipo=MovimientoCaja.Tipo.EGRESO, monto=monto, concepto=concepto[:150],
-                                         categoria=categoria, usuario=usuario, fecha=momento, persona=_persona(categoria, persona))
+                                         categoria=categoria, usuario=usuario, fecha=momento, persona=_persona(categoria, persona),
+                                         compra=compra)
 
 
 def anular_gasto(gasto, usuario, motivo):
@@ -128,6 +131,9 @@ def gastos(desde, hasta):
     datos = {r["categoria"]: r for r in qs.values("categoria").annotate(total=Sum("monto"), n=Count("id"))}
     filas = [{"categoria": c.value, "etiqueta": c.label.split(" (")[0], "total": datos[c.value]["total"], "n": datos[c.value]["n"]}
              for c in C if c.value in datos]
+    libres = compras_sin_producto(desde, hasta)
+    if libres["n"]:
+        filas.append({"categoria": COMPRAS_SIN_PRODUCTO, "etiqueta": "Compras sin producto (insumos, fletes)", **libres})
     filas.sort(key=lambda f: -f["total"])
     total = sum((f["total"] for f in filas), CERO)
     maximo = max((f["total"] for f in filas), default=0) or 1
@@ -140,6 +146,19 @@ def gastos(desde, hasta):
                 .aggregate(t=Sum(F("contado") - F("queda")))["t"] or CERO)
     return {"filas": filas, "total": total, "proveedores": proveedores, "operativos": total - proveedores, "retiros": retiros,
             "fuera": qs.filter(sesion__isnull=True).aggregate(t=Sum("monto"))["t"] or CERO}
+
+
+COMPRAS_SIN_PRODUCTO = "CSP"  # no es un motivo de caja: son las líneas libres de las compras registradas
+
+
+def compras_sin_producto(desde, hasta):
+    """Líneas libres de las compras del periodo (insumos, fletes, bolsas): no son mercadería, así que son gasto del periodo
+    en que se compraron, se paguen cuando se paguen. Sus pagos (motivo «Pago a proveedor») no se vuelven a contar."""
+    from compras.models import CompraItem
+
+    r = (CompraItem.objects.filter(variante__isnull=True, compra__anulada=False, compra__fecha__gte=desde, compra__fecha__lte=hasta)
+         .aggregate(total=Sum("subtotal"), n=Count("compra", distinct=True)))
+    return {"total": r["total"] or CERO, "n": r["n"] or 0}
 
 
 def sencillo_anterior(usuario):

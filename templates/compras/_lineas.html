@@ -1,0 +1,17 @@
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-ul me-1"></i> Lo que se compró</h3></div>
+  <div class="card-body pb-2">
+    <div class="position-relative">
+      <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" id="buscar" class="form-control" placeholder="Producto o código" autocomplete="off" aria-label="Buscar producto"></div>
+      <div class="list-group position-absolute w-100 shadow-sm d-none" id="resultados" style="z-index: 10"></div>
+    </div>
+    <button type="button" class="btn btn-link btn-sm px-0 mt-1" id="libre"><i class="bi bi-plus-circle me-1"></i>Línea libre (insumos, flete, bolsas: no suma stock)</button>
+  </div>
+  <div class="list-group list-group-flush border-top" id="lineas"></div>
+  <div class="card-body small text-body-secondary py-2" id="vacio">Busca los productos de la factura y escribe cuánto llegó y a cuánto. El costo es con IGV, igual que tus precios.</div>
+  <div class="card-footer d-none d-lg-flex align-items-center">
+    <span>Total <strong class="fs-4 ms-1 total">S/ 0.00</strong></span>
+    <button class="btn btn-primary ms-auto"><i class="bi bi-check-lg me-1"></i>Registrar compra</button>
+  </div>
+</div>

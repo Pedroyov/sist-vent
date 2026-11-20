@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load sis crispy_forms_tags %}
+{% block title %}Nueva compra{% endblock %}
+{% block page_title %}Nueva compra{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'compras:lista' %}">Compras</a></li><li class="breadcrumb-item active">Nueva</li>{% endblock %}
+
+{% block content %}
+<form method="post" novalidate id="f-compra">
+  {% csrf_token %}
+  {{ form.items }}{{ form.token }}
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card mb-0 mb-lg-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-truck me-1"></i> Proveedor y documento</h3></div>
+        <div class="card-body">
+          <div class="d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">{{ form.proveedor|as_crispy_field }}</div>
+            <a href="{% url 'compras:proveedor_nuevo' %}?next={% url 'compras:nueva' %}" class="btn btn-outline-secondary mb-3" title="Nuevo proveedor"><i class="bi bi-plus-lg"></i></a>
+          </div>
+          <div class="row g-2">
+            <div class="col-6">{{ form.documento|as_crispy_field }}</div>
+            <div class="col-6">{{ form.fecha|as_crispy_field }}</div>
+            <div class="col-5">{{ form.serie|as_crispy_field }}</div>
+            <div class="col-7">{{ form.numero|as_crispy_field }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      {% include "compras/_lineas.html" %}
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Pago</h3></div>
+        <div class="card-body">
+          {{ form.pago|as_crispy_field }}
+          {% if not caja %}<p class="small text-body-secondary">Para pagar de tu caja, primero ábrela.</p>{% endif %}
+          <div id="c-vence">{{ form.vence|as_crispy_field }}</div>
+          {{ form.nota|as_crispy_field }}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2 no-print">
+    <div class="d-flex align-items-center gap-2">
+      <span class="small text-nowrap">Total <strong class="fs-5 total">S/ 0.00</strong></span>
+      <button class="btn btn-primary ms-auto text-nowrap"><i class="bi bi-check-lg me-1"></i>Registrar</button>
+    </div>
+  </div>
+</form>
+{{ catalogo|json_script:"d-catalogo" }}{{ items_previos|json_script:"d-previos" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var CAT = JSON.parse(document.getElementById("d-catalogo").textContent);
+    var $ = function (id) { return document.getElementById(id); };
+    var lineas = [];
+    try { lineas = JSON.parse(JSON.parse(document.getElementById("d-previos").textContent)) || []; } catch (e) { lineas = []; }
+    var tok = $("id_token");
+    if (!tok.value) tok.value = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+    var cent = function (x) { var n = parseFloat(String(x || "").replace(",", ".")); return isFinite(n) ? n : 0; };
+    var soles = function (n) { return "S/ " + n.toFixed(2); };
+    var esc = function (t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; };
+    function pintar() {
+      var total = 0, h = "";
+      lineas.forEach(function (l, i) {
+        var sub = Math.round(cent(l.cantidad) * cent(l.costo) * 100) / 100; total += sub;
+        h += '<div class="list-group-item" data-fila="' + i + '"><div class="d-flex align-items-center gap-2">' +
+             (l.variante ? '<strong class="min-w-0">' + esc(l.n) + '</strong>' : '<input class="form-control form-control-sm" data-i="' + i + '" data-k="descripcion" value="' + esc(l.descripcion || "") + '" placeholder="Qué es (ej.: Flete)" aria-label="Qué es">') +
+             '<button type="button" class="btn btn-sm btn-link text-danger p-0 ms-auto" data-quitar="' + i + '" aria-label="Quitar"><i class="bi bi-x-lg"></i></button></div>' +
+             (l.variante ? "" : '<div class="small text-body-secondary">gasto: no suma stock</div>') +
+             '<div class="row g-2 mt-1 align-items-end small"><div class="col-4"><label class="text-body-secondary">Cantidad</label><input type="number" min="0" step="' + (l.f || !l.variante ? "0.001" : "1") + '" inputmode="decimal" class="form-control form-control-sm text-end" data-i="' + i + '" data-k="cantidad" value="' + esc(String(l.cantidad)) + '"></div>' +
+             '<div class="col-4"><label class="text-body-secondary">Costo c/u</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control form-control-sm text-end" data-i="' + i + '" data-k="costo" value="' + esc(String(l.costo)) + '"></div>' +
+             '<div class="col-4 text-end"><div class="text-body-secondary">Subtotal</div><div class="fw-semibold fs-6 sub">' + soles(sub) + '</div></div></div></div>';
+      });
+      $("lineas").innerHTML = h;
+      $("vacio").classList.toggle("d-none", lineas.length > 0);
+      document.querySelectorAll(".total").forEach(function (e) { e.textContent = soles(total); });
+      $("id_items").value = JSON.stringify(lineas.map(function (l) { return {variante: l.variante || null, descripcion: l.descripcion || "", cantidad: l.cantidad, costo: l.costo}; }));
+    }
+    function agregar(p) {
+      var ya = lineas.find(function (l) { return l.variante === p.id; });
+      if (ya) ya.cantidad = cent(ya.cantidad) + 1;
+      else lineas.push({variante: p.id, n: p.n, f: p.f, cantidad: 1, costo: p.k || ""});
+      $("buscar").value = ""; $("resultados").classList.add("d-none"); pintar();
+      var fila = $("lineas").querySelector('[data-i="' + lineas.indexOf(ya || lineas[lineas.length - 1]) + '"][data-k="cantidad"]');
+      if (fila) fila.select();
+    }
+    lineas.forEach(function (l) { var p = CAT.find(function (x) { return x.id === l.variante; }); if (p) { l.n = p.n; l.f = p.f; } });
+    $("buscar").addEventListener("input", function () {
+      var q = this.value.trim().toLowerCase(), r = $("resultados");
+      if (!q) { r.classList.add("d-none"); return; }
+      var exacto = CAT.filter(function (p) { return p.c && p.c.toLowerCase() === q; });
+      var hall = exacto.length ? exacto : CAT.filter(function (p) { return q.split(/\s+/).every(function (w) { return p.n.toLowerCase().indexOf(w) >= 0; }); }).slice(0, 8);
+      r.innerHTML = hall.length ? hall.map(function (p) { return '<button type="button" class="list-group-item list-group-item-action d-flex" data-id="' + p.id + '"><span>' + esc(p.n) + '</span><span class="ms-auto small text-body-secondary">' + (p.k ? "S/ " + p.k : "") + '</span></button>'; }).join("")
+                              : '<div class="list-group-item small text-body-secondary">No está. Créalo en Productos o usa una línea libre.</div>';
+      r.classList.remove("d-none");
+    });
+    $("buscar").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); var b = $("resultados").querySelector("[data-id]"); if (b) b.click(); }
+    });
+    $("resultados").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-id]"); if (!b) return;
+      agregar(CAT.find(function (p) { return p.id === parseInt(b.dataset.id, 10); }));
+    });
+    $("libre").addEventListener("click", function () {
+      lineas.push({variante: null, descripcion: "", cantidad: 1, costo: ""}); pintar();
+      var inp = $("lineas").querySelector('[data-i="' + (lineas.length - 1) + '"][data-k="descripcion"]'); if (inp) inp.focus();
+    });
+    $("lineas").addEventListener("input", function (e) {
+      var i = e.target.dataset.i, k = e.target.dataset.k; if (i === undefined) return;
+      lineas[i][k] = e.target.value;
+      var total = 0; lineas.forEach(function (l) { total += Math.round(cent(l.cantidad) * cent(l.costo) * 100) / 100; });
+      document.querySelectorAll(".total").forEach(function (x) { x.textContent = soles(total); });
+      e.target.closest("[data-fila]").querySelector(".sub").textContent = soles(Math.round(cent(lineas[i].cantidad) * cent(lineas[i].costo) * 100) / 100);
+      $("id_items").value = JSON.stringify(lineas.map(function (l) { return {variante: l.variante || null, descripcion: l.descripcion || "", cantidad: l.cantidad, costo: l.costo}; }));
+    });
+    $("lineas").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-quitar]"); if (b) { lineas.splice(parseInt(b.dataset.quitar, 10), 1); pintar(); }
+    });
+    function vence() { var c = document.querySelector('[name=pago]:checked'); $("c-vence").classList.toggle("d-none", !c || c.value !== "credito"); }
+    document.querySelectorAll("[name=pago]").forEach(function (r) { r.addEventListener("change", vence); });
+    $("f-compra").addEventListener("submit", function (e) {
+      if (!lineas.length) { e.preventDefault(); $("vacio").className = "card-body small text-danger py-2"; $("vacio").textContent = "Agrega al menos un producto o una línea libre."; $("buscar").focus(); return; }
+      document.querySelectorAll("#f-compra button").forEach(function (b) { if (!b.type || b.type === "submit") b.disabled = true; });
+    });
+    vence(); pintar();
+  })();
+</script>
+{% endblock %}

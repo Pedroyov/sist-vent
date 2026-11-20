@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load sis crispy_forms_tags %}
+{% block title %}{{ c.documento_str }}{% endblock %}
+{% block page_title %}{{ c.documento_str }} <small class="text-body-secondary fs-6">{{ c.proveedor }}</small> {% include "compras/_estado.html" %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'compras:lista' %}">Compras</a></li><li class="breadcrumb-item active">{{ c.documento_str }}</li>{% endblock %}
+{% block content %}
+{% if c.anulada %}<div class="alert alert-secondary">Anulada por {{ c.anulada_por|nombre }} el {{ c.anulada_en|date:"d/m/Y H:i" }}: {{ c.motivo_anulacion }}</div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-ul me-1"></i> Lo que se compró</h3></div>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+        <thead class="small"><tr><th class="ps-3">Producto</th><th class="text-end">Cant.</th><th class="text-end">Costo c/u</th><th class="text-end pe-3">Subtotal</th></tr></thead>
+        <tbody>{% for i in items %}<tr>
+          <td class="ps-3">{% if i.variante %}<a href="{% url 'productos:detalle' i.variante.producto_id %}">{{ i.descripcion }}</a>{% else %}{{ i.descripcion }} <span class="badge text-bg-light border">gasto</span>{% endif %}</td>
+          <td class="text-end">{{ i.cantidad|cantidad }}</td><td class="text-end">{{ i.costo_unitario|costo }}</td><td class="text-end pe-3">{{ i.subtotal|soles }}</td></tr>{% endfor %}</tbody>
+        <tfoot>
+          {% if c.igv %}<tr class="small"><td class="ps-3" colspan="3">Valor sin IGV</td><td class="text-end pe-3 text-nowrap">{{ c.base|soles }}</td></tr>
+          <tr class="small"><td class="ps-3" colspan="3">IGV</td><td class="text-end pe-3 text-nowrap">{{ c.igv|soles }}</td></tr>{% endif %}
+          <tr class="fw-bold"><td class="ps-3" colspan="3">Total</td><td class="text-end pe-3">{{ c.total|soles }}</td></tr>
+        </tfoot>
+      </table></div>
+      <div class="card-footer small text-body-secondary">{{ c.fecha|date:"d/m/Y" }} · registró {{ c.usuario|nombre }} el {{ c.creado|date:"d/m H:i" }}{% if c.nota %} · {{ c.nota }}{% endif %}</div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-cash-coin me-1"></i> Pagos</h3></div>
+      <ul class="list-group list-group-flush">
+        {% for m in pagos %}<li class="list-group-item d-flex gap-2 small {% if m.anulado %}text-body-secondary{% endif %}">
+          <span>{% if m.anulado %}<s>{{ m.fecha|date:"d/m/Y" }}</s> anulado{% else %}{{ m.fecha|date:"d/m/Y" }}{% endif %} ·
+            {% if m.sesion %}<a href="{% url 'caja:sesion' m.sesion_id %}">Caja {{ m.sesion.numero }}</a>{% else %}fuera de caja{% endif %} · {{ m.usuario|nombre }}</span>
+          <span class="ms-auto fw-semibold text-nowrap">{{ m.monto|soles }}</span></li>
+        {% empty %}<li class="list-group-item small text-body-secondary">Sin pagos todavía.</li>{% endfor %}
+        <li class="list-group-item d-flex fw-bold"><span>Falta pagar{% if c.vence and c.saldo %} <span class="fw-normal small {% if c.vencida %}text-danger{% else %}text-body-secondary{% endif %}">· vence {{ c.vence|date:"d/m/Y" }}</span>{% endif %}</span><span class="ms-auto {% if c.saldo %}text-danger{% else %}text-success{% endif %}">{{ c.saldo|soles }}</span></li>
+      </ul>
+      {% if form %}
+      <form method="post" action="{% url 'compras:pagar' c.pk %}" class="card-body border-top" novalidate>{% csrf_token %}
+        {{ form.monto|as_crispy_field }}{{ form.origen|as_crispy_field }}
+        <div class="c-dia">{{ form.dia|as_crispy_field }}</div>
+        {% if not caja %}<p class="small text-body-secondary">Para pagar de tu caja, primero ábrela.</p>{% endif %}
+        <button class="btn btn-success w-100"><i class="bi bi-cash me-1"></i>Registrar pago</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if P.compras_anular and not c.anulada %}
+    <form method="post" action="{% url 'compras:anular' c.pk %}" class="card card-body mb-3" onsubmit="return !!this.motivo.value.trim()">{% csrf_token %}
+      <label class="form-label small" for="motivo">Anular la compra (saca del stock lo que sumó)</label>
+      <div class="input-group input-group-sm"><input name="motivo" id="motivo" class="form-control" placeholder="Motivo" maxlength="200">
+        <button class="btn btn-outline-danger">Anular</button></div>
+    </form>
+    {% endif %}
+    <p class="small"><a href="{% url 'compras:proveedor' c.proveedor_id %}"><i class="bi bi-truck me-1"></i>Ver a {{ c.proveedor }}</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    function dia() { var o = document.querySelector('[name=origen]:checked'); document.querySelectorAll(".c-dia").forEach(function (e) { e.classList.toggle("d-none", !o || o.value !== "fuera"); }); }
+    document.querySelectorAll("[name=origen]").forEach(function (r) { r.addEventListener("change", dia); });
+    dia();
+  })();
+</script>
+{% endblock %}

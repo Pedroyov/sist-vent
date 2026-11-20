@@ -40,6 +40,14 @@ def costo_promedio(stock, costo, cantidad, costo_nuevo):
     return ((stock * costo + cantidad * costo_nuevo) / (stock + cantidad)).quantize(Decimal("0.01"))
 
 
+def por_reponer():
+    """Variantes con stock en el mínimo o debajo (solo productos activos que controlan stock)."""
+    from django.db.models import F
+
+    return Variante.objects.filter(activa=True, producto__activo=True, producto__maneja_stock=True,
+                                   stock__lte=F("producto__stock_minimo"))
+
+
 def ajustar_a(variante, conteo, usuario=None, nota=""):
     """Deja el stock igual al conteo físico. Devuelve el movimiento o None si ya coincidía."""
     with transaction.atomic():

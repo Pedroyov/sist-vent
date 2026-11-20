@@ -61,7 +61,23 @@ class Tablero:
             self._productos()
         if puede(self.user, "facturacion.ver"):
             self._facturacion()
+        if puede(self.user, "compras.ver"):
+            self._compras()
         return self
+
+    def _compras(self):
+        """Pagos a proveedores vencidos o que vencen en los próximos 7 días."""
+        from compras.servicios import vencen_pronto
+
+        lista = vencen_pronto(7)
+        if not lista:
+            return
+        vencidas = [c for c in lista if c.vence < self.hoy]
+        total = sum(c.saldo for c in (vencidas or lista))
+        texto = (f"{_plural(len(vencidas), 'pago')} a proveedores vencido{'s' if len(vencidas) != 1 else ''}" if vencidas
+                 else f"{_plural(len(lista), 'pago')} a proveedores vence{'n' if len(lista) != 1 else ''} esta semana")
+        self.pendientes.append(_pend(texto, reverse("compras:por_pagar"), "bi-truck", "danger" if vencidas else "warning",
+                                     f"S/ {total:.2f} en total."))
 
     def _facturacion(self):
         """Comprobantes que SUNAT aún no recibe: pasado el plazo pierden validez."""
@@ -268,7 +284,7 @@ class Tablero:
 
     def _productos(self):
         from productos.models import Categoria, Producto
-        from productos.views import por_reponer
+        from productos.servicios import por_reponer
 
         activos = Producto.objects.filter(activo=True).count()
         self.tarjetas.append({"titulo": "Productos activos", "valor": activos, "icono": "bi-box-seam",

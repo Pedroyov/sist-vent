@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Prefetch, ProtectedError, Q, Sum
+from django.db.models import Count, Prefetch, ProtectedError, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -19,7 +19,7 @@ from . import excel
 from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
 from .models import area_sugerida, CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
 from .rubros import CATEGORIAS, GRUPOS, etiquetas_variantes, rubro_actual, valores_iniciales
-from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock
+from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock, por_reponer
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -33,12 +33,6 @@ def _excel(contenido, nombre):
 def _form(request, form, titulo, cancelar, breadcrumb, **extra):
     return render(request, "core/form.html", {"form": form, "titulo": titulo, "cancelar": cancelar,
                                               "breadcrumb": breadcrumb, **extra})
-
-
-def por_reponer():
-    """Variantes con stock en el mínimo o debajo (solo productos activos que controlan stock)."""
-    return Variante.objects.filter(activa=True, producto__activo=True, producto__maneja_stock=True,
-                                   stock__lte=F("producto__stock_minimo"))
 
 
 # --- Lista ---------------------------------------------------------------------
@@ -172,7 +166,13 @@ def detalle(request, pk):
     movimientos = (MovimientoStock.objects.filter(variante__producto=producto)
                    .select_related("variante", "usuario")[:15])
     e1, _, e2, _ = etiquetas_variantes()
+    ultima = None
+    if producto.maneja_stock and puede(request.user, "compras.ver"):  # solo con el módulo Compras
+        from compras.servicios import ultima_de_producto
+
+        ultima = ultima_de_producto(producto)
     return render(request, "productos/detalle.html", {
+        "ultima_compra": ultima,
         "p": producto,
         "variantes": variantes,
         "con_variantes": any(v.nombre for v in variantes),

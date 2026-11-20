@@ -25,6 +25,20 @@ def soles(valor):
 
 
 @register.filter
+def costo(valor):
+    """Costo unitario: 3.5000 -> 3.50 ; 0.0125 -> 0.0125 (dos decimales salvo que haga falta más)."""
+    from decimal import Decimal, InvalidOperation
+
+    if valor is None or valor == "":
+        return ""
+    try:
+        d = Decimal(valor)
+    except (InvalidOperation, TypeError, ValueError):
+        return valor
+    return f"{d:.2f}" if d == d.quantize(Decimal("0.01")) else f"{d.normalize():f}"
+
+
+@register.filter
 def cantidad(valor):
     """3.000 -> 3 ; 1.500 -> 1.5 (stock y cantidades sin ceros de más)."""
     from decimal import Decimal, InvalidOperation

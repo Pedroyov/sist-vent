@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Por pagar a proveedores{% endblock %}
+{% block page_title %}Por pagar a proveedores{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'compras:lista' %}">Compras</a></li><li class="breadcrumb-item active">Por pagar</li>{% endblock %}
+{% block content %}
+{% include "compras/_menu.html" with activo="por_pagar" %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-truck me-1"></i> Por proveedor</h3></div>
+      {% if deudas %}<div class="list-group list-group-flush">
+        {% for d in deudas %}<a href="{% url 'compras:proveedor' d.proveedor.pk %}" class="list-group-item list-group-item-action">
+          <div class="d-flex"><strong>{{ d.proveedor }}</strong><span class="ms-auto fw-semibold">{{ d.deuda|soles }}</span></div>
+          <div class="small text-body-secondary">{{ d.compras }} compra{{ d.compras|pluralize }}{% if d.vencido %} · <span class="text-danger">vencido {{ d.vencido|soles }}</span>{% elif d.proxima %} · vence {{ d.proxima|date:"d/m" }}{% endif %}</div>
+        </a>{% endfor %}
+      </div>{% else %}<div class="card-body text-body-secondary">No se le debe nada a ningún proveedor.</div>{% endif %}
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-calendar-event me-1"></i> Compras con saldo, por vencimiento</h3></div>
+      {% if compras %}<div class="list-group list-group-flush">
+        {% for c in compras %}<a href="{% url 'compras:detalle' c.pk %}" class="list-group-item list-group-item-action d-flex align-items-center gap-2 small">
+          <span class="text-nowrap {% if c.vencida %}text-danger fw-semibold{% endif %}">{% if c.vence %}{{ c.vence|date:"d/m" }}{% else %}—{% endif %}</span>
+          <span class="min-w-0 text-truncate">{{ c.proveedor }} · {{ c.documento_str }}</span>
+          <span class="ms-auto text-nowrap fw-semibold">{{ c.saldo|soles }}</span></a>{% endfor %}
+      </div>{% else %}<div class="card-body small text-body-secondary">Nada pendiente.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

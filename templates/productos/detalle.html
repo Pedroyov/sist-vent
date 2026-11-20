@@ -41,6 +41,9 @@
         <li class="list-group-item d-flex"><span class="text-body-secondary">Stock</span>
           <span class="ms-auto">{% if p.maneja_stock %}<strong class="fs-5 {% if p.stock_total <= p.stock_minimo %}text-danger{% endif %}">{{ p.stock_total|cantidad }}</strong>
             <small class="text-body-secondary">(mínimo {{ p.stock_minimo|cantidad }})</small>{% else %}<span class="text-body-secondary">No se controla</span>{% endif %}</span></li>
+        {% if ultima_compra %}<li class="list-group-item small"><span class="text-body-secondary">Última compra</span>
+          <a href="{% url 'compras:detalle' ultima_compra.compra_id %}" class="d-block">{{ ultima_compra.compra.fecha|date:"d/m/Y" }} · {{ ultima_compra.compra.proveedor }} ·
+            {{ ultima_compra.cantidad|cantidad }}{% if ver_costos %} a {{ ultima_compra.costo_unitario|costo }}{% endif %}{% if ultima_compra.variante.nombre %} ({{ ultima_compra.variante.nombre }}){% endif %}</a></li>{% endif %}
         {% endif %}
         {% if NEGOCIO.usa_opciones and p.grupos.exists %}<li class="list-group-item"><span class="text-body-secondary">Opciones al pedir</span>
           <div>{% for g in p.grupos.all %}<span class="badge text-bg-light border fw-normal me-1">{{ g.nombre }}</span>{% endfor %}</div></li>{% endif %}

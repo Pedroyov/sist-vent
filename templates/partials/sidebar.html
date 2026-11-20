@@ -110,7 +110,7 @@
         {% endif %}
 
         {# ---------- Gestión ---------- #}
-        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver or P.caja_ver %}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver or P.caja_ver or P.compras_ver %}
         <li class="nav-header">GESTIÓN</li>
         {% endif %}
         {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar %}
@@ -134,6 +134,14 @@
           <a href="{% url 'clientes:lista' %}" class="nav-link {% if ns == 'clientes' %}active{% endif %}">
             <i class="nav-icon bi bi-people"></i>
             <p>Clientes</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if P.compras_ver %}
+        <li class="nav-item">
+          <a href="{% url 'compras:lista' %}" class="nav-link {% if ns == 'compras' %}active{% endif %}">
+            <i class="nav-icon bi bi-truck"></i>
+            <p>Compras</p>
           </a>
         </li>
         {% endif %}

@@ -20,6 +20,7 @@
   <span class="ms-auto small">Ver <i class="bi bi-chevron-right"></i></span>
 </a>
 {% endif %}
+{% if n_reponer and P.compras_ver %}<p class="small mt-n2"><a href="{% url 'compras:reponer' %}"><i class="bi bi-truck me-1"></i>Ver lo que hay que reponer, por proveedor</a></p>{% endif %}
 
 <div class="card mb-4">
   <div class="card-header">

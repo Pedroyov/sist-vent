@@ -44,6 +44,9 @@ MODULOS = [
     ("reservas", "Reservas", "bi-calendar-event",
      "Para restaurantes: agenda de reservas con celular y personas, confirmación por WhatsApp, la mesa se ve «Reservada» en el mapa "
      "y al llegar se abre la cuenta.", None),
+    ("compras", "Compras y proveedores", "bi-truck",
+     "Registrar la factura del proveedor de una vez (suma el stock y ajusta el costo), pagarla al contado o dejarla al crédito "
+     "y saber cuánto se le debe a cada proveedor y cuándo vence.", None),
     ("citas", "Citas y agenda", "bi-calendar2-week",
      "Para peluquerías, spas y consultorios: personal con horarios y días libres, citas por servicio, horarios libres y la "
      "próxima hora disponible; cada trabajador ve su agenda y comparte sus horarios.", None),
@@ -104,6 +107,11 @@ PERMISOS = [
 
     ("facturacion.ver", "facturacion", "Ver los comprobantes electrónicos y reenviar los pendientes", [CAJERO]),
     ("facturacion.configurar", "facturacion", "Configurar la facturación electrónica (proveedor, series, IGV)", []),
+
+    ("compras.ver", "compras", "Ver compras, proveedores y lo que se les debe", []),
+    ("compras.registrar", "compras", "Registrar compras y proveedores (suma el stock)", []),
+    ("compras.pagar", "compras", "Pagar a proveedores (de su caja abierta o fuera de caja)", []),
+    ("compras.anular", "compras", "Anular compras (saca del stock lo que había sumado)", []),
 
     ("personal.editar", "personal", "Registrar al personal (quién atiende, reparte o vende), sus horarios, días libres y comisiones", []),
 

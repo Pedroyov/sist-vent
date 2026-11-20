@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Compras{% endblock %}
+{% block page_title %}Compras <small class="text-body-secondary fs-6">{{ desde|date:"d/m/Y" }}{% if desde != hasta %} al {{ hasta|date:"d/m/Y" }}{% endif %}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Compras</li>{% endblock %}
+{% block content %}
+{% include "compras/_menu.html" with activo="lista" %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3"><div class="small-box text-bg-primary mb-0 h-100"><div class="inner"><h3 class="fs-4">{{ comprado|soles }}</h3><p class="mb-0">Comprado ({{ n }})</p></div><i class="small-box-icon bi bi-truck"></i></div></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'compras:por_pagar' %}" class="small-box text-bg-warning mb-0 d-block text-decoration-none h-100"><div class="inner"><h3 class="fs-4">{{ deuda|soles }}</h3><p class="mb-0">Se debe a proveedores{% if vencen %} · {{ vencen }} vence{{ vencen|pluralize:"n" }} pronto{% endif %}</p></div><i class="small-box-icon bi bi-hourglass-split"></i></a></div>
+</div>
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div class="btn-group btn-group-sm flex-wrap" role="group">
+    {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
+  </div>
+  <form class="d-flex flex-wrap gap-1 align-items-end" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Hasta">
+    <select name="proveedor" class="form-select form-select-sm" style="width: auto" aria-label="Proveedor"><option value="">Todos los proveedores</option>
+      {% for p in proveedores %}<option value="{{ p.pk }}" {% if proveedor == p.pk %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+    <select name="estado" class="form-select form-select-sm" style="width: auto" aria-label="Estado"><option value="">Vigentes</option>
+      <option value="por_pagar" {% if estado == "por_pagar" %}selected{% endif %}>Por pagar</option>
+      <option value="vencidas" {% if estado == "vencidas" %}selected{% endif %}>Vencidas</option>
+      <option value="pagadas" {% if estado == "pagadas" %}selected{% endif %}>Pagadas</option>
+      <option value="anuladas" {% if estado == "anuladas" %}selected{% endif %}>Anuladas</option></select>
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+</div>
+<div class="card mb-4">
+  {% if pagina.object_list %}
+  <div class="list-group list-group-flush">
+    {% for c in pagina.object_list %}
+    <a href="{% url 'compras:detalle' c.pk %}" class="list-group-item list-group-item-action">
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-body-secondary text-nowrap">{{ c.fecha|date:"d/m" }}</span>
+        <span class="min-w-0 text-truncate"><strong>{{ c.proveedor }}</strong> <span class="small text-body-secondary">{{ c.documento_str }}</span></span>
+        <span class="ms-auto text-nowrap fw-semibold">{{ c.total|soles }}</span>
+      </div>
+      <div class="small d-flex gap-2 mt-1">{% include "compras/_estado.html" %}
+        {% if c.saldo and not c.anulada %}<span class="text-body-secondary">debe {{ c.saldo|soles }}{% if c.vence %} · vence {{ c.vence|date:"d/m" }}{% endif %}</span>{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% if pagina.has_other_pages %}<div class="card-footer d-flex gap-2 justify-content-center">
+    {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+    <span class="small align-self-center">{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+  </div>{% endif %}
+  {% else %}<div class="card-body text-body-secondary">No hay compras en el periodo.{% if P.compras_registrar %} Registra la factura de tu proveedor con <strong>Nueva compra</strong>: suma el stock y ajusta el costo de una vez.{% endif %}</div>{% endif %}
+</div>
+{% endblock %}

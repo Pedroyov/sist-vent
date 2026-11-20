@@ -21,21 +21,21 @@ CODIGOS_FUNCIONES = [f[0] for f in FUNCIONES]
 
 # encendido: módulos que vienen activos; opcional: se ofrecen; funciones: las avanzadas que vienen activas
 PERFILES = {
-    Rubro.TIENDA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "delivery"},
+    Rubro.TIENDA: {"encendido": {"mostrador", "caja", "clientes", "reportes", "compras"}, "opcional": {"facturacion", "delivery"},
                    "funciones": {"variantes"}, "nivel_pedido": 1},
-    Rubro.ROPA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "delivery"},
+    Rubro.ROPA: {"encendido": {"mostrador", "caja", "clientes", "reportes", "compras"}, "opcional": {"facturacion", "delivery"},
                  "funciones": {"variantes"}, "nivel_pedido": 1},
-    Rubro.LIBRERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "delivery"},
+    Rubro.LIBRERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes", "compras"}, "opcional": {"facturacion", "delivery"},
                      "funciones": {"variantes", "combos"}, "nivel_pedido": 1},
     Rubro.RESTAURANTE: {"encendido": {"mesas", "caja", "reportes"},
-                        "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion", "reservas"},
+                        "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion", "reservas", "compras"},
                         "funciones": {"variantes", "combos", "agotados"}, "nivel_pedido": 2},
-    Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas", "citas"},
+    Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas", "citas", "compras"},
                        "funciones": {"servicios", "variantes"}, "nivel_pedido": 1},
-    Rubro.ACADEMIA: {"encendido": {"cobranzas", "clientes", "caja", "reportes"}, "opcional": {"mostrador", "facturacion"},
+    Rubro.ACADEMIA: {"encendido": {"cobranzas", "clientes", "caja", "reportes"}, "opcional": {"mostrador", "facturacion", "compras"},
                      "funciones": {"servicios"}, "nivel_pedido": 1},
     Rubro.OTRO: {"encendido": {"mostrador", "caja", "reportes"},
-                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas", "reservas", "citas"},
+                 "opcional": {"clientes", "facturacion", "delivery", "mesas", "cocina", "cobranzas", "reservas", "citas", "compras"},
                  "funciones": {"variantes", "combos", "servicios"}, "nivel_pedido": 1},
 }
 
@@ -104,6 +104,10 @@ def modulo_en_uso(codigo):
         from facturacion.models import Comprobante
 
         return Comprobante.objects.exists()
+    if codigo == "compras":
+        from compras.models import Compra
+
+        return Compra.objects.exists()
     return False
 
 

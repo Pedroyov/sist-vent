@@ -335,6 +335,7 @@ class MovimientoStock(models.Model):
         AJUSTE = "AJU", "Ajuste por conteo"
         VENTA = "VEN", "Venta"
         DEVOLUCION = "DEV", "Devolución"
+        ANULACION_COMPRA = "ANC", "Anulación de compra"
 
     variante = models.ForeignKey(Variante, on_delete=models.PROTECT, related_name="movimientos")
     fecha = models.DateTimeField(default=timezone.now)

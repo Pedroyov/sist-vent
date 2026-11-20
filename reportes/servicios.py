@@ -258,7 +258,7 @@ def mesas(desde, hasta):
 
 def inventario(desde, hasta):
     from productos.models import MovimientoStock, Variante
-    from productos.views import por_reponer
+    from productos.servicios import por_reponer
 
     valor, sin_costo, unidades = CERO, 0, 0
     for v in Variante.objects.filter(activa=True, producto__activo=True, producto__maneja_stock=True, stock__gt=0).select_related("producto"):

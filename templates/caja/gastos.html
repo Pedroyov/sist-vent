@@ -27,7 +27,7 @@
       <ul class="list-group list-group-flush">
         {% for f in g.filas %}
         <li class="list-group-item">
-          <a href="?{{ filtro|urlencode }}&motivo={{ f.categoria }}" class="d-flex text-reset text-decoration-none"><span>{{ f.etiqueta }} <span class="small text-body-secondary">({{ f.n }})</span></span><span class="ms-auto fw-semibold">{{ f.total|soles }}</span></a>
+          <a href="{% if f.categoria == 'CSP' %}{% url 'compras:lista' %}{% else %}?{{ filtro|urlencode }}&motivo={{ f.categoria }}{% endif %}" class="d-flex text-reset text-decoration-none"><span>{{ f.etiqueta }} <span class="small text-body-secondary">({{ f.n }})</span></span><span class="ms-auto fw-semibold">{{ f.total|soles }}</span></a>
           <div class="progress mt-1" style="height: .35rem"><div class="progress-bar bg-danger" style="width: {{ f.pct }}%"></div></div>
         </li>
         {% endfor %}

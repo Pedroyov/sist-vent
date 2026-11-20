@@ -1,0 +1,1 @@
+{% if c.anulada %}<span class="badge text-bg-secondary">Anulada</span>{% elif not c.saldo %}<span class="badge text-bg-success">Pagada</span>{% elif c.vencida %}<span class="badge text-bg-danger">Vencida</span>{% else %}<span class="badge text-bg-warning">Por pagar</span>{% endif %}

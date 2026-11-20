@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Reponer{% endblock %}
+{% block page_title %}Reponer <small class="text-body-secondary fs-6">por proveedor</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'compras:lista' %}">Compras</a></li><li class="breadcrumb-item active">Reponer</li>{% endblock %}
+{% block content %}
+{% include "compras/_menu.html" with activo="reponer" %}
+<p class="small text-body-secondary">Productos en su stock mínimo o sin stock, agrupados por el proveedor al que se le compró la última vez. «Armar compra» abre la compra con esos productos, la cantidad y el costo de la última vez.</p>
+{% for g in grupos %}
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <h3 class="card-title mb-0">{% if g.proveedor %}<a href="{% url 'compras:proveedor' g.proveedor.pk %}">{{ g.proveedor }}</a>{% else %}Sin compras registradas{% endif %}
+      <small class="text-body-secondary">{{ g.items|length }} producto{{ g.items|length|pluralize }}</small></h3>
+    <div class="ms-auto d-flex gap-2">
+      {% if g.whatsapp %}<a href="{{ g.whatsapp }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp me-1"></i>Pedir</a>{% endif %}
+      {% if P.compras_registrar %}<a href="{% url 'compras:nueva' %}?reponer={% if g.proveedor %}{{ g.proveedor.pk }}&proveedor={{ g.proveedor.pk }}{% else %}sin{% endif %}" class="btn btn-sm btn-primary"><i class="bi bi-cart-plus me-1"></i>Armar compra</a>{% endif %}
+    </div>
+  </div>
+  <div class="list-group list-group-flush">
+    {% for x in g.items %}
+    <a href="{% url 'productos:detalle' x.variante.producto_id %}" class="list-group-item list-group-item-action">
+      <div class="d-flex gap-2"><span class="min-w-0">{{ x.variante.nombre_completo }}</span>
+        <span class="ms-auto text-nowrap small"><strong class="{% if x.stock <= 0 %}text-danger{% endif %}">{{ x.stock|cantidad }}</strong> <span class="text-body-secondary">/ mín. {{ x.minimo|cantidad }}</span></span></div>
+      {% if x.ultima %}<div class="small text-body-secondary">Última compra: {{ x.ultima.cantidad|cantidad }} a {{ x.ultima.costo_unitario|costo }} el {{ x.ultima.compra.fecha|date:"d/m" }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% empty %}
+<div class="card card-body text-body-secondary">Nada por reponer: todos los productos están sobre su stock mínimo.</div>
+{% endfor %}
+{% endblock %}
