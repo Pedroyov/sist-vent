@@ -200,7 +200,10 @@ class VistasTests(Base):
             r = self.client.get(reverse(f"cobranzas:{nombre}") + "?excel=1")
             self.assertEqual(r["Content-Type"][:30], "application/vnd.openxmlformats")
         self.assertContains(self.client.get(reverse("cobranzas:buscar") + "?q=mateo"), "Pedro Ríos")
+        self.assertNotContains(self.client.get(reverse("caja:sesion", args=[self.caja.pk])), "Cobrado de cuotas")  # cierre ciego
+        self.client.force_login(self.jefe)
         self.assertContains(self.client.get(reverse("caja:sesion", args=[self.caja.pk])), "Cobrado de cuotas")
+        self.client.force_login(self.cajero)
         self.assertContains(self.client.get(reverse("clientes:detalle", args=[pedro.pk])), "Inglés básico")
         self.assertContains(self.client.get(reverse("core:inicio")), "Cobranzas")
         # el cajero no gestiona: planes, reporte y anular no

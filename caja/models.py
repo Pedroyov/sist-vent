@@ -57,6 +57,8 @@ class SesionCaja(models.Model):
     esperado = models.DecimalField("efectivo esperado", max_digits=12, decimal_places=2, null=True, blank=True)
     contado = models.DecimalField("efectivo contado", max_digits=12, decimal_places=2, null=True, blank=True)
     diferencia = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    queda = models.DecimalField("dejado en el cajón", max_digits=12, decimal_places=2, null=True, blank=True,
+                                help_text="Sencillo que se dejó para el siguiente turno; lo demás se retiró al cerrar.")
     conteo = models.JSONField("conteo por billetes", default=dict, blank=True)
     resumen = models.JSONField(default=dict, blank=True)
     nota_cierre = models.CharField(max_length=300, blank=True)
@@ -77,6 +79,13 @@ class SesionCaja(models.Model):
     @property
     def abierta(self):
         return self.estado == self.Estado.ABIERTA
+
+    @property
+    def retirado(self):
+        """Lo que se sacó del cajón al cerrar (lo contado menos lo que se dejó)."""
+        if self.contado is None or self.queda is None:
+            return None
+        return self.contado - self.queda
 
     @property
     def de_dias_anteriores(self):
@@ -114,6 +123,11 @@ class MovimientoCaja(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     automatico = models.BooleanField(default=False, help_text="Lo creó el sistema (por ejemplo, al anular una venta de otro turno).")
+    # Solo los gastos fuera de caja se anulan (los de una caja quedan en su cierre); no se borran: queda quién y por qué.
+    anulado = models.BooleanField(default=False)
+    anulado_en = models.DateTimeField(null=True, blank=True)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    motivo_anulacion = models.CharField("motivo de la anulación", max_length=200, blank=True)
     persona = models.ForeignKey("personal.Persona", on_delete=models.SET_NULL, null=True, blank=True, related_name="pagos",
                                 verbose_name="a quién", help_text="Pagos y adelantos al personal (función «Pagos al personal»).")
 
@@ -137,7 +151,7 @@ class MovimientoCaja(models.Model):
     @property
     def es_gasto(self):
         """Cuenta como gasto del negocio: no lo es un retiro del dueño ni lo que el sistema devolvió al anular un cobro."""
-        return self.tipo == self.Tipo.EGRESO and not self.automatico and self.categoria != self.Categoria.RETIRO
+        return self.tipo == self.Tipo.EGRESO and not self.automatico and not self.anulado and self.categoria != self.Categoria.RETIRO
 
     @property
     def signo(self):

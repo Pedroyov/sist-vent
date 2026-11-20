@@ -31,16 +31,19 @@
       <div class="card mb-3" id="c-resumen">
         <div class="card-body">
           {{ form.contado|as_crispy_field }}
-          <div class="alert text-center py-2 mb-3" id="dif"></div>
+          {% if not ciego %}<div class="alert text-center py-2 mb-3" id="dif"></div>{% endif %}
+          {{ form.queda|as_crispy_field }}
+          <div class="small mb-3" id="retiro"></div>
           {{ form.nota|as_crispy_field }}
-          <p class="small text-body-secondary mb-0">Ventas del turno: {{ r.n_ventas }} por {{ r.total_ventas|soles }}.{% if r.fiado %} De eso, {{ r.fiado|soles }} se fió (no hay efectivo).{% endif %} {% if r.otros_medios %}Yape, Plin y tarjeta ({{ r.otros_medios|soles }}) no cuentan aquí.{% endif %}</p>
+          {% if ciego %}<p class="small text-body-secondary mb-0">Cuenta solo el efectivo del cajón: Yape, Plin, tarjeta y fiado no van aquí. Ventas del turno: {{ r.n_ventas }}. La diferencia la calcula el sistema al cerrar.</p>
+          {% else %}<p class="small text-body-secondary mb-0">Ventas del turno: {{ r.n_ventas }} por {{ r.total_ventas|soles }}.{% if r.fiado %} De eso, {{ r.fiado|soles }} se fió (no hay efectivo).{% endif %} {% if r.otros_medios %}Yape, Plin y tarjeta ({{ r.otros_medios|soles }}) no cuentan aquí.{% endif %}</p>{% endif %}
         </div>
         <div class="card-footer d-flex gap-2">
           <a href="{% url 'caja:sesion' s.pk %}" class="btn btn-outline-secondary">Volver</a>
           <button class="btn btn-dark ms-auto"><i class="bi bi-lock me-1"></i>Cerrar caja</button>
         </div>
       </div>
-      <p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i>Cuenta primero y luego mira la diferencia: así el conteo es honesto. Una vez cerrada, la caja ya no cambia.</p>
+      <p class="small text-body-secondary"><i class="bi bi-info-circle me-1"></i>{% if ciego %}Cierre ciego: cuentas sin saber cuánto debería haber. {% else %}Cuenta primero y luego mira la diferencia: así el conteo es honesto. {% endif %}Una vez cerrada, la caja ya no cambia.</p>
     </div>
   </div>
 </form>
@@ -56,11 +59,15 @@
 {% block extra_js %}
 <script>
   (function () {
-    var ESPERADO = Math.round({{ r.esperado|stringformat:".2f" }} * 100);
-    var total = document.getElementById("id_contado"), dif = document.getElementById("dif");
+    var ESPERADO = {% if ciego %}null{% else %}Math.round({{ r.esperado|stringformat:".2f" }} * 100){% endif %};
+    var total = document.getElementById("id_contado"), dif = document.getElementById("dif"), queda = document.getElementById("id_queda"), retiro = document.getElementById("retiro");
     var soles = function (c) { return "S/ " + (Math.abs(c) / 100).toFixed(2); };
     function mostrar() {
       document.getElementById("contado-m").textContent = "S/ " + (parseFloat(total.value) || 0).toFixed(2);
+      var cont = Math.round((parseFloat(total.value) || 0) * 100), deja = queda.value === "" ? cont : Math.round((parseFloat(queda.value) || 0) * 100);
+      retiro.className = "small mb-3 " + (deja > cont ? "text-danger" : "text-body-secondary");
+      retiro.textContent = total.value === "" ? "" : deja > cont ? "No puedes dejar más de lo contado." : "Retiras " + soles(cont - deja) + " y dejas " + soles(deja) + " en el cajón.";
+      if (ESPERADO === null) return;
       if (total.value === "") { dif.className = "alert alert-light border text-center py-2 mb-3"; dif.textContent = "Ingresa lo contado"; return; }
       var c = Math.round(parseFloat(total.value) * 100) - ESPERADO;
       if (c === 0) { dif.className = "alert alert-success text-center py-2 mb-3 fs-5"; dif.innerHTML = '<i class="bi bi-check-circle"></i> Cuadra exacto'; }

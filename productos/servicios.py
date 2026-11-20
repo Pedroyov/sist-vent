@@ -10,14 +10,16 @@ T = MovimientoStock.Tipo
 
 def mover_stock(variante, cantidad, tipo, usuario=None, nota="", costo_unitario=None, referencia=""):
     """Suma (o resta, si es negativa) la cantidad al stock y lo anota en el kardex.
-    El stock puede quedar negativo: es mejor dejar vender y corregir con un conteo que trabar la caja."""
+    El stock puede quedar negativo: es mejor dejar vender y corregir con un conteo que trabar la caja.
+    Un ingreso con costo actualiza el costo por promedio ponderado (lo que ya había a su costo + lo que entra al suyo)."""
     cantidad = Decimal(cantidad)
     with transaction.atomic():
-        v = Variante.objects.select_for_update().get(pk=variante.pk)
+        v = Variante.objects.select_for_update().select_related("producto").get(pk=variante.pk)
+        previo = v.stock
         v.stock += cantidad
         campos = ["stock"]
         if costo_unitario is not None and tipo in (T.INGRESO, T.INICIAL):
-            v.costo = costo_unitario  # último costo de compra
+            v.costo = costo_promedio(previo, v.costo if v.costo is not None else v.producto.costo, cantidad, Decimal(costo_unitario))
             campos.append("costo")
         v.save(update_fields=campos)
         mov = MovimientoStock.objects.create(
@@ -28,6 +30,14 @@ def mover_stock(variante, cantidad, tipo, usuario=None, nota="", costo_unitario=
     if "costo" in campos:
         variante.costo = v.costo
     return mov
+
+
+def costo_promedio(stock, costo, cantidad, costo_nuevo):
+    """Promedio ponderado: (stock × costo + cantidad × costo nuevo) ÷ (stock + cantidad). Sin stock positivo o sin costo
+    anterior, manda el costo nuevo (lo que había no tiene valor que promediar)."""
+    if costo is None or stock <= 0 or cantidad <= 0:
+        return costo_nuevo
+    return ((stock * costo + cantidad * costo_nuevo) / (stock + cantidad)).quantize(Decimal("0.01"))
 
 
 def ajustar_a(variante, conteo, usuario=None, nota=""):

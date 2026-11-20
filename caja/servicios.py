@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Sum
 from django.utils import timezone
 
 from .models import CERO, DENOMINACIONES, MovimientoCaja, SesionCaja
@@ -49,11 +49,36 @@ def abrir(usuario, monto_inicial, nota="", punto=None):
         raise CajaError("Ya tienes una caja abierta.")
 
 
+def bloquear_abierta(sesion):
+    """Dentro de una transacción: bloquea la caja y confirma que siga abierta. Así un cobro no cae en un turno que se
+    está cerrando en ese mismo instante (su efectivo no saldría en ningún cierre)."""
+    if sesion is None:
+        return None
+    s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
+    if not s.abierta:
+        raise CajaError("Esa caja se acaba de cerrar. Abre tu caja de nuevo para continuar.")
+    return s
+
+
 def movimiento(sesion, tipo, monto, concepto, usuario, categoria=MovimientoCaja.Categoria.OTRO, automatico=False, persona=None):
-    if not sesion.abierta:
-        raise CajaError("La caja ya está cerrada.")
-    return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150], categoria=categoria,
-                                         usuario=usuario, automatico=automatico, persona=_persona(categoria, persona))
+    with transaction.atomic():
+        bloquear_abierta(sesion)
+        return MovimientoCaja.objects.create(sesion=sesion, tipo=tipo, monto=monto, concepto=concepto[:150], categoria=categoria,
+                                             usuario=usuario, automatico=automatico, persona=_persona(categoria, persona))
+
+
+def devolver_efectivo(sesion_origen, monto, usuario, concepto):
+    """Al anular un cobro en efectivo de un turno ya cerrado, el dinero sale de la caja abierta de quien anula.
+    Sin caja abierta no se permite: el efectivo saldría sin dejar rastro. Con su caja aún abierta, el cobro anulado
+    simplemente deja de sumar y no hace falta nada."""
+    if not monto or sesion_origen is None or sesion_origen.abierta:
+        return None
+    actual = SesionCaja.abierta_de(usuario)
+    if actual is None:
+        raise CajaError(f"Para anular hay que devolver S/ {monto:.2f} en efectivo de un turno ya cerrado: abre tu caja primero, "
+                        "así la salida queda registrada.")
+    return movimiento(actual, MovimientoCaja.Tipo.EGRESO, monto, concepto, usuario, MovimientoCaja.Categoria.DEVOLUCION,
+                      automatico=True)
 
 
 def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona=None):
@@ -71,6 +96,22 @@ def gasto_fuera_de_caja(monto, concepto, usuario, categoria, fecha=None, persona
                                          categoria=categoria, usuario=usuario, fecha=momento, persona=_persona(categoria, persona))
 
 
+def anular_gasto(gasto, usuario, motivo):
+    """Anula un gasto fuera de caja: deja de contar en los reportes, pero queda registrado con quién, cuándo y por qué."""
+    motivo = " ".join(str(motivo or "").split())[:200]
+    if not motivo:
+        raise CajaError("Indica el motivo.")
+    with transaction.atomic():
+        m = MovimientoCaja.objects.select_for_update().get(pk=gasto.pk)
+        if m.sesion_id is not None:
+            raise CajaError("Lo que salió de una caja queda en su cierre; para corregirlo, registra un ingreso en una caja abierta.")
+        if m.anulado:
+            raise CajaError("Ese gasto ya estaba anulado.")
+        m.anulado, m.anulado_en, m.anulado_por, m.motivo_anulacion = True, timezone.now(), usuario, motivo
+        m.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
+    return m
+
+
 def _persona(categoria, persona):
     return persona if categoria == MovimientoCaja.Categoria.PERSONAL else None
 
@@ -80,7 +121,7 @@ def gastos(desde, hasta):
     sistema devolvió al anular un cobro (la venta anulada ya no suma). Las compras a proveedores van aparte en la ganancia:
     el costo de lo vendido ya se resta en la ganancia de las ventas."""
     C = MovimientoCaja.Categoria
-    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, automatico=False, fecha__date__gte=desde, fecha__date__lte=hasta)
+    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, automatico=False, anulado=False, fecha__date__gte=desde, fecha__date__lte=hasta)
           .exclude(categoria=C.RETIRO))
     datos = {r["categoria"]: r for r in qs.values("categoria").annotate(total=Sum("monto"), n=Count("id"))}
     filas = [{"categoria": c.value, "etiqueta": c.label.split(" (")[0], "total": datos[c.value]["total"], "n": datos[c.value]["n"]}
@@ -93,8 +134,24 @@ def gastos(desde, hasta):
     proveedores = datos.get(C.PROVEEDOR, {}).get("total") or CERO
     retiros = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=C.RETIRO, fecha__date__gte=desde,
                                              fecha__date__lte=hasta).aggregate(t=Sum("monto"))["t"] or CERO)
+    retiros += (SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, queda__isnull=False, cerrada_en__date__gte=desde,
+                                          cerrada_en__date__lte=hasta).aggregate(t=Sum(F("contado") - F("queda")))["t"] or CERO)
     return {"filas": filas, "total": total, "proveedores": proveedores, "operativos": total - proveedores, "retiros": retiros,
             "fuera": qs.filter(sesion__isnull=True).aggregate(t=Sum("monto"))["t"] or CERO}
+
+
+def sencillo_anterior(usuario):
+    """El cierre del que viene el sencillo del cajón: con una sola caja, el último cierre de cualquiera; con varias,
+    el último del mismo cajero (no se sabe aún en cuál va a abrir)."""
+    from .models import PuntoCaja
+
+    cerradas = SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA)
+    if PuntoCaja.objects.filter(activo=True).count() > 1:
+        cerradas = cerradas.filter(usuario=usuario)
+    ultima = cerradas.order_by("-cerrada_en").first()
+    if ultima is None or ultima.contado is None:
+        return None, None
+    return ultima, (ultima.queda if ultima.queda is not None else ultima.contado)
 
 
 def calcular(sesion):
@@ -162,7 +219,12 @@ def total_conteo(conteo):
     return total, limpio
 
 
-def cerrar(sesion, contado, usuario, conteo=None, nota=""):
+def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None):
+    """Cierra el turno. `queda` = el sencillo que se deja en el cajón para el siguiente turno (lo demás se retira);
+    sin indicarlo, se entiende que todo lo contado se queda."""
+    queda = contado if queda is None else queda
+    if queda < 0 or queda > contado:
+        raise CajaError(f"Lo que dejas en el cajón no puede ser más de lo contado (S/ {contado:.2f}).")
     with transaction.atomic():
         s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
         if not s.abierta:
@@ -173,6 +235,7 @@ def cerrar(sesion, contado, usuario, conteo=None, nota=""):
         s.cerrada_por = usuario
         s.esperado = r["esperado"]
         s.contado = contado
+        s.queda = queda
         s.diferencia = contado - r["esperado"]
         s.conteo = conteo or {}
         s.nota_cierre = nota[:300]

@@ -57,15 +57,16 @@
           {% for m in pagina.object_list %}
           <tr>
             <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m" }}<div class="text-body-secondary">{{ m.fecha|date:"H:i" }}</div></td>
-            <td>{{ m.concepto }}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}
+            <td>{% if m.anulado %}<s class="text-body-secondary">{{ m.concepto }}</s> <span class="badge text-bg-secondary">Anulado</span>{% else %}{{ m.concepto }}{% endif %}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}
               <div class="small text-body-secondary">{{ m.motivo }} ·
                 {% if m.sesion %}<a href="{% url 'caja:sesion' m.sesion_id %}">Caja {{ m.sesion.numero }}</a>{% else %}fuera de caja{% endif %} · {{ m.usuario|nombre }}
-                {% if not m.es_gasto %}· <span class="text-warning-emphasis">no es gasto</span>{% endif %}</div></td>
+                {% if m.anulado %}<br>Anulado por {{ m.anulado_por|nombre }} el {{ m.anulado_en|date:"d/m H:i" }}: {{ m.motivo_anulacion }}
+                {% elif not m.es_gasto %}· <span class="text-warning-emphasis">no es gasto</span>{% endif %}</div></td>
             <td class="text-end text-nowrap fw-semibold">{{ m.monto|soles }}</td>
-            <td class="pe-3 text-end">{% if not m.sesion %}
-              <form method="post" action="{% url 'caja:gasto_quitar' m.pk %}" onsubmit="return confirm('¿Quitar este gasto?')">{% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-trash"></i></button></form>{% endif %}</td>
+            <td class="pe-3 text-end">{% if not m.sesion and not m.anulado %}
+              <form method="post" action="{% url 'caja:gasto_anular' m.pk %}" onsubmit="var x = prompt('¿Por qué se anula este gasto?'); if (!x) return false; this.motivo.value = x;">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="motivo">
+                <button class="btn btn-sm btn-link text-danger p-0" title="Anular"><i class="bi bi-x-circle"></i></button></form>{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>

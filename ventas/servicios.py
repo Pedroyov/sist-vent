@@ -141,6 +141,12 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
 
     try:
         with transaction.atomic():
+            from caja.servicios import bloquear_abierta
+
+            try:
+                bloquear_abierta(sesion)  # antes del correlativo: el mismo orden de bloqueo que el cierre
+            except CajaError as e:
+                raise VentaInvalida(str(e))
             cliente = None
             try:
                 if modulo_activo() and (cliente_id or str(cliente_documento or "").strip() or (credito and cliente_nombre)):
@@ -213,16 +219,13 @@ def anular_venta(venta, usuario, motivo):
 
 def _devolver_efectivo(venta, usuario, motivo):
     """Si la venta era de una caja ya cerrada, el efectivo que se devuelve sale de la caja abierta de quien anula."""
-    from caja.models import MovimientoCaja, SesionCaja
-    from caja.servicios import movimiento
+    from caja.servicios import CajaError, devolver_efectivo
 
-    if venta.sesion_caja_id is None or venta.sesion_caja.abierta:
-        return  # mientras la caja siga abierta, la venta anulada simplemente deja de sumar
     efectivo = sum((p.monto for p in venta.pagos.filter(metodo=MetodoPago.EFECTIVO)), CERO)
-    actual = SesionCaja.abierta_de(usuario)
-    if efectivo and actual:
-        movimiento(actual, MovimientoCaja.Tipo.EGRESO, efectivo, f"Devolución por anular la venta {venta.numero_str}: {motivo}",
-                   usuario, MovimientoCaja.Categoria.DEVOLUCION, automatico=True)
+    try:
+        devolver_efectivo(venta.sesion_caja, efectivo, usuario, f"Devolución por anular la venta {venta.numero_str}: {motivo}")
+    except CajaError as e:
+        raise VentaInvalida(str(e))
 
 
 def resumen(ventas):

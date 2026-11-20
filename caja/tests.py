@@ -8,6 +8,7 @@ from django.urls import reverse
 from core.models import Ajustes
 from productos.models import MovimientoStock, Producto
 from productos.servicios import asegurar_variante_unica, mover_stock
+from ventas.models import Venta
 from ventas.servicios import VentaInvalida, anular_venta, registrar_venta
 
 from .models import MovimientoCaja, SesionCaja
@@ -53,7 +54,12 @@ class CajaTests(TestCase):
         self.assertEqual(D(s.resumen["esperado"]), D("85"))
         with self.assertRaises(CajaError):
             cerrar(s, D("85"), self.cajero)
-        # anular una venta de una caja ya cerrada: el efectivo sale de la caja abierta de quien anula
+        # anular una venta de una caja ya cerrada: sin caja abierta no se puede (el efectivo saldría sin rastro)
+        with self.assertRaisesMessage(VentaInvalida, "abre tu caja primero"):
+            anular_venta(v1, self.jefe, "devolución")
+        v1.refresh_from_db()
+        self.assertFalse(v1.anulada)
+        # con su caja abierta, el efectivo sale de ahí
         s2 = abrir(self.jefe, D("0"))
         anular_venta(v1, self.jefe, "devolución")
         egreso = s2.movimientos.get()
@@ -125,6 +131,7 @@ class GastosTests(TestCase):
         movimiento(s, E, D("40"), "Para el banco", self.cajero, C.RETIRO, persona=self.ana)  # retiro: no es gasto ni se liga
         v2 = registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "10"}])
         cerrar(s, D("70"), self.cajero)
+        abrir(self.jefe, D("0"))
         anular_venta(v2, self.jefe, "error")  # caja cerrada: devolución automática, no es gasto
         alquiler = gasto_fuera_de_caja(D("300"), "Alquiler", self.jefe, C.GASTO, hoy)
         self.assertIsNone(alquiler.sesion)
@@ -157,10 +164,97 @@ class GastosTests(TestCase):
                                                            "monto": "80", "concepto": "Sueldo"})
         self.assertRedirects(r, reverse("caja:gastos"))
         self.assertEqual(MovimientoCaja.objects.filter(persona=self.ana).count(), 2)
-        self.client.post(reverse("caja:gasto_quitar", args=[alquiler.pk]))
-        self.assertFalse(MovimientoCaja.objects.filter(pk=alquiler.pk).exists())
+        self.client.post(reverse("caja:gasto_anular", args=[alquiler.pk]))  # sin motivo no se anula
+        alquiler.refresh_from_db()
+        self.assertFalse(alquiler.anulado)
+        self.client.post(reverse("caja:gasto_anular", args=[alquiler.pk]), {"motivo": "Se registró dos veces"})
+        alquiler.refresh_from_db()
+        self.assertEqual((alquiler.anulado, alquiler.anulado_por, alquiler.motivo_anulacion), (True, self.jefe, "Se registró dos veces"))
+        self.assertEqual(gastos(hoy, hoy)["fuera"], D("80"))  # el alquiler anulado ya no cuenta; el sueldo sí
+        self.assertContains(self.client.get(reverse("caja:gastos")), "Anulado")
         m = MovimientoCaja.objects.get(concepto="Movilidad")
-        self.client.post(reverse("caja:gasto_quitar", args=[m.pk]))  # los de una caja no se quitan
-        self.assertTrue(MovimientoCaja.objects.filter(pk=m.pk).exists())
+        self.client.post(reverse("caja:gasto_anular", args=[m.pk]), {"motivo": "x"})  # los de una caja no se anulan aquí
+        self.assertEqual(self.client.post(reverse("caja:gasto_anular", args=[m.pk]), {"motivo": "x"}).status_code, 404)
+        m.refresh_from_db()
+        self.assertFalse(m.anulado)
         self.client.force_login(self.cajero)
         self.assertEqual(self.client.get(reverse("caja:gastos")).status_code, 403)
+
+
+class CierreCiegoTests(TestCase):
+    """Cierre ciego, sencillo que se deja para el siguiente turno y caja que se cierra mientras se cobra."""
+
+    def setUp(self):
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.v = asegurar_variante_unica(Producto.objects.create(nombre="Gaseosa", precio=D("10")))
+        mover_stock(self.v, 50, MovimientoStock.Tipo.INGRESO)
+
+    def test_cajero_no_ve_lo_esperado_y_deja_sencillo(self):
+        self.client.force_login(self.cajero)
+        self.client.post(reverse("caja:mi_caja"), {"monto_inicial": "100"})
+        s = SesionCaja.abierta_de(self.cajero)
+        registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "3"}], [{"metodo": "EFE", "monto": "30"}])
+        for url in (reverse("caja:sesion", args=[s.pk]), reverse("caja:cerrar", args=[s.pk]), reverse("caja:imprimir", args=[s.pk])):
+            r = self.client.get(url)
+            self.assertNotContains(r, "130.00")  # lo que debe haber no aparece en ninguna parte
+            self.assertNotContains(r, "Debe haber")
+        self.assertContains(self.client.get(reverse("caja:cerrar", args=[s.pk])), "ESPERADO = null")
+        # el supervisor sí lo ve
+        self.client.force_login(self.jefe)
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Debe haber")
+        self.client.force_login(self.cajero)
+        r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "128", "queda": "200"})
+        self.assertContains(r, "No puedes dejar más")
+        r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "128", "queda": "100"}, follow=True)
+        self.assertContains(r, "Contaste S/ 128.00")
+        self.assertNotContains(r, "faltante de")
+        s.refresh_from_db()
+        self.assertEqual((s.diferencia, s.queda, s.retirado), (D("-2"), D("100"), D("28")))
+        self.assertContains(r, "Se retiró al cerrar")  # ya cerrada: se ve todo
+        # el siguiente turno propone lo que se dejó; si se encuentra otra cosa, queda anotado
+        r = self.client.get(reverse("caja:mi_caja"))
+        self.assertEqual(r.context["form"].initial["monto_inicial"], D("100"))
+        self.client.post(reverse("caja:mi_caja"), {"monto_inicial": "90"})
+        self.assertIn("Se dejaron S/ 100.00 y se encontraron S/ 90.00", SesionCaja.abierta_de(self.cajero).nota_apertura)
+        from .servicios import gastos
+        from django.utils import timezone
+
+        hoy = timezone.localdate()
+        self.assertEqual(gastos(hoy, hoy)["retiros"], D("28"))
+
+    def test_cobro_en_una_caja_que_se_acaba_de_cerrar(self):
+        s = abrir(self.cajero, D("0"))
+        vieja = SesionCaja.objects.get(pk=s.pk)  # lo que tenía en mano quien cobra
+        cerrar(s, D("0"), self.jefe)
+        from .servicios import bloquear_abierta
+
+        with self.assertRaises(CajaError):
+            bloquear_abierta(vieja)
+        with self.assertRaises(CajaError):
+            movimiento(vieja, MovimientoCaja.Tipo.EGRESO, D("5"), "x", self.cajero)
+        from unittest import mock
+
+        with mock.patch("caja.servicios.sesion_para_vender", return_value=vieja):
+            with self.assertRaisesMessage(VentaInvalida, "se acaba de cerrar"):
+                registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "1"}], [{"metodo": "EFE", "monto": "10"}])
+        self.assertFalse(Venta.objects.filter(sesion_caja=vieja).exists())
+
+
+class CostoPromedioTests(TestCase):
+    def test_promedio_ponderado(self):
+        from productos.servicios import costo_promedio
+
+        v = asegurar_variante_unica(Producto.objects.create(nombre="Arroz", precio=D("6")))
+        mover_stock(v, 10, MovimientoStock.Tipo.INGRESO, costo_unitario=D("5"))
+        mover_stock(v, 10, MovimientoStock.Tipo.INGRESO, costo_unitario=D("8"))
+        v.refresh_from_db()
+        self.assertEqual(v.costo, D("6.50"))
+        mover_stock(v, -15, MovimientoStock.Tipo.VENTA)                         # quedan 5 a 6.50
+        mover_stock(v, 15, MovimientoStock.Tipo.INGRESO, costo_unitario=D("7"))  # (5×6.50 + 15×7) ÷ 20
+        v.refresh_from_db()
+        self.assertEqual(v.costo, D("6.88"))
+        self.assertEqual(costo_promedio(D("-3"), D("6"), D("10"), D("9")), D("9"))  # stock negativo: manda el nuevo
+        self.assertEqual(costo_promedio(D("4"), None, D("10"), D("9")), D("9"))

@@ -248,7 +248,13 @@ def cobrar(cliente, cuotas_ids, monto, metodo, usuario, nota="", referencia=""):
         sesion = sesion_para_vender(usuario)
     except CajaError as e:
         raise CobranzaError(str(e))
+    from caja.servicios import bloquear_abierta
+
     with transaction.atomic():
+        try:
+            bloquear_abierta(sesion)
+        except CajaError as e:
+            raise CobranzaError(str(e))
         cuotas = list(Cuota.objects.select_for_update().filter(pk__in=ids, inscripcion__cliente=cliente, anulada=False)
                       .order_by("vence", "numero", "id"))
         cuotas = [c for c in cuotas if c.pendiente > 0]
@@ -274,8 +280,7 @@ def cobrar(cliente, cuotas_ids, monto, metodo, usuario, nota="", referencia=""):
 
 
 def anular_pago(pago, usuario, motivo):
-    from caja.models import MovimientoCaja, SesionCaja
-    from caja.servicios import movimiento
+    from caja.servicios import CajaError, devolver_efectivo
     from ventas.models import MetodoPago
 
     motivo = " ".join(str(motivo or "").split())[:200]
@@ -285,11 +290,11 @@ def anular_pago(pago, usuario, motivo):
         p = Pago.objects.select_for_update(of=("self",)).select_related("sesion_caja").get(pk=pago.pk)
         if p.anulado:
             raise CobranzaError("Ese pago ya estaba anulado.")
-        if p.metodo == MetodoPago.EFECTIVO and p.sesion_caja_id and not p.sesion_caja.abierta:
-            actual = SesionCaja.abierta_de(usuario)
-            if actual:
-                movimiento(actual, MovimientoCaja.Tipo.EGRESO, p.monto, f"Anulación del recibo {p.numero} de {p.cliente}: {motivo}",
-                           usuario, MovimientoCaja.Categoria.DEVOLUCION, automatico=True)
+        if p.metodo == MetodoPago.EFECTIVO:
+            try:
+                devolver_efectivo(p.sesion_caja, p.monto, usuario, f"Anulación del recibo {p.numero} de {p.cliente}: {motivo}")
+            except CajaError as e:
+                raise CobranzaError(str(e))
         insc = set()
         for d in p.detalles.select_related("cuota__inscripcion__plan"):
             c = Cuota.objects.select_for_update().get(pk=d.cuota_id)

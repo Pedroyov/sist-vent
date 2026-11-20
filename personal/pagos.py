@@ -42,7 +42,7 @@ def cuentas(desde, hasta):
     from .reportes import de_negocio
 
     pagado = {r["persona_id"]: r for r in MovimientoCaja.objects
-              .filter(categoria=MovimientoCaja.Categoria.PERSONAL, tipo=MovimientoCaja.Tipo.EGRESO, persona__isnull=False,
+              .filter(categoria=MovimientoCaja.Categoria.PERSONAL, tipo=MovimientoCaja.Tipo.EGRESO, persona__isnull=False, anulado=False,
                       fecha__date__gte=desde, fecha__date__lte=hasta)
               .values("persona_id").annotate(total=Sum("monto"), n=Count("id"))}
     comisiones = {}

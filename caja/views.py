@@ -11,7 +11,8 @@ from core.utils import entero, url_segura
 
 from .forms import AbrirForm, CerrarForm, GastoForm, MovimientoForm, PuntoCajaForm
 from .models import DENOMINACIONES, MovimientoCaja, PuntoCaja, SesionCaja
-from .servicios import CajaError, abrir, calcular, cerrar, gasto_fuera_de_caja, gastos, movimiento, resumen_guardado, total_conteo
+from .servicios import (CajaError, abrir, anular_gasto, calcular, cerrar, gasto_fuera_de_caja, gastos, movimiento, resumen_guardado, sencillo_anterior,
+                        total_conteo)
 
 User = get_user_model()
 
@@ -20,22 +21,31 @@ def _puede_ver(user, sesion):
     return sesion.usuario_id == user.pk or puede(user, "caja.ver")
 
 
+def _ciego(user, sesion):
+    """Cierre ciego: mientras la caja está abierta, el cajero no ve cuánto efectivo debería haber (ni lo que suma lo vendido
+    en efectivo); cuenta sin saberlo y la diferencia la calcula el sistema al cerrar. Quien supervisa (caja.ver) sí lo ve."""
+    return sesion.abierta and not puede(user, "caja.ver")
+
+
 @permiso_requerido("caja.usar", "caja.ver")
 def mi_caja(request):
     sesion = SesionCaja.abierta_de(request.user)
     if sesion is None:
         if not puede(request.user, "caja.usar"):
             return redirect("caja:historial")
-        ultima = SesionCaja.objects.filter(usuario=request.user, estado=SesionCaja.Estado.CERRADA).first()
-        form = AbrirForm(request.POST or None, initial={"monto_inicial": ultima.contado if ultima and ultima.contado is not None else None})
+        ultima, dejado = sencillo_anterior(request.user)
+        form = AbrirForm(request.POST or None, initial={"monto_inicial": dejado})
         if request.method == "POST" and form.is_valid():
+            monto, nota = form.cleaned_data["monto_inicial"], form.cleaned_data["nota"]
+            if dejado is not None and monto != dejado:  # no está lo que se dejó: queda anotado en la apertura
+                nota = f"Se dejaron S/ {dejado:.2f} y se encontraron S/ {monto:.2f}. {nota}".strip()
             try:
-                abrir(request.user, form.cleaned_data["monto_inicial"], form.cleaned_data["nota"], form.cleaned_data.get("punto"))
+                abrir(request.user, monto, nota, form.cleaned_data.get("punto"))
                 messages.success(request, "Caja abierta. ¡Buenas ventas!")
             except CajaError as e:
                 messages.error(request, str(e))
             return redirect(url_segura(request, request.GET.get("next"), reverse("caja:mi_caja")))
-        return render(request, "caja/abrir.html", {"form": form, "ultima": ultima})
+        return render(request, "caja/abrir.html", {"form": form, "ultima": ultima, "dejado": dejado})
     return redirect("caja:sesion", pk=sesion.pk)
 
 
@@ -49,7 +59,7 @@ def sesion(request, pk):
         "s": s, "r": r, "movimientos": s.movimientos.select_related("usuario", "persona"),
         "es_mia": s.usuario_id == request.user.pk,
         "puede_operar": s.abierta and (s.usuario_id == request.user.pk or puede(request.user, "caja.ver")),
-        "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)],
+        "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)], "ciego": _ciego(request.user, s),
     })
 
 
@@ -60,7 +70,7 @@ def imprimir(request, pk):
         raise PermissionDenied
     r = calcular(s) if s.abierta else resumen_guardado(s)
     return render(request, "impresion/cierre_caja.html", {
-        "s": s, "r": r, "movimientos": s.movimientos.order_by("fecha"),
+        "s": s, "r": r, "movimientos": s.movimientos.order_by("fecha"), "ciego": _ciego(request.user, s),
         "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)]})
 
 
@@ -92,24 +102,28 @@ def cerrar_caja(request, pk):
         raise PermissionDenied
     if not s.abierta:
         return redirect("caja:sesion", pk=pk)
+    ciego = _ciego(request.user, s)
     r = calcular(s)
-    form = CerrarForm(request.POST or None)
+    form = CerrarForm(request.POST or None, initial={"queda": s.monto_inicial or None})
     if request.method == "POST" and form.is_valid():
         total, conteo = total_conteo({d: request.POST.get(f"d_{d}") for d in DENOMINACIONES})
         contado = form.cleaned_data["contado"]
         if conteo and total != contado:
             contado = total  # manda el conteo por billetes
         try:
-            s = cerrar(s, contado, request.user, conteo, form.cleaned_data["nota"])
+            s = cerrar(s, contado, request.user, conteo, form.cleaned_data["nota"], form.cleaned_data["queda"])
         except CajaError as e:
             messages.error(request, str(e))
-            return redirect("caja:sesion", pk=pk)
-        if s.diferencia == 0:
-            messages.success(request, "Caja cerrada. ¡Cuadró exacto!")
+            return redirect("caja:cerrar", pk=pk)
+        retiro = f" Retiras S/ {s.retirado:.2f} y dejas S/ {s.queda:.2f} en el cajón." if s.retirado else ""
+        if ciego:
+            messages.success(request, f"Caja cerrada. Contaste S/ {s.contado:.2f}.{retiro}")
+        elif s.diferencia == 0:
+            messages.success(request, f"Caja cerrada. ¡Cuadró exacto!{retiro}")
         else:
-            messages.warning(request, f"Caja cerrada con {'sobrante' if s.diferencia > 0 else 'faltante'} de S/ {abs(s.diferencia):.2f}.")
+            messages.warning(request, f"Caja cerrada con {'sobrante' if s.diferencia > 0 else 'faltante'} de S/ {abs(s.diferencia):.2f}.{retiro}")
         return redirect("caja:sesion", pk=pk)
-    return render(request, "caja/cerrar.html", {"s": s, "r": r, "form": form, "denominaciones": DENOMINACIONES})
+    return render(request, "caja/cerrar.html", {"s": s, "r": r, "form": form, "denominaciones": DENOMINACIONES, "ciego": ciego})
 
 
 @permiso_requerido("caja.ver")
@@ -148,7 +162,7 @@ def lista_gastos(request):
     desde, hasta, atajo = periodo(request, defecto="mes")
     C = MovimientoCaja.Categoria
     qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, fecha__date__gte=desde, fecha__date__lte=hasta)
-          .select_related("sesion", "usuario", "persona"))
+          .select_related("sesion", "usuario", "persona", "anulado_por"))
     motivo = request.GET.get("motivo", "")
     if motivo in C.values:
         qs = qs.filter(categoria=motivo)
@@ -183,12 +197,15 @@ def gasto_nuevo(request):
 
 
 @permiso_requerido("caja.ver")
-def gasto_quitar(request, pk):
+def gasto_anular(request, pk):
     """Solo los de fuera de caja: los de una caja quedan en su cierre."""
     m = get_object_or_404(MovimientoCaja, pk=pk, sesion__isnull=True)
     if request.method == "POST":
-        m.delete()
-        messages.success(request, f"Se quitó el gasto «{m.concepto}».")
+        try:
+            anular_gasto(m, request.user, request.POST.get("motivo"))
+            messages.success(request, f"Se anuló el gasto «{m.concepto}».")
+        except CajaError as e:
+            messages.error(request, str(e))
     return redirect(url_segura(request, request.POST.get("next"), reverse("caja:gastos")))
 
 

@@ -115,5 +115,15 @@ class GastoForm(MovimientoForm):
 class CerrarForm(forms.Form):
     contado = forms.DecimalField(label="Efectivo contado en el cajón", min_value=Decimal("0"), decimal_places=2,
                                  widget=forms.NumberInput(attrs={**DINERO, "class": "form-control-lg text-end"}))
+    queda = forms.DecimalField(label="¿Cuánto dejas en el cajón para el siguiente turno?", min_value=Decimal("0"), decimal_places=2,
+                               required=False, widget=forms.NumberInput(attrs={**DINERO, "class": "text-end"}),
+                               help_text="El sencillo para dar vuelto. Lo demás se retira (el dueño o el banco). Vacío = se queda todo.")
+
+    def clean(self):
+        d = super().clean()
+        if d.get("queda") is not None and d.get("contado") is not None and d["queda"] > d["contado"]:
+            self.add_error("queda", "No puedes dejar más de lo que contaste.")
+        return d
+
     nota = forms.CharField(label="Nota del cierre", max_length=300, required=False,
                            widget=forms.TextInput(attrs={"placeholder": "Ej.: faltan S/ 2, se dio mal un vuelto"}))

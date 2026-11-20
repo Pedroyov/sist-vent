@@ -145,7 +145,7 @@ def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
 
 
 def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
-    from caja.servicios import CajaError, sesion_para_vender
+    from caja.servicios import CajaError, bloquear_abierta, sesion_para_vender
     from ventas.models import MetodoPago
 
     try:
@@ -161,6 +161,10 @@ def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
     except CajaError as e:
         raise ClienteError(str(e))
     with transaction.atomic():
+        try:
+            bloquear_abierta(sesion)
+        except CajaError as e:
+            raise ClienteError(str(e))
         Cliente.objects.select_for_update().get(pk=cliente.pk)  # evita dos pagos a la vez sobre la misma deuda
         saldo = cliente.saldo
         if monto > saldo:
@@ -188,8 +192,7 @@ def marcar_incobrable(cliente, monto, motivo, usuario):
 
 
 def anular_abono(abono, usuario, motivo):
-    from caja.models import MovimientoCaja, SesionCaja
-    from caja.servicios import movimiento
+    from caja.servicios import CajaError, devolver_efectivo
     from ventas.models import MetodoPago
 
     motivo = " ".join(str(motivo or "").split())[:200]
@@ -199,12 +202,11 @@ def anular_abono(abono, usuario, motivo):
         a = Abono.objects.select_for_update(of=("self",)).select_related("sesion_caja").get(pk=abono.pk)
         if a.anulado:
             raise ClienteError("Ese pago ya estaba anulado.")
-        # Si su caja ya cerró, el efectivo devuelto sale de la caja abierta de quien anula
-        if a.metodo == MetodoPago.EFECTIVO and a.sesion_caja_id and not a.sesion_caja.abierta:
-            actual = SesionCaja.abierta_de(usuario)
-            if actual:
-                movimiento(actual, MovimientoCaja.Tipo.EGRESO, a.monto, f"Anulación del pago {a.numero} de {a.cliente}: {motivo}",
-                           usuario, MovimientoCaja.Categoria.DEVOLUCION, automatico=True)
+        if a.metodo == MetodoPago.EFECTIVO:  # si su caja ya cerró, sale de la caja abierta de quien anula
+            try:
+                devolver_efectivo(a.sesion_caja, a.monto, usuario, f"Anulación del pago {a.numero} de {a.cliente}: {motivo}")
+            except CajaError as e:
+                raise ClienteError(str(e))
         a.anulado, a.anulado_en, a.anulado_por, a.motivo_anulacion = True, timezone.now(), usuario, motivo
         a.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
     return a

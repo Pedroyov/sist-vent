@@ -36,17 +36,24 @@
       </div>
       <table class="table table-sm mb-0 cuadro">
         <tr><td>Abrió el {{ s.abierta_en|date:"d/m/Y H:i" }} con</td><td class="text-end">{{ r.inicial|soles }}</td></tr>
+        {% if s.nota_apertura %}<tr><td colspan="2" class="small text-body-secondary">{{ s.nota_apertura }}</td></tr>{% endif %}
+        {% if ciego %}
+        <tr><td colspan="2" class="small text-body-secondary"><i class="bi bi-eye-slash me-1"></i>Cierre ciego: lo que debe haber en el cajón se ve al cerrar. Al final del turno cuenta el efectivo sin mirar el sistema.</td></tr>
+        {% else %}
         <tr><td>+ Ventas en efectivo</td><td class="text-end text-success">{{ r.efectivo_ventas|soles }}</td></tr>
         {% if r.abonos_efectivo %}<tr><td>+ Pagos de deudas (fiado) en efectivo</td><td class="text-end text-success">{{ r.abonos_efectivo|soles }}</td></tr>{% endif %}
         {% if r.cuotas_efectivo %}<tr><td>+ Cuotas y mensualidades en efectivo</td><td class="text-end text-success">{{ r.cuotas_efectivo|soles }}</td></tr>{% endif %}
         {% if r.ingresos %}<tr><td>+ Ingresos</td><td class="text-end text-success">{{ r.ingresos|soles }}</td></tr>{% endif %}
         {% if r.egresos %}<tr><td>− Egresos</td><td class="text-end text-danger">{{ r.egresos|soles }}</td></tr>{% endif %}
         <tr class="total"><td>Debe haber</td><td class="text-end">{{ r.esperado|soles }}</td></tr>
+        {% endif %}
         {% if not s.abierta %}
         <tr><td>Se contó</td><td class="text-end fw-semibold">{{ s.contado|soles }}</td></tr>
         <tr class="{% if s.diferencia < 0 %}table-danger{% elif s.diferencia > 0 %}table-warning{% else %}table-success{% endif %}">
           <td>{% if s.diferencia < 0 %}Faltante{% elif s.diferencia > 0 %}Sobrante{% else %}Diferencia{% endif %}</td>
           <td class="text-end fw-bold">{% if s.diferencia == 0 %}Cuadró exacto{% else %}{{ s.diferencia|soles }}{% endif %}</td></tr>
+        {% if s.retirado %}<tr><td>Se retiró al cerrar</td><td class="text-end">{{ s.retirado|soles }}</td></tr>
+        <tr><td>Se dejó en el cajón</td><td class="text-end">{{ s.queda|soles }}</td></tr>{% endif %}
         {% endif %}
       </table>
       {% if not s.abierta %}
@@ -58,6 +65,7 @@
 
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Ventas del turno</h3></div>
+      {% if ciego %}<div class="card-body">{{ r.n_ventas }} venta{{ r.n_ventas|pluralize }} en este turno.</div>{% else %}
       <table class="table table-sm mb-0 cuadro">
         {% for m in r.metodos %}<tr><td>{{ m.metodo }} <small class="text-body-secondary">({{ m.n }})</small></td><td class="text-end">{{ m.total|soles }}</td></tr>{% endfor %}
         <tr class="total"><td>Total vendido ({{ r.n_ventas }})</td><td class="text-end">{{ r.total_ventas|soles }}</td></tr>
@@ -65,7 +73,7 @@
         {% if r.cuotas %}<tr><td>Cobrado de cuotas y mensualidades</td><td class="text-end">{{ r.cuotas|soles }}</td></tr>{% endif %}
         {% if r.propinas %}<tr><td>Propinas (incluidas en los pagos)</td><td class="text-end">{{ r.propinas|soles }}</td></tr>{% endif %}
         {% if r.anuladas %}<tr><td class="text-danger">Ventas anuladas</td><td class="text-end text-danger">{{ r.anuladas }}</td></tr>{% endif %}
-      </table>
+      </table>{% endif %}
       <div class="card-footer small no-print"><a href="{% url 'ventas:lista' %}?caja={{ s.pk }}&desde={{ s.abierta_en|date:'Y-m-d' }}&hasta={% if s.cerrada_en %}{{ s.cerrada_en|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">Ver las ventas de este turno</a></div>
     </div>
   </div>
