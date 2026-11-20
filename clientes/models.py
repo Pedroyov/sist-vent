@@ -89,6 +89,7 @@ class Abono(models.Model):
         verbose_name = "pago de deuda"
         verbose_name_plural = "pagos de deudas"
         ordering = ["-fecha", "-id"]
+        indexes = [models.Index(fields=["fecha"])]
 
     def __str__(self):
         return f"Pago {self.numero} · {self.cliente}"

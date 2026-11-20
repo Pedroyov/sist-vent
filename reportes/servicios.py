@@ -7,6 +7,8 @@ from django.db.models import Count, DecimalField, ExpressionWrapper, F, Sum
 from django.db.models.functions import ExtractHour, ExtractWeekDay, TruncDate, TruncMonth
 from django.utils import timezone
 
+from core.utils import dias
+
 CERO = Decimal("0")
 DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "oct", "nov", "dic"]
@@ -61,22 +63,21 @@ def anterior(desde, hasta):
 def ventas(desde, hasta):
     from ventas.models import Venta
 
-    return Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.PAGADA)
+    return Venta.objects.filter(**dias("fecha", desde, hasta), estado=Venta.Estado.PAGADA)
 
 
 def resumen(desde, hasta):
     from ventas.models import Venta
     from ventas.servicios import resumen as resumen_ventas
 
-    todas = Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta)
+    todas = Venta.objects.filter(**dias("fecha", desde, hasta))
     r = resumen_ventas(todas)
     r["anuladas_monto"] = c(todas.filter(estado=Venta.Estado.ANULADA).aggregate(t=Sum("total"))["t"])
     d0, d1 = anterior(desde, hasta)
-    previo = resumen_ventas(Venta.objects.filter(fecha__date__gte=d0, fecha__date__lte=d1))
+    previo = resumen_ventas(Venta.objects.filter(**dias("fecha", d0, d1)))
     r["anterior"] = {"desde": d0, "hasta": d1, "total": previo["total"], "n": previo["n"]}
     r["variacion"] = ((r["total"] - previo["total"]) / previo["total"] * 100).quantize(Decimal("0.1")) if previo["total"] else None
-    dias = (hasta - desde).days + 1
-    r["por_dia"] = c(r["total"] / dias)
+    r["por_dia"] = c(r["total"] / ((hasta - desde).days + 1))
     return r
 
 
@@ -212,15 +213,14 @@ def por_usuario(desde, hasta, campo="usuario"):
 def mesas(desde, hasta):
     from mesas.models import Cuenta, ItemCuenta
 
-    cuentas = list(Cuenta.objects.filter(estado=Cuenta.Estado.COBRADA, abierta_en__date__gte=desde, abierta_en__date__lte=hasta)
+    cuentas = list(Cuenta.objects.filter(estado=Cuenta.Estado.COBRADA, **dias("abierta_en", desde, hasta))
                    .prefetch_related("items"))
     con_mesa = [x for x in cuentas if x.mesa_id]
     personas = sum(x.personas for x in con_mesa)
     consumo = sum((i.subtotal for x in con_mesa for i in x.items.all() if not i.anulado), CERO)
     consumo_contado = sum((i.subtotal for x in con_mesa if x.personas for i in x.items.all() if not i.anulado), CERO)  # mesas con personas indicadas
     minutos = [int((x.cerrada_en - x.abierta_en).total_seconds() // 60) for x in con_mesa if x.cerrada_en]
-    quitados = list(ItemCuenta.objects.filter(anulado=True, enviado_en__isnull=False, cuenta__abierta_en__date__gte=desde,
-                                              cuenta__abierta_en__date__lte=hasta)
+    quitados = list(ItemCuenta.objects.filter(anulado=True, enviado_en__isnull=False, **dias("cuenta__abierta_en", desde, hasta))
                     .select_related("cuenta__mesa", "cuenta__mozo", "anulado_por").order_by("-creado"))
     por_mesa = defaultdict(lambda: {"cuentas": 0, "total": CERO})
     for x in con_mesa:
@@ -269,13 +269,13 @@ def inventario(desde, hasta):
             valor += v.stock * v.costo_efectivo
     salidas = []
     merma = CERO
-    for m in (MovimientoStock.objects.filter(tipo=MovimientoStock.Tipo.SALIDA, fecha__date__gte=desde, fecha__date__lte=hasta)
+    for m in (MovimientoStock.objects.filter(tipo=MovimientoStock.Tipo.SALIDA, **dias("fecha", desde, hasta))
               .select_related("variante__producto", "usuario").order_by("-fecha")):
         costo = m.variante.costo_efectivo
         m.valor = c(-m.cantidad * costo) if costo is not None else None
         merma += m.valor or CERO
         salidas.append(m)
-    ajustes = MovimientoStock.objects.filter(tipo=MovimientoStock.Tipo.AJUSTE, fecha__date__gte=desde, fecha__date__lte=hasta)
+    ajustes = MovimientoStock.objects.filter(tipo=MovimientoStock.Tipo.AJUSTE, **dias("fecha", desde, hasta))
     return {"valor": c(valor), "con_stock": unidades, "sin_costo": sin_costo,
             "por_reponer": por_reponer().values("producto_id").distinct().count(),
             "salidas": salidas[:30], "merma": c(merma), "ajustes": ajustes.count()}
@@ -310,7 +310,7 @@ def deudores(limite=20):
 def cajas(desde, hasta):
     from caja.models import SesionCaja
 
-    cerradas = list(SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, cerrada_en__date__gte=desde, cerrada_en__date__lte=hasta)
+    cerradas = list(SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, **dias("cerrada_en", desde, hasta))
                     .select_related("usuario"))
     por_cajero = defaultdict(lambda: {"cajas": 0, "faltante": CERO, "sobrante": CERO, "con_diferencia": 0})
     for s in cerradas:
@@ -330,7 +330,7 @@ def cajas(desde, hasta):
 def anuladas(desde, hasta):
     from ventas.models import Venta
 
-    return list(Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.ANULADA)
+    return list(Venta.objects.filter(**dias("fecha", desde, hasta), estado=Venta.Estado.ANULADA)
                 .select_related("usuario", "anulada_por").order_by("-fecha")[:30])
 
 
@@ -338,12 +338,12 @@ def cortesias_descuentos(desde, hasta):
     """Lo que se regaló o rebajó en ventas vigentes: con motivo, quién atendió y quién autorizó."""
     from ventas.models import Venta, VentaItem
 
-    vigentes = dict(venta__fecha__date__gte=desde, venta__fecha__date__lte=hasta, venta__estado=Venta.Estado.PAGADA)
+    vigentes = dict(**dias("venta__fecha", desde, hasta), venta__estado=Venta.Estado.PAGADA)
     cortesias = list(VentaItem.objects.filter(cortesia=True, **vigentes)
                      .select_related("venta", "venta__usuario", "venta__atendio", "cortesia_por").order_by("-venta__fecha"))
     for i in cortesias:
         i.valor = c(i.precio_lista * i.cantidad)
-    descuentos = list(Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.PAGADA, descuento__gt=0)
+    descuentos = list(Venta.objects.filter(**dias("fecha", desde, hasta), estado=Venta.Estado.PAGADA, descuento__gt=0)
                       .select_related("usuario", "atendio", "descuento_por").order_by("-fecha"))
     motivos = defaultdict(lambda: {"veces": 0, "valor": CERO})
     for i in cortesias:

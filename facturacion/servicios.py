@@ -22,6 +22,10 @@ log = logging.getLogger(__name__)
 C2 = Decimal("0.01")
 LIMITE_BOLETA_SIN_DNI = Decimal("700")
 UNIDADES = {"KG": "KGM", "LT": "LTR", "MT": "MTR", "SRV": "ZZ"}
+# Plazo para que SUNAT (u OSE) reciba boletas, facturas y sus notas: hasta el 3.er día calendario siguiente a la emisión
+# (R.S. 000003-2023/SUNAT). Pasado ese día, el comprobante pierde validez.
+PLAZO_SUNAT_DIAS = 3
+POR_ENVIAR = [Comprobante.Estado.PENDIENTE, Comprobante.Estado.ENVIADO]
 
 
 class ComprobanteError(Exception):
@@ -247,13 +251,30 @@ def enviar_seguro(c):
         log.exception("Error al enviar %s", c)
         Comprobante.objects.filter(pk=c.pk).update(mensaje="Error inesperado al enviar; se reintentará.")
     c.refresh_from_db()
+    if c.estado != Comprobante.Estado.PENDIENTE:  # el proveedor respondió: hay conexión, se aprovecha para los atrasados
+        try:
+            reenviar_pendientes(limite=3, excluir=c.pk)
+        except Exception:  # noqa: BLE001
+            log.exception("Error al reenviar pendientes")
     return c
 
 
-def reenviar_pendientes(limite=30):
-    """Pendientes y enviados sin respuesta: se intentan de nuevo (los más antiguos primero). Devuelve (ok, fallidos)."""
+def vence_envio(c):
+    """Último día en que SUNAT acepta el comprobante."""
+    return c.fecha + timedelta(days=PLAZO_SUNAT_DIAS)
+
+
+def atrasados(minutos=60):
+    """Comprobantes que siguen sin respuesta de SUNAT pasado un rato desde que se emitieron (los más urgentes primero)."""
+    return (Comprobante.objects.filter(estado__in=POR_ENVIAR, creado__lt=timezone.now() - timedelta(minutes=minutos))
+            .order_by("fecha", "id"))
+
+
+def reenviar_pendientes(limite=30, excluir=None):
+    """Pendientes y enviados sin respuesta: se intentan de nuevo (los más antiguos primero). Devuelve (ok, fallidos).
+    Corre solo con `python manage.py reenviar_comprobantes` (tarea programada) y después de cada envío que sí tuvo respuesta."""
     ok = mal = 0
-    for c in Comprobante.objects.filter(estado__in=[Comprobante.Estado.PENDIENTE, Comprobante.Estado.ENVIADO]).order_by("id")[:limite]:
+    for c in Comprobante.objects.filter(estado__in=POR_ENVIAR).exclude(pk=excluir).order_by("id")[:limite]:
         try:
             enviar(c)
             ok += 1

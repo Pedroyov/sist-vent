@@ -68,6 +68,7 @@ class SesionCaja(models.Model):
         verbose_name_plural = "cajas"
         ordering = ["-abierta_en"]
         constraints = [models.UniqueConstraint(fields=["usuario"], condition=Q(estado="ABI"), name="una_caja_abierta_por_usuario")]
+        indexes = [models.Index(fields=["cerrada_en"])]
 
     def __str__(self):
         return f"Caja {self.numero} · {self.usuario}"
@@ -135,6 +136,7 @@ class MovimientoCaja(models.Model):
         verbose_name = "movimiento de caja"
         verbose_name_plural = "movimientos de caja"
         ordering = ["-fecha", "-id"]
+        indexes = [models.Index(fields=["fecha"])]
 
     def __str__(self):
         return f"{self.get_tipo_display()} {self.monto} · {self.concepto}"

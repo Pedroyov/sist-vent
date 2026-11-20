@@ -251,3 +251,48 @@ class WhatsappTests(TestCase):
         self.assertEqual(enlace_whatsapp("986111222", "Hola ñ"), "https://wa.me/51986111222?text=Hola%20%C3%B1")
         self.assertEqual(enlace_whatsapp("", "Hola"), "")  # sin número no hay botón
         self.assertEqual(enlace_whatsapp(None, "a\nb"), "https://wa.me/?text=a%0Ab")  # compartir
+
+
+class FechasYAdminTests(TestCase):
+    def test_filtro_por_dias_locales(self):
+        """`dias()` cuenta por día de Lima aunque la base guarde en UTC (una venta a las 23:30 es de ese día)."""
+        from datetime import date, datetime
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from core.utils import dias
+        from ventas.models import Venta
+
+        u = User.objects.create_user("x", password="x-clave-123")
+        tarde = timezone.make_aware(datetime(2026, 11, 19, 23, 30))
+        temprano = timezone.make_aware(datetime(2026, 11, 20, 0, 10))
+        for n, f in ((1, tarde), (2, temprano)):
+            Venta.objects.create(numero=n, fecha=f, usuario=u, subtotal=Decimal("1"), total=Decimal("1"))
+        self.assertEqual(list(Venta.objects.filter(**dias("fecha", date(2026, 11, 19))).values_list("numero", flat=True)), [1])
+        self.assertEqual(Venta.objects.filter(**dias("fecha", date(2026, 11, 19), date(2026, 11, 20))).count(), 2)
+        self.assertEqual(Venta.objects.filter(**dias("fecha", date(2026, 11, 19), antes_de=date(2026, 11, 20))).count(), 1)
+
+    def test_admin_solo_si_se_enciende(self):
+        """Sin ADMIN_ACTIVO (por defecto en producción) no existe /admin/ ni su enlace en el menú."""
+        import importlib
+
+        from django.test import override_settings
+        from django.urls import clear_url_caches
+
+        import config.urls
+
+        jefe = User.objects.create_user("jefe", password="x-clave-123")
+        jefe.groups.add(__import__("django.contrib.auth.models", fromlist=["Group"]).Group.objects.get(name="Administración"))
+        self.client.force_login(jefe)
+        try:
+            for activo, codigo in ((False, 404), (True, 302)):
+                with override_settings(ADMIN_ACTIVO=activo):
+                    importlib.reload(config.urls)
+                    clear_url_caches()
+                    self.assertEqual(self.client.get("/admin/").status_code, codigo)
+                    if not activo:
+                        self.assertNotContains(self.client.get(reverse("core:inicio")), "Admin de Django")
+        finally:
+            importlib.reload(config.urls)
+            clear_url_caches()

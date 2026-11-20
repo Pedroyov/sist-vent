@@ -15,6 +15,7 @@ def negocio(request):
         "NEGOCIO_NOMBRE": datos.nombre_mostrar,
         "NEGOCIO_NOMBRE_CORTO": datos.corto_mostrar,
         "DEMO": settings.DEMO,
+        "ADMIN_ACTIVO": settings.ADMIN_ACTIVO,
         "T": palabras(datos),
     }
     user = getattr(request, "user", None)

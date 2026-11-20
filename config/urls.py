@@ -21,7 +21,6 @@ urlpatterns = [
     path("salir/", auth_views.LogoutView.as_view(), name="logout"),
     path("cuenta/contrasena/", auth_views.PasswordChangeView.as_view(), name="password_change"),
     path("cuenta/contrasena/listo/", auth_views.PasswordChangeDoneView.as_view(), name="password_change_done"),
-    path("admin/", admin.site.urls),
     path("productos/", include("productos.urls")),
     path("personal/", include("personal.urls")),
     path("ventas/", include("ventas.urls")),
@@ -35,4 +34,6 @@ urlpatterns = [
     path("citas/", include("citas.urls")),
     path("", include("core.urls")),
 ]
+if settings.ADMIN_ACTIVO:
+    urlpatterns.insert(0, path("admin/", admin.site.urls))
 

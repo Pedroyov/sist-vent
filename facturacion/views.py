@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido
-from core.utils import entero, url_segura
+from core.utils import dias, entero, url_segura
 
 from .forms import ConfigForm
 from .models import Comprobante, Config
@@ -143,7 +143,7 @@ def excel_contador(request):
                    c.modifica.numero_str if c.modifica_id else "", "Sí" if c.venta.anulada else ""])
     ws2 = wb.create_sheet("Incobrables")
     ws2.append(["Fecha", "Cliente", "Documento", "Monto", "Motivo", "Marcado por"])
-    for a in Abono.objects.filter(metodo="INC", anulado=False, fecha__date__gte=desde, fecha__date__lt=hasta).select_related("cliente", "usuario"):
+    for a in Abono.objects.filter(metodo="INC", anulado=False, **dias("fecha", desde, antes_de=hasta)).select_related("cliente", "usuario"):
         ws2.append([timezone.localtime(a.fecha).replace(tzinfo=None), a.cliente.nombre, a.cliente.documento, float(a.monto),
                     a.nota.removeprefix("Incobrable: "), a.usuario.get_full_name() or a.usuario.username])
     for hoja in (ws, ws2):

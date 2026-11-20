@@ -28,6 +28,10 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
     CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
+# Panel /admin/ de Django: permite editar cualquier tabla sin dejar rastro (ventas, cierres de caja…). Todo se maneja
+# desde las pantallas del sistema, así que en producción viene apagado; se enciende solo para una revisión puntual.
+ADMIN_ACTIVO = env.bool("ADMIN_ACTIVO", default=DEBUG)
+
 # Modo demostración: muestra un aviso y los usuarios de prueba, y no deja cambiar contraseñas
 DEMO = env.bool("DEMO", default=False)
 

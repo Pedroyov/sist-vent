@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -12,7 +13,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero
+from core.utils import entero, inicio_dia
 
 from . import excel
 from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
@@ -416,9 +417,9 @@ def kardex(request):
         movs = movs.filter(tipo=tipo)
     try:
         if desde:
-            movs = movs.filter(fecha__date__gte=desde)
+            movs = movs.filter(fecha__gte=inicio_dia(desde))
         if hasta:
-            movs = movs.filter(fecha__date__lte=hasta)
+            movs = movs.filter(fecha__lt=inicio_dia(hasta + timedelta(days=1)))
     except Exception:
         desde = hasta = ""
     if request.GET.get("excel"):

@@ -14,7 +14,7 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
-from core.utils import enlace_whatsapp, entero, url_segura
+from core.utils import dias, enlace_whatsapp, entero, url_segura
 from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variante
 from productos.servicios import minimo_disponible, ordenar_grupos
 
@@ -218,7 +218,7 @@ def _rango(request):
 
 def _filtrar(request):
     desde, hasta = _rango(request)
-    ventas = Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta).select_related("usuario")
+    ventas = Venta.objects.filter(**dias("fecha", desde, hasta)).select_related("usuario")
     solo_mias = not puede(request.user, "ventas.ver")
     usuario = entero(request.GET.get("usuario"))
     if solo_mias:

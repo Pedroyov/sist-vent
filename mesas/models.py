@@ -84,6 +84,7 @@ class Cuenta(models.Model):
         verbose_name = "cuenta"
         verbose_name_plural = "cuentas"
         ordering = ["-abierta_en"]
+        indexes = [models.Index(fields=["abierta_en"])]
         constraints = [models.UniqueConstraint(fields=["mesa"], condition=Q(estado="ABI"), name="una_cuenta_abierta_por_mesa")]
 
     def __str__(self):

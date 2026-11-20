@@ -15,7 +15,7 @@ from .conectores import ErrorConexion, Nubefact, Resultado
 from .models import Comprobante, Config
 
 
-class FacturacionTests(TestCase):
+class Base(TestCase):
     def setUp(self):
         Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "ruc": "20123456789", "razon_social": "MI NEGOCIO SAC"})
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
@@ -32,6 +32,8 @@ class FacturacionTests(TestCase):
                  "pagos": [{"metodo": "EFE", "monto": "100"}], "comprobante": comprobante, **extra}
         return self.client.post(reverse("ventas:registrar"), json.dumps(datos), content_type="application/json")
 
+
+class FacturacionTests(Base):
     def test_boleta_simple_con_igv(self):
         r = self._vender({"tipo": "B"})
         self.assertEqual(r.status_code, 200, r.content)
@@ -288,3 +290,42 @@ class FacturaCreditoTests(TestCase):
         ws = load_workbook(BytesIO(r.content))["Registro de ventas"]
         fila = [c.value for c in ws[2]]
         self.assertEqual((fila[1], fila[11], fila[12], fila[14]), ("Factura electrónica", 100, "Crédito", 100))
+
+
+class ReenvioAutomaticoTests(Base):
+    """Lo que SUNAT aún no recibe se reintenta solo y avisa antes de que venza el plazo."""
+
+    def test_reenvio_y_aviso(self):
+        from datetime import timedelta
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.utils import timezone
+
+        from .servicios import vence_envio
+
+        Config.objects.update_or_create(pk=1, defaults={"proveedor": "NUB", "ruta": "https://api.ejemplo.pe/x", "token": "t"})
+        with mock.patch.object(Nubefact, "_post", side_effect=ErrorConexion("sin internet")):
+            self._vender({"tipo": "B"}, token="a")
+            self._vender({"tipo": "B"}, token="b")
+        primero, segundo = Comprobante.objects.order_by("id")
+        hace_dos_dias = timezone.now() - timedelta(days=2)
+        Comprobante.objects.filter(pk=primero.pk).update(creado=hace_dos_dias, fecha=hace_dos_dias.date())
+        primero.refresh_from_db()
+        self.assertEqual(vence_envio(primero), primero.fecha + timedelta(days=3))
+        # aviso en el inicio para quien ve comprobantes (solo el atrasado: el otro se acaba de emitir)
+        r = self.client.get(reverse("core:inicio"))
+        self.assertContains(r, "1 comprobante sin aceptar por SUNAT")
+        # la tarea programada: sin internet falla (sale con error para que alguien lo revise)
+        with mock.patch.object(Nubefact, "_post", side_effect=ErrorConexion("sin internet")):
+            with self.assertRaises(SystemExit):
+                call_command("reenviar_comprobantes", stdout=StringIO(), stderr=StringIO())
+        # con internet: la siguiente venta se envía y de paso se reenvían los atrasados
+        respuesta = {"aceptada_por_sunat": True, "sunat_description": "Aceptada", "codigo_hash": "h"}
+        with mock.patch.object(Nubefact, "_post", return_value=respuesta):
+            self._vender({"tipo": "B"}, token="c")
+        self.assertFalse(Comprobante.objects.filter(estado__in=["PEN", "ENV"]).exists())
+        salida = StringIO()
+        call_command("reenviar_comprobantes", stdout=salida, stderr=StringIO())
+        self.assertIn("Reenviados: 0", salida.getvalue())
+        self.assertNotContains(self.client.get(reverse("core:inicio")), "sin aceptar por SUNAT")

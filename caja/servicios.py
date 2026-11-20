@@ -6,6 +6,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Sum
 from django.utils import timezone
 
+from core.utils import dias
+
 from .models import CERO, DENOMINACIONES, MovimientoCaja, SesionCaja
 
 
@@ -121,7 +123,7 @@ def gastos(desde, hasta):
     sistema devolvió al anular un cobro (la venta anulada ya no suma). Las compras a proveedores van aparte en la ganancia:
     el costo de lo vendido ya se resta en la ganancia de las ventas."""
     C = MovimientoCaja.Categoria
-    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, automatico=False, anulado=False, fecha__date__gte=desde, fecha__date__lte=hasta)
+    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, automatico=False, anulado=False, **dias("fecha", desde, hasta))
           .exclude(categoria=C.RETIRO))
     datos = {r["categoria"]: r for r in qs.values("categoria").annotate(total=Sum("monto"), n=Count("id"))}
     filas = [{"categoria": c.value, "etiqueta": c.label.split(" (")[0], "total": datos[c.value]["total"], "n": datos[c.value]["n"]}
@@ -132,10 +134,10 @@ def gastos(desde, hasta):
     for f in filas:
         f["pct"] = round(float(f["total"]) / float(maximo) * 100, 1)
     proveedores = datos.get(C.PROVEEDOR, {}).get("total") or CERO
-    retiros = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=C.RETIRO, fecha__date__gte=desde,
-                                             fecha__date__lte=hasta).aggregate(t=Sum("monto"))["t"] or CERO)
-    retiros += (SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, queda__isnull=False, cerrada_en__date__gte=desde,
-                                          cerrada_en__date__lte=hasta).aggregate(t=Sum(F("contado") - F("queda")))["t"] or CERO)
+    retiros = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=C.RETIRO, **dias("fecha", desde, hasta))
+               .aggregate(t=Sum("monto"))["t"] or CERO)
+    retiros += (SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, queda__isnull=False, **dias("cerrada_en", desde, hasta))
+                .aggregate(t=Sum(F("contado") - F("queda")))["t"] or CERO)
     return {"filas": filas, "total": total, "proveedores": proveedores, "operativos": total - proveedores, "retiros": retiros,
             "fuera": qs.filter(sesion__isnull=True).aggregate(t=Sum("monto"))["t"] or CERO}
 

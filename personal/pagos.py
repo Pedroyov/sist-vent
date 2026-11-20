@@ -10,6 +10,8 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import Count, Sum
 
+from core.utils import dias
+
 CERO = Decimal("0")
 
 
@@ -43,7 +45,7 @@ def cuentas(desde, hasta):
 
     pagado = {r["persona_id"]: r for r in MovimientoCaja.objects
               .filter(categoria=MovimientoCaja.Categoria.PERSONAL, tipo=MovimientoCaja.Tipo.EGRESO, persona__isnull=False, anulado=False,
-                      fecha__date__gte=desde, fecha__date__lte=hasta)
+                      **dias("fecha", desde, hasta))
               .values("persona_id").annotate(total=Sum("monto"), n=Count("id"))}
     comisiones = {}
     if Ajustes.cargar().usa_comisiones:

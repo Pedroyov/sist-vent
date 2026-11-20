@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from .permisos import puede
 from .turnos import por_confirmar
+from .utils import dias
 
 
 def _pend(texto, url, icono="bi-exclamation-circle", color="warning", detalle=""):
@@ -58,7 +59,25 @@ class Tablero:
             self._clientes()
         if puede(self.user, "productos.ver"):
             self._productos()
+        if puede(self.user, "facturacion.ver"):
+            self._facturacion()
         return self
+
+    def _facturacion(self):
+        """Comprobantes que SUNAT aún no recibe: pasado el plazo pierden validez."""
+        from datetime import timedelta
+
+        from facturacion.servicios import atrasados, vence_envio
+
+        lista = list(atrasados()[:50])
+        if not lista:
+            return
+        vence = min(vence_envio(c) for c in lista)
+        urgente = vence <= self.hoy + timedelta(days=1)
+        self.pendientes.insert(0, _pend(
+            f"{_plural(len(lista), 'comprobante')} sin aceptar por SUNAT", reverse("facturacion:lista") + "?estado=falta",
+            "bi-receipt-cutoff", "danger" if urgente else "warning",
+            f"El más antiguo vence el {vence:%d/%m}. Reenvíalos; si siguen fallando, revisa el internet o el proveedor."))
 
     def _atajos(self):
         from .glosario import palabras
@@ -202,7 +221,7 @@ class Tablero:
 
         from .templatetags.sis import soles
 
-        hoy = Venta.objects.filter(fecha__date=self.hoy)
+        hoy = Venta.objects.filter(**dias("fecha", self.hoy))
         todas = puede(self.user, "ventas.ver")
         if not todas:
             hoy = hoy.filter(usuario=self.user)

@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero, url_segura
+from core.utils import dias, entero, url_segura
 
 from .forms import AbrirForm, CerrarForm, GastoForm, MovimientoForm, PuntoCajaForm
 from .models import DENOMINACIONES, MovimientoCaja, PuntoCaja, SesionCaja
@@ -161,7 +161,7 @@ def lista_gastos(request):
 
     desde, hasta, atajo = periodo(request, defecto="mes")
     C = MovimientoCaja.Categoria
-    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, fecha__date__gte=desde, fecha__date__lte=hasta)
+    qs = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, **dias("fecha", desde, hasta))
           .select_related("sesion", "usuario", "persona", "anulado_por"))
     motivo = request.GET.get("motivo", "")
     if motivo in C.values:

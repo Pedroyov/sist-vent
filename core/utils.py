@@ -1,7 +1,23 @@
 import re
+from datetime import datetime, time, timedelta
 
 from django.core.exceptions import ValidationError
 from django.utils.deconstruct import deconstructible
+
+
+def inicio_dia(dia):
+    """Medianoche (hora local) del día: el límite que sí usa el índice de una fecha con hora."""
+    from django.utils import timezone
+
+    return timezone.make_aware(datetime.combine(dia, time.min))
+
+
+def dias(campo, desde, hasta=None, *, antes_de=None):
+    """Filtro de los días locales [desde, hasta] (o [desde, antes_de)) sobre un campo fecha-hora:
+    `Venta.objects.filter(**dias("fecha", desde, hasta))`. A diferencia de `fecha__date`, que convierte cada fila a fecha
+    local y obliga a recorrer toda la tabla en PostgreSQL, compara contra dos instantes y aprovecha el índice."""
+    fin = antes_de if antes_de is not None else (hasta or desde) + timedelta(days=1)
+    return {f"{campo}__gte": inicio_dia(desde), f"{campo}__lt": inicio_dia(fin)}
 
 
 def entero(valor):

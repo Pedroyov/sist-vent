@@ -2,7 +2,7 @@
 import calendar
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
-from core.utils import enlace_whatsapp as _enlace_wa
+from core.utils import dias, enlace_whatsapp as _enlace_wa
 
 from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
@@ -374,12 +374,12 @@ def resumen(hoy=None):
     hoy = hoy or timezone.localdate()
     inicio_mes = hoy.replace(day=1)
     venc = vencidas(hoy)
-    pagos_mes = Pago.objects.filter(anulado=False, fecha__date__gte=inicio_mes, fecha__date__lte=hoy)
+    pagos_mes = Pago.objects.filter(anulado=False, **dias("fecha", inicio_mes, hoy))
     return {
         "vencido": venc.aggregate(t=Sum("falta"))["t"] or CERO,
         "morosos": venc.values("inscripcion__cliente").distinct().count(),
         "por_vencer": por_vencer(hoy).aggregate(t=Sum("falta"))["t"] or CERO,
         "cobrado_mes": pagos_mes.aggregate(t=Sum("monto"))["t"] or CERO,
-        "cobrado_hoy": pagos_mes.filter(fecha__date=hoy).aggregate(t=Sum("monto"))["t"] or CERO,
+        "cobrado_hoy": pagos_mes.filter(**dias("fecha", hoy)).aggregate(t=Sum("monto"))["t"] or CERO,
         "activos": Inscripcion.objects.filter(estado=Inscripcion.Estado.ACTIVA).count(),
     }

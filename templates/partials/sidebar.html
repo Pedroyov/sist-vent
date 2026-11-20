@@ -248,12 +248,12 @@
             <p>Módulos del sistema</p>
           </a>
         </li>
-        <li class="nav-item">
+        {% if ADMIN_ACTIVO %}<li class="nav-item">
           <a href="{% url 'admin:index' %}" class="nav-link">
             <i class="nav-icon bi bi-gear"></i>
             <p>Admin de Django</p>
           </a>
-        </li>
+        </li>{% endif %}
         {% endif %}
       </ul>
     </nav>

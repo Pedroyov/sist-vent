@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from clientes.models import Cliente
 from clientes.servicios import ClienteError, resolver_cliente
 from core.permisos import permiso_requerido, puede
+from core.utils import dias
 
 from .forms import ConfigForm, EditarInscripcionForm, InscripcionForm, PlanForm
 from .models import CERO, Config, Cuota, Inscripcion, Pago, PagoCuota, Plan
@@ -359,7 +360,7 @@ def reporte(request):
     except (ValueError, TypeError):
         desde = hoy.replace(day=1)
     hasta = date(desde.year + desde.month // 12, desde.month % 12 + 1, 1)
-    pagos = Pago.objects.filter(anulado=False, fecha__date__gte=desde, fecha__date__lt=hasta).select_related("cliente", "usuario")
+    pagos = Pago.objects.filter(anulado=False, **dias("fecha", desde, antes_de=hasta)).select_related("cliente", "usuario")
     from ventas.models import MetodoPago
 
     nombres = dict(MetodoPago.choices)
@@ -384,5 +385,5 @@ def reporte(request):
         "porcentaje": round((emitido["p"] or 0) * 100 / total_mes) if total_mes else None,
         "nuevos": Inscripcion.objects.filter(inicio__gte=desde, inicio__lt=hasta).count(),
         "bajas": Inscripcion.objects.filter(estado=Inscripcion.Estado.BAJA, fin__gte=desde, fin__lt=hasta).count(),
-        "anulados": Pago.objects.filter(anulado=True, fecha__date__gte=desde, fecha__date__lt=hasta).select_related("cliente", "anulado_por"),
+        "anulados": Pago.objects.filter(anulado=True, **dias("fecha", desde, antes_de=hasta)).select_related("cliente", "anulado_por"),
     })

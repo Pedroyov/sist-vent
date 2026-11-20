@@ -18,6 +18,8 @@ from decimal import Decimal
 
 from django.utils import timezone
 
+from core.utils import dias
+
 from .models import Persona
 
 CERO = Decimal("0")
@@ -49,7 +51,7 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
             return de_persona(por_usuario[u.pk])
         return filas.setdefault(f"u{u.pk}", _fila(f"u{u.pk}", u.get_full_name() or u.username))
 
-    ventas = list(Venta.objects.filter(fecha__date__gte=desde, fecha__date__lte=hasta, estado=Venta.Estado.PAGADA)
+    ventas = list(Venta.objects.filter(**dias("fecha", desde, hasta), estado=Venta.Estado.PAGADA)
                   .select_related("usuario", "atendio", "atendio_persona"))
     citas_por_venta = {}
     if "citas" in modulos:
@@ -81,7 +83,7 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
 
         cobros.append(("deudas", Abono))
     for campo, modelo in cobros:
-        for p in modelo.objects.filter(anulado=False, fecha__date__gte=desde, fecha__date__lte=hasta).select_related("usuario"):
+        for p in modelo.objects.filter(anulado=False, **dias("fecha", desde, hasta)).select_related("usuario"):
             f = de_usuario(p.usuario)
             f[f"{campo}_n"] += 1
             f[campo] += p.monto
@@ -126,8 +128,8 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
     if "delivery" in modulos:
         from mesas.models import Cuenta
 
-        for nombre in Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, estado=Cuenta.Estado.COBRADA, abierta_en__date__gte=desde,
-                                            abierta_en__date__lte=hasta).exclude(repartidor="").values_list("repartidor", flat=True):
+        for nombre in (Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, estado=Cuenta.Estado.COBRADA, **dias("abierta_en", desde, hasta))
+                       .exclude(repartidor="").values_list("repartidor", flat=True)):
             p = por_nombre.get(nombre.strip().lower())
             f = de_persona(p) if p else filas.setdefault(f"r{nombre.lower()}", _fila(f"r{nombre.lower()}", nombre))
             f["entregas"] += 1

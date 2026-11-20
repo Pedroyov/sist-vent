@@ -14,7 +14,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_POST
 
 from core.permisos import permiso_requerido, puede
-from core.utils import entero
+from core.utils import dias, entero
 
 from .models import Cuenta, ItemCuenta, Mesa, Zona
 from core.autorizacion import AutorizacionError, autorizar
@@ -149,7 +149,7 @@ def pedidos(request):
     if request.htmx:
         return render(request, "mesas/partials/delivery_lista.html", datos)
     hoy = timezone.localdate()
-    datos["entregados"] = (Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, abierta_en__date=hoy).exclude(estado=Cuenta.Estado.ABIERTA)
+    datos["entregados"] = (Cuenta.objects.filter(tipo=Cuenta.Tipo.DELIVERY, **dias("abierta_en", hoy)).exclude(estado=Cuenta.Estado.ABIERTA)
                            .order_by("-cerrada_en")[:20])
     return render(request, "mesas/pedidos.html", datos)
 

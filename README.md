@@ -58,6 +58,7 @@ Toda la información del negocio está en `db.sqlite3` y las fotos en `media/`. 
 
 - `respaldo.bat` (o `python manage.py respaldo`) crea un `.zip` con la base de datos y las fotos en la carpeta `respaldos/`, y deja los últimos 30.
 - Para que sea **automático todos los días**: Programador de tareas de Windows → *Crear tarea básica* → *Diariamente* (por ejemplo a las 11 p. m.) → *Iniciar un programa* → elige `respaldo.bat`.
+- **Facturación electrónica:** si la usas, programa también `reenviar.bat` cada hora (igual que el respaldo) para que lo que no se envió por falta de internet llegue a SUNAT dentro de los 3 días.
 - Guarda los respaldos **fuera de la PC**: `respaldo.bat "C:\Users\TU_USUARIO\Google Drive\Respaldos"` (o OneDrive, o una USB).
 - Para restaurar: cierra el sistema, descomprime el `.zip`, pon el `db.sqlite3` en la carpeta del proyecto y la carpeta `media/` junto a él.
 

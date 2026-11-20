@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.http import content_disposition_header
 
 from core.permisos import modulo_activo, permiso_requerido, puede
+from core.utils import dias
 
 from . import servicios as s
 
@@ -166,7 +167,7 @@ def _excel(d):
         hoja("Gastos (detalle)", ["Fecha", "Motivo", "Detalle", "Persona", "Monto", "De dónde", "Registró"],
              [[timezone.localtime(m.fecha).strftime("%d/%m/%Y %H:%M"), m.motivo, m.concepto, m.persona.nombre if m.persona else "", m.monto,
                f"Caja {m.sesion.numero}" if m.sesion else "Fuera de caja", m.usuario.get_full_name() or m.usuario.username]
-              for m in MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, fecha__date__gte=d["desde"], fecha__date__lte=d["hasta"])
+              for m in MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, **dias("fecha", d["desde"], d["hasta"]))
               .select_related("sesion", "usuario", "persona").order_by("fecha") if m.es_gasto])
     if d["con_mesas"]:
         hoja("Platos quitados", ["Fecha", "Mesa", "Plato", "Cantidad", "Valor", "Motivo", "Mozo", "Quitó"],
