@@ -135,6 +135,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Mercadería vs. gasto:** solo se compran como producto los que controlan stock. Las líneas libres (insumos, fletes) son gasto del periodo de la compra: `caja.servicios.gastos()` las suma como «Compras sin producto» (`compras_sin_producto`) y restan en la Ganancia real; los pagos a proveedores no se vuelven a restar.
 - **Permisos:** `compras.ver`, `compras.registrar`, `compras.pagar`, `compras.anular` (por defecto solo Administración). Aviso en el inicio de pagos vencidos o que vencen en 7 días (`Tablero._compras`).
 - **Conexiones:** Reportes muestra «Compras» (por proveedor y deuda: `por_proveedor`) y el Excel trae «Compras por proveedor» y «Registro de compras» (`registro`, para el contador) cuando el módulo está activo o hubo compras en el periodo. Ficha del producto: última compra (`ultima_de_producto`). **Reponer** (`compras:reponer`, `reposicion()`): lo que está en su mínimo (`productos.servicios.por_reponer`) agrupado por el último proveedor, con «Pedir» por WhatsApp y «Armar compra» (`nueva?reponer=<id|sin>` precarga las líneas con la cantidad y el costo de la última compra).
+- **Demos:** `datos_demo` enciende Compras en tienda, ropa y librería y carga `compras/demo.py` antes de las ventas (3 proveedores, 5 compras con el mismo servicio de la pantalla: una vencida con pago a cuenta, una que vence esta semana, un flete como línea libre).
 
 ## Mesas (cómo está pensado)
 

@@ -57,6 +57,10 @@ class Command(BaseCommand):
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "citas"]
         elif "citas" not in a.modulos_inactivos:
             a.modulos_inactivos.append("citas")
+        if rubro in (Rubro.TIENDA, Rubro.ROPA, Rubro.LIBRERIA):  # quien vende mercadería registra sus compras
+            a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "compras"]
+        elif "compras" not in a.modulos_inactivos:
+            a.modulos_inactivos.append("compras")
         a.razon_social = a.razon_social or f"{nombre.upper()} S.A.C."
         a.propina_activa = rubro == Rubro.RESTAURANTE
         a.nivel_pedido = 3 if rubro == Rubro.RESTAURANTE else 2
@@ -91,6 +95,9 @@ class Command(BaseCommand):
         if rubro == Rubro.RESTAURANTE:
             a.nivel_pedido = 3
             a.save(update_fields=["nivel_pedido"])
+        from compras.demo import cargar_compras
+
+        cargar_compras(rubro)  # antes de las ventas: así venden con el costo promedio de lo comprado
         from ventas.demo import cargar_ventas
         from ventas.models import Venta
 

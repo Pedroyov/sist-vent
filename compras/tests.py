@@ -196,3 +196,23 @@ class ConexionesTests(Base):
         self.arroz.producto.stock_minimo = D("50")
         self.arroz.producto.save()
         self.assertNotContains(self.client.get(reverse("productos:lista")), reverse("compras:reponer"))
+
+
+class DemoTests(TestCase):
+    def test_demo_de_tienda_trae_compras(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from core.permisos import modulos_activos
+
+        call_command("datos_demo", "--rubro", "TIE", stdout=StringIO())
+        self.assertIn("compras", modulos_activos())
+        self.assertEqual(Compra.objects.count(), 5)
+        d = {str(x["proveedor"]): x for x in deudas_por_proveedor()}
+        self.assertTrue(d["Bebidas del Norte"]["vencido"] > 0)
+        self.assertEqual(len(vencen_pronto()), 2)
+        self.client.force_login(User.objects.get(username="admin"))
+        for nombre in ("lista", "por_pagar", "proveedores", "reponer", "nueva"):
+            self.assertEqual(self.client.get(reverse(f"compras:{nombre}")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("compras:detalle", args=[Compra.objects.first().pk])).status_code, 200)

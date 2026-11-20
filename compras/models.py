@@ -87,8 +87,10 @@ class Compra(models.Model):
     @property
     def pagado(self):
         if hasattr(self, "_pagado"):
-            return self._pagado or CERO
-        return self.pagos.filter(anulado=False).aggregate(t=Sum("monto"))["t"] or CERO
+            total = self._pagado or CERO
+        else:
+            total = self.pagos.filter(anulado=False).aggregate(t=Sum("monto"))["t"] or CERO
+        return Decimal(total).quantize(Decimal("0.01"))  # SQLite devuelve las sumas con decimales de más
 
     @property
     def saldo(self):
