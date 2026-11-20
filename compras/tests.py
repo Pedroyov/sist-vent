@@ -156,3 +156,43 @@ class ComprasTests(Base):
         g = gastos(self.hoy, self.hoy)
         self.assertEqual((g["proveedores"], g["operativos"]), (D("30"), D("0")))
         self.assertEqual(self.client.get(reverse("reportes:inicio")).status_code, 200)
+
+
+class ConexionesTests(Base):
+    """Compras en Reportes y Excel, última compra en el producto y reposición por proveedor."""
+
+    def test_reportes_producto_y_reponer(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        self.prov.telefono = "987 654 321"
+        self.prov.save()
+        registrar_compra(self.jefe, self.prov, self.items("6", "5", libre="4"), "FAC", "F001", "7", credito=True)
+        self.arroz.producto.stock_minimo = D("50")  # 16 en stock: queda por reponer
+        self.arroz.producto.save()
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("reportes:inicio") + "?p=hoy")
+        self.assertContains(r, 'id="compras"')
+        self.assertEqual((r.context["compras"]["total"], r.context["compras"]["deuda"]), (D("34"), D("34")))
+        libro = load_workbook(BytesIO(self.client.get(reverse("reportes:inicio") + "?p=hoy&excel=1").content))
+        self.assertIn("Registro de compras", libro.sheetnames)
+        fila = [c.value for c in libro["Registro de compras"][2]]
+        self.assertEqual((fila[1], fila[2], fila[3], fila[8], fila[9], fila[12]), ("Factura", "F001", "7", 34, "Crédito", 34))
+        self.assertContains(self.client.get(reverse("productos:detalle", args=[self.arroz.producto_id])), "Última compra")
+        r = self.client.get(reverse("compras:reponer"))
+        self.assertContains(r, "Arroz 1 kg")
+        self.assertContains(r, "wa.me/51987654321")
+        r = self.client.get(reverse("compras:nueva") + f"?reponer={self.prov.pk}&proveedor={self.prov.pk}")
+        self.assertEqual(json.loads(r.context["items_previos"]), [{"variante": self.arroz.pk, "cantidad": "6", "costo": "5"}])
+        self.assertContains(self.client.get(reverse("productos:lista")), reverse("compras:reponer"))
+
+    def test_sin_modulo_no_aparece(self):
+        Ajustes.objects.filter(pk=1).update(modulos_inactivos=["compras"])
+        self.client.force_login(self.jefe)
+        self.assertNotIn("compras", self.client.get(reverse("reportes:inicio")).context)
+        r = self.client.get(reverse("productos:detalle", args=[self.arroz.producto_id]))
+        self.assertNotContains(r, "Última compra")
+        self.arroz.producto.stock_minimo = D("50")
+        self.arroz.producto.save()
+        self.assertNotContains(self.client.get(reverse("productos:lista")), reverse("compras:reponer"))

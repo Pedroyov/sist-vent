@@ -44,6 +44,7 @@
   <ul class="nav nav-pills flex-nowrap overflow-auto small">
     <li class="nav-item"><a class="nav-link" href="#resumen">Resumen</a></li>
     {% if con_caja %}<li class="nav-item"><a class="nav-link" href="#gastos">Gastos</a></li>{% endif %}
+    {% if compras %}<li class="nav-item"><a class="nav-link" href="#compras">Compras</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link" href="#tiempo">Días y horas</a></li>
     {% if con_productos %}<li class="nav-item"><a class="nav-link" href="#productos">Productos</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link" href="#personal">Personal</a></li>
@@ -99,6 +100,24 @@
   </div></div>
   {% endwith %}
 </div>
+</section>
+{% endif %}
+
+{# ---------- Compras ---------- #}
+{% if compras %}
+<section id="compras">
+{% with co=compras %}
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2"><h3 class="card-title mb-0"><i class="bi bi-truck me-1"></i> Compras <small class="text-body-secondary">{{ co.total|soles }} · {{ co.n }}</small></h3>
+    <span class="ms-auto small">Se debe a proveedores: <strong>{{ co.deuda|soles }}</strong>{% if co.vencido %} · <span class="text-danger">vencido {{ co.vencido|soles }}</span>{% endif %}</span>
+    {% if P.compras_ver %}<a href="{% url 'compras:lista' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary no-print">Ver compras</a>{% endif %}</div>
+  {% if co.filas %}<ul class="list-group list-group-flush">{% for f in co.filas %}
+    <li class="list-group-item"><div class="d-flex gap-2"><span class="min-w-0">{{ f.proveedor }}</span><span class="ms-auto fw-semibold text-nowrap">{{ f.total|soles }}</span></div>
+      <div class="small text-body-secondary d-flex"><span>{{ f.n }} compra{{ f.n|pluralize }}</span>{% if f.deuda %}<span class="ms-auto text-danger text-nowrap">se le debe {{ f.deuda|soles }}</span>{% endif %}</div></li>{% endfor %}
+  </ul>{% else %}<div class="card-body small text-body-secondary">No se registraron compras en el periodo.</div>{% endif %}
+  <div class="card-footer small text-body-secondary">Las compras de mercadería no restan en la Ganancia real: su costo sale al vender. Las líneas libres (insumos, fletes) sí, como gasto. El Excel trae el Registro de compras para el contador.</div>
+</div>
+{% endwith %}
 </section>
 {% endif %}
 

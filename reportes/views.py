@@ -35,6 +35,13 @@ def _datos(request):
         # Ganancia real: la de las ventas (ya resta el costo de lo vendido) menos los demás gastos. Lo pagado a proveedores
         # no se resta otra vez: es mercadería, y su costo sale cuando se vende.
         g["ganancia_real"] = d["r"]["ganancia"] - g["operativos"]
+    from compras.models import Compra
+
+    if modulo_activo(request.user, "compras") or Compra.objects.filter(fecha__gte=desde, fecha__lte=hasta).exists():
+        from compras.servicios import por_proveedor, registro
+
+        d["compras"] = por_proveedor(desde, hasta)
+        d["compras"]["registro"] = registro(desde, hasta)
     from core.models import Ajustes
 
     if Ajustes.cargar().usa_pagos:
@@ -157,6 +164,15 @@ def _excel(d):
     if pe["tiempos"]:
         hoja("Tiempo real por servicio", ["Servicio", "Veces", "Real promedio (min)", "Mínimo (min)", "Máximo (min)", "Catálogo (min)", "Diferencia (min)"],
              [[t["servicio"], t["veces"], t["real"], t["minimo"], t["maximo"], t["catalogo"], t["diferencia"]] for t in pe["tiempos"]])
+    if d.get("compras"):
+        co = d["compras"]
+        hoja("Compras por proveedor", ["Proveedor", "RUC", "Compras", "Total", "Se le debe hoy"],
+             [[f["proveedor"].nombre, f["proveedor"].ruc, f["n"], f["total"], f["deuda"]] for f in co["filas"]])
+        hoja("Registro de compras", ["Fecha", "Documento", "Serie", "Número", "RUC/DNI", "Proveedor", "Valor sin IGV", "IGV", "Total",
+                                     "Forma de pago", "Vence", "Pagado", "Pendiente", "Estado"],
+             [[c.fecha.strftime("%d/%m/%Y"), c.get_documento_display(), c.serie, c.numero, c.proveedor.ruc, c.proveedor.nombre,
+               c.base if c.igv else "", c.igv if c.igv else "", c.total, "Crédito" if c.vence else "Contado",
+               c.vence.strftime("%d/%m/%Y") if c.vence else "", c.pagado, c.saldo, c.estado] for c in co["registro"]])
     if d.get("pagos"):
         hoja("Pagos al personal", ["Persona", "Sueldo", "Comisión", "Le toca", "Pagado", "Falta"],
              [[f["persona"].nombre, f["sueldo"], f["comision"], f["toca"], f["pagado"], f["falta"]] for f in d["pagos"]["filas"]])
