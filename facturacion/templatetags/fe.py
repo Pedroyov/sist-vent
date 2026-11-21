@@ -19,19 +19,9 @@ def config_fe():
 @register.filter
 def qr_svg(texto, tam=110):
     """Código QR en SVG (se imprime nítido en la ticketera)."""
-    if not texto:
-        return ""
-    import io
+    from core.utils import qr_svg as qr
 
-    import qrcode
-    import qrcode.image.svg
-
-    img = qrcode.make(texto, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=1)
-    buf = io.BytesIO()
-    img.save(buf)
-    svg = buf.getvalue().decode()
-    svg = svg[svg.index("<svg"):].replace("<svg ", f'<svg width="{tam}" height="{tam}" ', 1)
-    return mark_safe(svg)
+    return qr(texto, tam)
 
 
 @register.simple_tag

@@ -31,7 +31,7 @@
         {% for u in usuarios %}
         <tr class="{% if not u.is_active %}text-body-secondary{% endif %}">
           <td>
-            <div class="fw-semibold">{{ u.get_full_name|default:u.username }}</div>
+            <div class="fw-semibold">{{ u.get_full_name|default:u.username }}{% if u.con_codigo %} <i class="bi bi-shield-lock text-success" title="Ingresa con código del celular" aria-label="Ingresa con código del celular"></i>{% endif %}</div>
             <div class="small text-body-secondary d-md-none">{{ u.username }}</div>
           </td>
           <td class="d-none d-md-table-cell">{{ u.username }}</td>
@@ -45,6 +45,11 @@
           </td>
           <td class="text-end">
             <a href="{% url 'core:usuario_editar' u.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i><span class="d-none d-lg-inline ms-1">Editar</span></a>
+            {% if u.con_codigo and P.acceso_total and u != user %}
+            <form method="post" action="{% url 'core:quitar_codigo' u.pk %}" class="d-inline">{% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" title="Perdió el celular: quitar el código para que lo active de nuevo"><i class="bi bi-shield-x"></i><span class="d-none d-lg-inline ms-1">Quitar código</span></button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

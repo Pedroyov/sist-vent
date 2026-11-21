@@ -66,7 +66,13 @@ def configurar(request):
     config = Config.cargar()
     form = ConfigForm(request.POST or None, instance=config)
     if request.method == "POST" and form.is_valid():
+        from core.bitacora import anotar, cambios_form
+
+        cambio = cambios_form(form, ocultos=("token",))
         form.save()
+        if cambio:
+            anotar("config.facturacion", f"Facturación: {', '.join(cambio)}", antes={k: v[0] for k, v in cambio.items()},
+                   despues={k: v[1] for k, v in cambio.items()})
         messages.success(request, "Facturación guardada.")
         return redirect("facturacion:configurar")
     return render(request, "facturacion/configurar.html", {"form": form, "config": config, "negocio": Ajustes.cargar()})

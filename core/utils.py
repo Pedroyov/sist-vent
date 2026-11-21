@@ -20,6 +20,21 @@ def dias(campo, desde, hasta=None, *, antes_de=None):
     return {f"{campo}__gte": inicio_dia(desde), f"{campo}__lt": inicio_dia(fin)}
 
 
+def ip_cliente(request):
+    """IP de quien hace la petición. Detrás de N proxies de confianza (settings.PROXIES_CONFIABLES), la N-ésima desde el
+    final de X-Forwarded-For (la que agregó nuestro proxy); sin proxies, la de la conexión."""
+    from django.conf import settings
+
+    if request is None:
+        return ""
+    n = getattr(settings, "PROXIES_CONFIABLES", 0)
+    if n > 0:
+        cadena = [x.strip() for x in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",") if x.strip()]
+        if len(cadena) >= n:
+            return cadena[-n][:45]
+    return request.META.get("REMOTE_ADDR", "")[:45]
+
+
 def entero(valor):
     """Convierte a entero un id que llega por GET/POST; None si no es un número (evita errores 500)."""
     texto = str(valor if valor is not None else "").strip()
@@ -73,3 +88,21 @@ class TamanoMaximo:
 
     def __eq__(self, otro):
         return isinstance(otro, TamanoMaximo) and otro.megas == self.megas
+
+
+def qr_svg(texto, tam=110):
+    """Código QR en SVG, listo para la plantilla (comprobantes, código del celular)."""
+    if not texto:
+        return ""
+    import io
+
+    import qrcode
+    import qrcode.image.svg
+    from django.utils.safestring import mark_safe
+
+    img = qrcode.make(texto, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=1)
+    buf = io.BytesIO()
+    img.save(buf)
+    svg = buf.getvalue().decode()
+    svg = svg[svg.index("<svg"):].replace("<svg ", f'<svg width="{tam}" height="{tam}" ', 1)
+    return mark_safe(svg)

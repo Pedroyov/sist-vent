@@ -249,3 +249,69 @@ class PermisosRol(models.Model):
 
     def __str__(self):
         return f"Permisos de {self.grupo.name}"
+
+
+class Bitacora(models.Model):
+    """Registro de acciones críticas (anulaciones, precios, permisos, caja…). Solo se agrega: no se edita ni se borra.
+    Cada fila guarda su huella (SHA-256) que incluye la huella de la anterior: si alguien toca la tabla por fuera del
+    sistema, la cadena se rompe y `core.bitacora.verificar()` dice desde qué fila. En PostgreSQL, además, un disparador
+    rechaza UPDATE y DELETE. Se escribe solo con `core.bitacora.anotar`."""
+
+    n = models.PositiveIntegerField("N°", unique=True)
+    fecha = models.DateTimeField(db_index=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, db_constraint=False, null=True, blank=True,
+                                related_name="+")
+    usuario_nombre = models.CharField(max_length=150, blank=True)
+    ip = models.CharField(max_length=45, blank=True)
+    accion = models.CharField(max_length=40, db_index=True)
+    descripcion = models.CharField(max_length=300)
+    objeto_tipo = models.CharField(max_length=40, blank=True)
+    objeto_id = models.CharField(max_length=20, blank=True)
+    antes = models.JSONField(null=True, blank=True)
+    despues = models.JSONField(null=True, blank=True)
+    huella_anterior = models.CharField(max_length=64, blank=True)
+    huella = models.CharField(max_length=64)
+
+    class Meta:
+        verbose_name = "entrada de bitácora"
+        verbose_name_plural = "bitácora"
+        ordering = ["-n"]
+        indexes = [models.Index(fields=["objeto_tipo", "objeto_id"])]
+
+    def __str__(self):
+        return f"{self.n} · {self.accion} · {self.descripcion}"
+
+    def calcular_huella(self):
+        import hashlib
+        import json
+
+        datos = [self.n, self.fecha.isoformat(), self.usuario_id, self.usuario_nombre, self.ip, self.accion, self.descripcion,
+                 self.objeto_tipo, self.objeto_id, self.antes, self.despues, self.huella_anterior]
+        return hashlib.sha256(json.dumps(datos, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValueError("La bitácora no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("La bitácora no se borra.")
+
+
+class SegundoFactor(models.Model):
+    """Código de 6 dígitos de una app del celular (Google Authenticator o similar), además de la contraseña.
+    La lógica está en core/dos_factor.py."""
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="segundo_factor")
+    secreto = models.CharField(max_length=64)
+    activo = models.BooleanField(default=False)
+    activado_en = models.DateTimeField(null=True, blank=True)
+    ultimo_paso = models.BigIntegerField(default=0, help_text="Último código usado: no se acepta dos veces.")
+    respaldos = models.JSONField(default=list, blank=True, help_text="Huellas de los códigos de respaldo que quedan.")
+    version = models.PositiveIntegerField(default=1, help_text="Al cambiar, los dispositivos recordados vuelven a pedir el código.")
+
+    class Meta:
+        verbose_name = "código del celular"
+        verbose_name_plural = "códigos del celular"
+
+    def __str__(self):
+        return f"{self.usuario} ({'activo' if self.activo else 'sin activar'})"

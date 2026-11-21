@@ -32,31 +32,59 @@ class LoginForm(AuthenticationForm):
     MAX_USUARIO, MAX_IP, ESPERA = 5, 30, 15 * 60
 
     def _claves(self):
-        from hashlib import sha256
-
-        usuario = (self.data.get("username") or "").strip().lower()
-        ip = (self.request.META.get("REMOTE_ADDR", "") if self.request else "")
-        return ("login:u:" + sha256(usuario.encode()).hexdigest()[:32], "login:ip:" + ip)
+        return claves_ingreso(self.request, self.data.get("username"))
 
     def clean(self):
-        from django.core.cache import cache
-
+        cache = cache_seguridad()
         k_usuario, k_ip = self._claves()
-        if cache.get(k_usuario, 0) >= self.MAX_USUARIO or cache.get(k_ip, 0) >= self.MAX_IP:
+        if bloqueado(self.request, self.data.get("username")):
+            if not cache.get(k_usuario + ":anotado"):  # una vez por bloqueo, no en cada intento
+                from .bitacora import anotar
+
+                cache.set(k_usuario + ":anotado", 1, self.ESPERA)
+                anotar("ingreso.bloqueado", f"Ingreso bloqueado para «{(self.data.get('username') or '').strip()[:40]}» por intentos fallidos")
             raise forms.ValidationError(
                 "Demasiados intentos fallidos. Por seguridad, espera 15 minutos o pide al administrador que revise tu usuario.",
                 code="bloqueado")
         try:
             datos = super().clean()
         except forms.ValidationError:
-            for k in (k_usuario, k_ip):
-                try:
-                    cache.incr(k)
-                except ValueError:
-                    cache.set(k, 1, self.ESPERA)
+            contar_fallo(self.request, self.data.get("username"))
             raise
         cache.delete(k_usuario)
         return datos
+
+
+def cache_seguridad():
+    """Intentos fallidos de ingreso: en la base de datos, para que los vean todos los procesos y servidores."""
+    from django.core.cache import caches
+
+    return caches["seguridad"]
+
+
+def claves_ingreso(request, usuario):
+    from hashlib import sha256
+
+    from .utils import ip_cliente
+
+    usuario = (usuario or "").strip().lower()
+    return ("login:u:" + sha256(usuario.encode()).hexdigest()[:32], "login:ip:" + ip_cliente(request))
+
+
+def contar_fallo(request, usuario):
+    """Un intento fallido (contraseña o código del celular) cuenta para el bloqueo de ese usuario y de esa conexión."""
+    cache = cache_seguridad()
+    for k in claves_ingreso(request, usuario):
+        try:
+            cache.incr(k)
+        except ValueError:
+            cache.set(k, 1, LoginForm.ESPERA)
+
+
+def bloqueado(request, usuario):
+    cache = cache_seguridad()
+    k_usuario, k_ip = claves_ingreso(request, usuario)
+    return cache.get(k_usuario, 0) >= LoginForm.MAX_USUARIO or cache.get(k_ip, 0) >= LoginForm.MAX_IP
 
 
 # --- Usuarios ---------------------------------------------------------------

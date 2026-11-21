@@ -101,6 +101,7 @@
       {% else %}<div class="card-body small text-body-secondary">Sin compras registradas a su nombre.</div>{% endif %}
     </div>
     {% if anulados %}<details class="small text-body-secondary"><summary>Pagos anulados</summary><ul>{% for a in anulados %}<li>{{ a.numero }} {{ a.monto|soles }} · {{ a.motivo_anulacion }} ({{ a.anulado_por|nombre }})</li>{% endfor %}</ul></details>{% endif %}
+    <div class="mt-3">{% include "core/_bitacora_objeto.html" %}</div>
   </div>
 </div>
 

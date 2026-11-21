@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Código del celular{% endblock %}
+{% block page_title %}Código del celular{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Código del celular</li>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-7 col-xl-6">
+  {% if not activo %}
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-body">
+        <p>{% if obligatorio %}Tu cuenta puede anular ventas, cambiar precios y dar permisos: por eso, además de la contraseña, pedirá un <strong>código de 6 dígitos</strong> que cambia cada 30 segundos en tu celular.{% else %}Además de la contraseña, al ingresar se pedirá un <strong>código de 6 dígitos</strong> que cambia cada 30 segundos en tu celular. Así nadie entra solo con tu contraseña.{% endif %}</p>
+        <ol class="ps-3">
+          <li class="mb-2">Instala en tu celular una app de códigos: <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> (gratis).</li>
+          <li class="mb-2">En la app, toca <strong>+</strong> y <strong>Escanear un código QR</strong>:
+            <div class="text-center my-3"><div class="p-2 bg-white rounded d-inline-block border">{{ qr }}</div></div>
+            <div class="small text-body-secondary">¿Estás en el celular? Elige «Ingresar clave de configuración» y escribe: <code class="user-select-all">{{ secreto }}</code></div>
+          </li>
+          <li>Escribe el código que aparece en la app:</li>
+        </ol>
+        {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+        <form method="post" class="d-flex gap-2" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="activar">
+          <input type="text" name="codigo" class="form-control form-control-lg text-center" style="max-width: 12rem; letter-spacing: .3em" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required aria-label="Código de 6 dígitos">
+          <button class="btn btn-primary btn-lg text-nowrap"><i class="bi bi-check-lg me-1"></i>Activar</button>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="card card-outline card-success mb-3">
+      <div class="card-body">
+        <p class="mb-1"><i class="bi bi-shield-check text-success me-1"></i><strong>Activo</strong> desde el {{ f.activado_en|date:"d/m/Y" }}.</p>
+        <p class="mb-0 small text-body-secondary">Te quedan <strong>{{ quedan }}</strong> código{{ quedan|pluralize }} de respaldo.{% if quedan < 3 %} Genera nuevos.{% endif %}</p>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-body">
+        <p class="small text-body-secondary">Para cualquiera de estos cambios escribe el código que muestra ahora la app.</p>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="text" name="codigo" class="form-control form-control-lg text-center mb-3" style="max-width: 12rem; letter-spacing: .3em" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required aria-label="Código de 6 dígitos">
+          <div class="list-group">
+            <button name="accion" value="respaldos" class="list-group-item list-group-item-action"><i class="bi bi-list-ol me-2"></i>Generar códigos de respaldo nuevos <span class="small text-body-secondary d-block">Los anteriores dejan de servir.</span></button>
+            <button name="accion" value="olvidar" class="list-group-item list-group-item-action"><i class="bi bi-pc-display me-2"></i>Olvidar los dispositivos recordados <span class="small text-body-secondary d-block">Todos volverán a pedir el código.</span></button>
+            <button name="accion" value="cambiar" class="list-group-item list-group-item-action text-danger"><i class="bi bi-phone-flip me-2"></i>{% if obligatorio %}Cambiar de celular{% else %}Quitar el código del celular{% endif %} <span class="small text-body-secondary d-block">{% if obligatorio %}Tendrás que escanear el código otra vez con el celular nuevo.{% else %}Volverás a ingresar solo con la contraseña.{% endif %}</span></button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

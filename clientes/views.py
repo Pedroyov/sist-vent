@@ -72,7 +72,13 @@ def form(request, pk=None):
     cliente = get_object_or_404(Cliente, pk=pk) if pk else None
     f = ClienteForm(request.POST or None, instance=cliente, puede_limite=puede(request.user, "clientes.limite"))
     if request.method == "POST" and f.is_valid():
+        from core.bitacora import anotar, cambios_form
+
+        limite = cambios_form(f, ["limite_credito"]) if cliente else {}
         c = f.save()
+        if limite:
+            anotar("cliente.limite", f"Límite de fiado de {c}: S/ {limite['limite_credito'][0]} → S/ {limite['limite_credito'][1]}",
+                   objeto=c, antes={"limite": limite["limite_credito"][0]}, despues={"limite": limite["limite_credito"][1]})
         messages.success(request, f"Cliente «{c.nombre}» guardado.")
         return redirect("clientes:detalle", pk=c.pk)
     url = reverse("clientes:detalle", args=[cliente.pk]) if cliente else reverse("clientes:lista")
@@ -107,7 +113,19 @@ def detalle(request, pk):
         "pendientes": pendientes, "con_factura": bool(con_factura), "vencido": vencido,
         **_cobranzas(request.user, c),
         "h": _historial(c),
+        "historial": _bitacora(request.user, c), "historial_tipo": "cliente", "historial_id": c.pk,
     })
+
+
+def _bitacora(usuario, c):
+    """Cambios de límite, ventas sobre el límite, incobrables: solo lo ve Administración."""
+    from core.permisos import acceso_total
+
+    if not acceso_total(usuario):
+        return []
+    from core.bitacora import de_objetos
+
+    return de_objetos([c])
 
 
 def _historial(c):

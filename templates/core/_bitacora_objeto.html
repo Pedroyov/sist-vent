@@ -1,0 +1,9 @@
+{% if historial %}
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-journal-check me-1"></i> Bitácora</h3>
+    <a href="{% url 'core:bitacora' %}?tipo={{ historial_tipo }}&id={{ historial_id }}&desde=2000-01-01&hasta={% now 'Y-m-d' %}" class="small ms-auto">Ver todo</a></div>
+  <ul class="list-group list-group-flush small">
+    {% for b in historial %}<li class="list-group-item"><span class="text-body-secondary">{{ b.fecha|date:"d/m/Y H:i" }} · {{ b.usuario_nombre|default:"—" }}</span><br>{{ b.descripcion }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}

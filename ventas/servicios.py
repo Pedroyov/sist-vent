@@ -178,6 +178,7 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 monto = m["monto"] - (vuelto if metodo == MetodoPago.EFECTIVO else CERO)
                 if monto > 0:
                     Pago.objects.create(venta=venta, metodo=metodo, monto=monto, referencia=m["referencia"])
+            _anotar_rebajas(venta, lineas, descuento, usuario, descuento_por)
             if despues:
                 despues(venta)
     except IntegrityError:
@@ -187,6 +188,20 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 return previa
         raise
     return venta
+
+
+def _anotar_rebajas(venta, lineas, descuento, usuario, descuento_por):
+    """Descuentos y precios cambiados al vender quedan en la bitácora (las cortesías de mesa se anotan al darlas)."""
+    from core.bitacora import anotar
+
+    if descuento:
+        anotar("venta.descuento", f"Descuento de S/ {descuento:.2f} en la venta {venta.numero_str}"
+               + (f": {venta.descuento_motivo}" if venta.descuento_motivo else ""), objeto=venta, usuario=usuario,
+               despues={"descuento": descuento, "autorizo": str(descuento_por or usuario)})
+    cambiados = [(v, precio, lista) for v, cantidad, precio, lista, importe, foto, cortesia in lineas if precio != lista and not cortesia]
+    if cambiados:
+        anotar("venta.precio", f"Precio cambiado en la venta {venta.numero_str}: " + ", ".join(
+            f"{v.nombre_completo} S/ {lista:.2f} → S/ {precio:.2f}" for v, precio, lista in cambiados), objeto=venta, usuario=usuario)
 
 
 def anular_venta(venta, usuario, motivo):
@@ -211,6 +226,10 @@ def anular_venta(venta, usuario, motivo):
         v.anulada_por = usuario
         v.motivo_anulacion = motivo
         v.save(update_fields=["estado", "anulada_en", "anulada_por", "motivo_anulacion"])
+        from core.bitacora import anotar
+
+        anotar("venta.anulada", f"Venta {v.numero_str} por S/ {v.total:.2f} anulada: {motivo}", objeto=v, usuario=usuario,
+               despues={"total": v.total, "motivo": motivo, "vendio": str(v.usuario)})
         from .senales import venta_anulada
 
         venta_anulada.send(sender=Venta, venta=v, usuario=usuario, motivo=motivo)

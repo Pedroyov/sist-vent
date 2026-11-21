@@ -229,6 +229,10 @@ def anular_compra(compra, usuario, motivo):
                         referencia=c.referencia)
         c.anulada, c.anulada_en, c.anulada_por, c.motivo_anulacion = True, timezone.now(), usuario, motivo
         c.save(update_fields=["anulada", "anulada_en", "anulada_por", "motivo_anulacion"])
+        from core.bitacora import anotar
+
+        anotar("compra.anulada", f"Compra {c.documento_str} de {c.proveedor} por S/ {c.total:.2f} anulada: {motivo}", objeto=c,
+               usuario=usuario)
     return c
 
 

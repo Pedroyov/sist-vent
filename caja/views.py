@@ -40,7 +40,12 @@ def mi_caja(request):
             if dejado is not None and monto != dejado:  # no está lo que se dejó: queda anotado en la apertura
                 nota = f"Se dejaron S/ {dejado:.2f} y se encontraron S/ {monto:.2f}. {nota}".strip()
             try:
-                abrir(request.user, monto, nota, form.cleaned_data.get("punto"))
+                nueva = abrir(request.user, monto, nota, form.cleaned_data.get("punto"))
+                if dejado is not None and monto != dejado:
+                    from core.bitacora import anotar
+
+                    anotar("caja.apertura", f"Caja {nueva.numero} abierta con S/ {monto:.2f}; en el último cierre se dejaron S/ {dejado:.2f}",
+                           objeto=nueva, despues={"dejado": dejado, "encontrado": monto})
                 messages.success(request, "Caja abierta. ¡Buenas ventas!")
             except CajaError as e:
                 messages.error(request, str(e))

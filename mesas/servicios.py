@@ -267,6 +267,10 @@ def cortesia(item, autoriza, motivo, cantidad=None, quitar=False):
             item.cantidad = cantidad
         item.cortesia, item.cortesia_motivo, item.cortesia_por = True, motivo, autoriza
         item.save()
+        from core.bitacora import anotar
+
+        anotar("mesa.cortesia", f"Cortesía en {item.cuenta.titulo}: {item.cantidad.normalize():f} × {item.descripcion} "
+               f"(S/ {item.subtotal:.2f}) · {motivo}", objeto=item.cuenta, despues={"autorizo": str(autoriza), "valor": item.subtotal})
     return item
 
 

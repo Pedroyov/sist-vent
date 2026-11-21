@@ -112,8 +112,14 @@ def producto_form(request, pk=None):
     if not puede(request.user, "productos.costos"):
         del form.fields["costo"]
     if request.method == "POST" and form.is_valid():
+        from core.bitacora import anotar, cambios_form
+
+        cambio = cambios_form(form, ["precio", "costo"]) if producto else {}
         with transaction.atomic():
             p = form.save()
+            for campo, (antes, despues) in cambio.items():
+                anotar(f"producto.{campo}", f"{p.nombre}: {campo} S/ {antes if antes is not None else '—'} → S/ {despues if despues is not None else '—'}",
+                       objeto=p, antes={campo: antes}, despues={campo: despues})
             if not form.con_variantes:
                 v = asegurar_variante_unica(p)
                 if "codigo" in form.cleaned_data and v.codigo != form.cleaned_data["codigo"]:
@@ -148,6 +154,10 @@ def producto_eliminar(request, pk):
         return redirect("productos:detalle", pk=pk)
     try:
         with transaction.atomic():
+            from core.bitacora import anotar
+
+            anotar("producto.eliminado", f"Producto «{producto.nombre}» eliminado (no tenía ventas ni movimientos)", objeto=producto,
+                   despues={"precio": producto.precio, "costo": producto.costo})
             MovimientoStock.objects.filter(variante__producto=producto).delete()
             producto.delete()
     except ProtectedError:
@@ -171,8 +181,15 @@ def detalle(request, pk):
         from compras.servicios import ultima_de_producto
 
         ultima = ultima_de_producto(producto)
+    from core.permisos import acceso_total
+
+    historial = []
+    if acceso_total(request.user):
+        from core.bitacora import de_objetos
+
+        historial = de_objetos([producto, *producto.variantes.all()])
     return render(request, "productos/detalle.html", {
-        "ultima_compra": ultima,
+        "ultima_compra": ultima, "historial": historial, "historial_tipo": "producto", "historial_id": producto.pk,
         "p": producto,
         "variantes": variantes,
         "con_variantes": any(v.nombre for v in variantes),
@@ -336,7 +353,13 @@ def variante_editar(request, pk):
     v = get_object_or_404(Variante.objects.select_related("producto"), pk=pk)
     form = VarianteForm(request.POST or None, instance=v, ver_costos=puede(request.user, "productos.costos"))
     if request.method == "POST" and form.is_valid():
-        form.save()
+        from core.bitacora import anotar, cambios_form
+
+        with transaction.atomic():
+            for campo, (antes, despues) in cambios_form(form, ["precio", "costo"]).items():
+                anotar(f"producto.{campo}", f"{v.nombre_completo}: {campo} S/ {antes if antes is not None else '—'} → "
+                       f"S/ {despues if despues is not None else '—'}", objeto=v, antes={campo: antes}, despues={campo: despues})
+            form.save()
         messages.success(request, f"Variante «{v.nombre}» guardada.")
         return redirect(reverse("productos:detalle", args=[v.producto_id]) + "#variantes")
     url = reverse("productos:detalle", args=[v.producto_id])
@@ -529,6 +552,10 @@ def importar(request):
         except ValueError as e:
             messages.error(request, f"No se importó nada: {e}")
             return redirect("productos:importar")
+        from core.bitacora import anotar
+
+        anotar("productos.importados", f"Importación de Excel: {creados} productos nuevos y {actualizados} actualizados",
+               despues={"nuevos": creados, "actualizados": actualizados})
         messages.success(request, f"Importación lista: {creados} nuevos y {actualizados} actualizados.")
         return redirect("productos:lista")
 

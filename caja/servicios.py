@@ -114,6 +114,9 @@ def anular_gasto(gasto, usuario, motivo):
             raise CajaError("Ese gasto ya estaba anulado.")
         m.anulado, m.anulado_en, m.anulado_por, m.motivo_anulacion = True, timezone.now(), usuario, motivo
         m.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
+        from core.bitacora import anotar
+
+        anotar("gasto.anulado", f"Gasto «{m.concepto}» de S/ {m.monto:.2f} anulado: {motivo}", objeto=m, usuario=usuario)
     return m
 
 
@@ -263,6 +266,14 @@ def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None):
         s.resumen = {k: (str(v) if isinstance(v, Decimal) else v) for k, v in r.items() if k != "metodos"}
         s.resumen["metodos"] = [{**m, "total": str(m["total"])} for m in r["metodos"]]
         s.save()
+        from core.bitacora import anotar
+
+        if s.diferencia:
+            anotar("caja.diferencia", f"Caja {s.numero} de {s.usuario} cerrada con {'sobrante' if s.diferencia > 0 else 'faltante'} "
+                   f"de S/ {abs(s.diferencia):.2f}", objeto=s, usuario=usuario,
+                   despues={"esperado": s.esperado, "contado": s.contado, "diferencia": s.diferencia})
+        if usuario.pk != s.usuario_id:
+            anotar("caja.cierre_ajeno", f"Caja {s.numero} de {s.usuario} cerrada por {usuario}", objeto=s, usuario=usuario)
     return s
 
 

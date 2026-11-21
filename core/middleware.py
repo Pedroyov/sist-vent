@@ -4,7 +4,7 @@ from django.shortcuts import redirect
 
 # En la demo pública cualquiera entra con las claves de prueba: no se permite
 # cambiar contraseñas, usuarios, módulos ni entrar al admin de Django.
-BLOQUEADAS = ("/cuenta/contrasena/", "/configuracion/usuarios/", "/configuracion/modulos/", "/admin/")
+BLOQUEADAS = ("/cuenta/contrasena/", "/cuenta/seguridad/", "/configuracion/usuarios/", "/configuracion/modulos/", "/admin/")
 
 
 class ModoDemoMiddleware:

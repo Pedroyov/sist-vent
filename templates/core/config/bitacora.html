@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Bitácora{% endblock %}
+{% block page_title %}Bitácora <small class="text-body-secondary fs-6">{{ desde|date:"d/m/Y" }}{% if desde != hasta %} al {{ hasta|date:"d/m/Y" }}{% endif %}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Bitácora</li>{% endblock %}
+{% block content %}
+{% if verificacion.ok %}
+<div class="alert alert-success py-2 small"><i class="bi bi-shield-check me-1"></i>Cadena verificada: las {{ verificacion.filas }} entradas están completas y sin cambios.</div>
+{% else %}
+<div class="alert alert-danger"><i class="bi bi-shield-exclamation me-1"></i><strong>La bitácora fue alterada desde la entrada {{ verificacion.rota_en }}.</strong> {{ verificacion.motivo }} Esto no lo puede hacer nadie desde el sistema: alguien entró directo a la base de datos.</div>
+{% endif %}
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div class="btn-group btn-group-sm flex-wrap" role="group">
+    {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
+  </div>
+  <form class="d-flex flex-wrap gap-1 align-items-end" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Hasta">
+    <select name="grupo" class="form-select form-select-sm" style="width: auto" aria-label="Tipo"><option value="">Todas las acciones</option>
+      {% for g in grupos %}<option value="{{ g }}" {% if grupo == g %}selected{% endif %}>{{ g }}</option>{% endfor %}</select>
+    <select name="usuario" class="form-select form-select-sm" style="width: auto" aria-label="Usuario"><option value="">Todos los usuarios</option>
+      {% for u in usuarios %}<option value="{{ u.pk }}" {% if usuario == u.pk %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select>
+    <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" style="width: 12rem" placeholder="Buscar" aria-label="Buscar">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+  <a href="?{{ query.urlencode }}&excel=1" class="btn btn-sm btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+</div>
+<div class="card mb-4">
+  {% if pagina.object_list %}
+  <div class="list-group list-group-flush">
+    {% for b in pagina.object_list %}
+    <div class="list-group-item">
+      <div class="d-flex flex-wrap gap-2 small text-body-secondary">
+        <span class="text-nowrap">{{ b.fecha|date:"d/m/Y H:i" }}</span><span class="badge text-bg-light border">{{ b.texto }}</span>
+        <span class="ms-auto">{{ b.usuario_nombre|default:"—" }}{% if b.ip %} · {{ b.ip }}{% endif %} · N° {{ b.n }}</span>
+      </div>
+      <div>{{ b.descripcion }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if pagina.has_other_pages %}<div class="card-footer d-flex gap-2 justify-content-center">
+    {% if pagina.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+    <span class="small align-self-center">{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ query.urlencode }}&page={{ pagina.next_page_number }}">Siguiente</a>{% endif %}
+  </div>{% endif %}
+  {% else %}<div class="card-body text-body-secondary">Nada registrado en el periodo con esos filtros.</div>{% endif %}
+</div>
+<p class="small text-body-secondary">Aquí queda cada acción delicada: anulaciones, cambios de precio y costo, descuentos y cortesías, diferencias de caja, ajustes de stock, límites de fiado, usuarios, permisos, configuración e ingresos de Administración. Nadie puede editarla ni borrarla desde el sistema.</p>
+{% endblock %}

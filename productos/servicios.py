@@ -26,6 +26,13 @@ def mover_stock(variante, cantidad, tipo, usuario=None, nota="", costo_unitario=
             variante=v, tipo=tipo, cantidad=cantidad, saldo=v.stock, costo_unitario=costo_unitario,
             nota=nota[:200], referencia=referencia[:60], usuario=usuario,
         )
+        if tipo in (T.AJUSTE, T.SALIDA):
+            from core.bitacora import anotar
+
+            valor = (abs(cantidad) * v.costo_efectivo).quantize(Decimal("0.01")) if v.costo_efectivo is not None else None
+            anotar("stock.ajuste" if tipo == T.AJUSTE else "stock.salida",
+                   f"{v.nombre_completo}: {cantidad.normalize():+f} (queda {v.stock.normalize():f})" + (f" · {nota}" if nota else ""),
+                   objeto=v, usuario=usuario, despues={"cantidad": cantidad, "saldo": v.stock, "valor_costo": valor})
     variante.stock = v.stock
     if "costo" in campos:
         variante.costo = v.costo

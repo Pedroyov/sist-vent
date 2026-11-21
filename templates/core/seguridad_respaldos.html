@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Códigos de respaldo{% endblock %}
+{% block page_title %}Códigos de respaldo{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'seguridad' %}">Código del celular</a></li><li class="breadcrumb-item active">Respaldo</li>{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-6 col-xl-5">
+    {% if primera_vez %}<div class="alert alert-success"><i class="bi bi-shield-check me-1"></i>Listo: desde ahora al ingresar se pedirá el código del celular.</div>{% endif %}
+    <div class="card card-outline card-warning mb-4">
+      <div class="card-body">
+        <p><strong>Guárdalos ahora</strong> (anótalos en papel o toma una foto y guárdala fuera del celular). No se vuelven a mostrar.</p>
+        <p class="small text-body-secondary">Si pierdes el celular, escribe uno de estos en lugar del código. Cada uno sirve una sola vez.</p>
+        <ul class="list-group list-group-flush font-monospace fs-5 text-center mb-3 user-select-all">
+          {% for c in codigos %}<li class="list-group-item py-1">{{ c }}</li>{% endfor %}
+        </ul>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+          <a href="{% url 'core:inicio' %}" class="btn btn-primary ms-auto">Ya los guardé</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

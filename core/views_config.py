@@ -6,6 +6,7 @@ from django.db import models, transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import UsuarioForm
@@ -27,7 +28,12 @@ def _form(request, form, titulo, cancelar, breadcrumb=None, subtitulo=""):
 
 @permiso_requerido("config.usuarios")
 def usuario_lista(request):
-    usuarios = User.objects.prefetch_related("groups").order_by("-is_active", "first_name", "last_name")
+    from django.db.models import Exists, OuterRef
+
+    from .models import SegundoFactor
+
+    usuarios = (User.objects.prefetch_related("groups").order_by("-is_active", "first_name", "last_name")
+                .annotate(con_codigo=Exists(SegundoFactor.objects.filter(usuario=OuterRef("pk"), activo=True))))
     rol = request.GET.get("rol", "")
     roles = roles_disponibles()
     if rol in roles:
@@ -47,7 +53,20 @@ def usuario_form(request, pk=None):
         if usuario == request.user and not form.cleaned_data["is_active"]:
             form.add_error("is_active", "No puedes desactivar tu propio usuario.")
         else:
+            from .bitacora import anotar, cambios_form
+
+            cambio = cambios_form(form, ocultos=("password1", "password2", "password"))
+            roles_antes = sorted(usuario.groups.values_list("name", flat=True)) if usuario else []
             u = form.save()
+            roles = sorted(u.groups.values_list("name", flat=True))
+            if roles != roles_antes:
+                cambio["roles"] = [roles_antes, roles]
+            if usuario is None:
+                anotar("usuario.creado", f"Usuario «{u.username}» creado con rol {', '.join(roles) or 'sin rol'}", objeto=u,
+                       despues={"roles": roles})
+            elif cambio:
+                anotar("usuario.modificado", f"Usuario «{u.username}»: {', '.join(cambio)}", objeto=u,
+                       antes={k: v[0] for k, v in cambio.items()}, despues={k: v[1] for k, v in cambio.items()})
             messages.success(request, f"Usuario «{u.username}» guardado.")
             return redirect("core:usuario_lista")
     return _form(
@@ -85,12 +104,20 @@ def roles(request):
     if request.method == "POST":
         accion = request.POST.get("accion")
         if accion == "permisos":
+            from .bitacora import anotar
+
             for g in grupos:
                 if g.total:
                     continue
                 marcados = [c for c in request.POST.getlist(f"p_{g.pk}") if c in CODIGOS]
+                antes = set(g.permisos_sis.permisos or [])
                 g.permisos_sis.permisos = [c for c in CODIGOS if c in marcados]
                 g.permisos_sis.save()
+                dados, quitados = sorted(set(marcados) - antes), sorted(antes - set(marcados))
+                if dados or quitados:
+                    anotar("rol.permisos", f"Rol {g.name}: " + "; ".join(x for x in (
+                        f"se dio {', '.join(dados)}" if dados else "", f"se quitó {', '.join(quitados)}" if quitados else "") if x),
+                        despues={"rol": g.name, "dados": dados, "quitados": quitados})
             messages.success(request, "Permisos guardados. Se aplican desde la siguiente pantalla que abra cada usuario.")
         return redirect("core:roles")
 
@@ -156,6 +183,9 @@ def rol_form(request, pk=None):
                 base = PermisosRol.objects.filter(grupo_id=d.get("copiar") or 0).first()
                 permisos = list(CODIGOS) if base and base.grupo.name == ROLES_BASE[0] else (base.permisos if base else [])
                 PermisosRol.objects.create(grupo=grupo, descripcion=d["descripcion"], permisos=list(permisos))
+        from .bitacora import anotar
+
+        anotar("rol.guardado", f"Rol «{grupo.name}» guardado", despues={"rol": grupo.name})
         messages.success(request, f"Rol «{grupo.name}» guardado. Marca sus permisos en la tabla.")
         return redirect(reverse("core:roles") + f"#rol-{grupo.pk}")
     return _form(request, form, f"Editar rol {grupo.name}" if grupo else "Nuevo rol", reverse("core:roles"),
@@ -192,7 +222,13 @@ def datos_negocio(request):
     rubro_antes = ajustes.rubro
     form = DatosNegocioForm(request.POST or None, request.FILES or None, instance=ajustes)
     if request.method == "POST" and form.is_valid():
+        from .bitacora import anotar, cambios_form
+
+        cambio = cambios_form(form)
         a = form.save()
+        if cambio:
+            anotar("config.negocio", f"Datos del negocio: {', '.join(form.fields[c].label or c for c in cambio)}",
+                   antes={k: v[0] for k, v in cambio.items()}, despues={k: v[1] for k, v in cambio.items()})
         if a.logo and a.logo.name != logo_antes:
             try:
                 a.generar_iconos()
@@ -255,18 +291,31 @@ def modulos(request):
 
     ajustes = Ajustes.cargar()
     if request.method == "POST" and request.POST.get("accion") == "recomendado":
+        from .bitacora import anotar
         from .rubros import aplicar
 
         encendidos, apagados = aplicar(ajustes, modulos=True)
+        if encendidos or apagados:
+            anotar("config.modulos", "Módulos según el rubro: " + "; ".join(x for x in (
+                f"se activó {', '.join(encendidos)}" if encendidos else "", f"se apagó {', '.join(apagados)}" if apagados else "") if x))
         messages.success(request, f"Listo para {ajustes.get_rubro_display().lower()}."
                          + (f" Se activó: {', '.join(encendidos)}." if encendidos else "")
                          + (f" Se apagó: {', '.join(apagados)} (no tenía datos)." if apagados else "")
                          + ("" if encendidos or apagados else " Ya estaba así."))
         return redirect("core:modulos")
     if request.method == "POST":
+        from .bitacora import anotar
+
         activos = set(request.POST.getlist("modulo"))
+        antes = set(ajustes.modulos_inactivos or [])
         ajustes.modulos_inactivos = [m[0] for m in MODULOS if m[0] not in activos]
         ajustes.save(update_fields=["modulos_inactivos"])
+        nombres = {m[0]: m[1] for m in MODULOS}
+        encendidos = [nombres[m] for m in antes - set(ajustes.modulos_inactivos) if m in nombres]
+        apagados = [nombres[m] for m in set(ajustes.modulos_inactivos) - antes if m in nombres]
+        if encendidos or apagados:
+            anotar("config.modulos", "; ".join(x for x in (f"Se activó {', '.join(sorted(encendidos))}" if encendidos else "",
+                                                          f"se apagó {', '.join(sorted(apagados))}" if apagados else "") if x))
         apagados = [m[1] for m in MODULOS if m[0] in ajustes.modulos_inactivos]
         messages.success(request, "Módulos guardados." + (f" Desactivados: {', '.join(apagados)}." if apagados else " Todos activos."))
         return redirect("core:modulos")
@@ -281,4 +330,59 @@ def modulos(request):
         "difiere": any((m[0] in p["encendido"]) == (m[0] in inactivos) for m in MODULOS if m[0] in p["encendido"]),
         "modulos": [{"codigo": m[0], "nombre": m[1], "icono": m[2], "texto": m[3], "activo": m[0] not in inactivos,
                      "necesita": m[4], "necesita_nombre": NOMBRE_MODULO.get(m[4], "")} for m in MODULOS],
+    })
+
+
+# --- Bitácora (solo quien tiene acceso total) ---------------------------------------------
+
+@acceso_total_requerido
+def bitacora(request):
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+    from django.http import HttpResponse
+    from django.utils.http import content_disposition_header
+
+    from reportes.servicios import ATAJOS, periodo
+
+    from .bitacora import ACCIONES, GRUPOS, texto_accion, verificar
+    from .models import Bitacora
+    from .utils import dias, entero
+
+    desde, hasta, atajo = periodo(request, defecto="mes")
+    qs = Bitacora.objects.filter(**dias("fecha", desde, hasta))
+    grupo = request.GET.get("grupo", "")
+    if grupo in GRUPOS:
+        qs = qs.filter(accion__in=[c for c, (_, g) in ACCIONES.items() if g == grupo])
+    usuario = entero(request.GET.get("usuario"))
+    if usuario:
+        qs = qs.filter(usuario_id=usuario)
+    q = " ".join(request.GET.get("q", "").split())
+    if q:
+        qs = qs.filter(Q(descripcion__icontains=q) | Q(usuario_nombre__icontains=q))
+    if request.GET.get("tipo") and request.GET.get("id"):
+        qs = qs.filter(objeto_tipo=request.GET["tipo"], objeto_id=request.GET["id"])
+    if request.GET.get("excel"):
+        from openpyxl import Workbook
+
+        from .excel import a_bytes
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bitácora"
+        ws.append(["N°", "Fecha", "Usuario", "IP", "Acción", "Detalle", "Antes", "Después"])
+        for b in qs.order_by("n"):
+            ws.append([b.n, timezone.localtime(b.fecha).strftime("%d/%m/%Y %H:%M:%S"), b.usuario_nombre, b.ip, texto_accion(b.accion),
+                       b.descripcion, str(b.antes or ""), str(b.despues or "")])
+        resp = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = content_disposition_header(True, f"bitacora_{desde:%Y%m%d}_{hasta:%Y%m%d}.xlsx")
+        return resp
+    query = request.GET.copy()
+    query.pop("page", None)
+    pagina = Paginator(qs, 50).get_page(request.GET.get("page"))
+    for b in pagina.object_list:
+        b.texto = texto_accion(b.accion)
+    return render(request, "core/config/bitacora.html", {
+        "pagina": pagina, "query": query, "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": ATAJOS, "grupos": GRUPOS,
+        "grupo": grupo, "q": q, "usuario": usuario, "verificacion": verificar(),
+        "usuarios": User.objects.filter(pk__in=Bitacora.objects.values("usuario_id")).order_by("first_name", "username"),
     })

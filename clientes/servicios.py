@@ -132,6 +132,11 @@ def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
         raise ClienteError("No tienes permiso para vender al fiado.")
     if cliente is None:
         raise ClienteError("Para fiar, elige o escribe el cliente.")
+    if cliente.limite_credito and puede_exceder and cliente.saldo + monto > cliente.limite_credito:
+        from core.bitacora import anotar  # va dentro de la transacción de la venta: si la venta no se hace, no queda
+
+        anotar("fiado.sobre_limite", f"Fiado de S/ {monto:.2f} a {cliente}, que ya debía S/ {cliente.saldo:.2f} (límite S/ "
+               f"{cliente.limite_credito:.2f})", objeto=cliente)
     if cliente.limite_credito and not puede_exceder:
         saldo = cliente.saldo
         if saldo + monto > cliente.limite_credito:
@@ -188,7 +193,11 @@ def marcar_incobrable(cliente, monto, motivo, usuario):
         saldo = cliente.saldo
         if monto <= 0 or monto > saldo:
             raise ClienteError(f"El monto tiene que ser mayor que cero y hasta S/ {saldo:.2f}.")
-        return Abono.objects.create(cliente=cliente, monto=monto, metodo=INCOBRABLE, usuario=usuario, nota=f"Incobrable: {motivo}"[:200])
+        a = Abono.objects.create(cliente=cliente, monto=monto, metodo=INCOBRABLE, usuario=usuario, nota=f"Incobrable: {motivo}"[:200])
+        from core.bitacora import anotar
+
+        anotar("fiado.incobrable", f"S/ {monto:.2f} de {cliente} marcados incobrables: {motivo}", objeto=cliente, usuario=usuario)
+        return a
 
 
 def anular_abono(abono, usuario, motivo):
@@ -209,6 +218,9 @@ def anular_abono(abono, usuario, motivo):
                 raise ClienteError(str(e))
         a.anulado, a.anulado_en, a.anulado_por, a.motivo_anulacion = True, timezone.now(), usuario, motivo
         a.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
+        from core.bitacora import anotar
+
+        anotar("fiado.pago_anulado", f"Pago {a.numero} de {a.cliente} por S/ {a.monto:.2f} anulado: {motivo}", objeto=a, usuario=usuario)
     return a
 
 

@@ -4,6 +4,7 @@ Configuración del Sistema de Ventas.
 Los valores sensibles o que cambian entre desarrollo y producción
 se leen del archivo .env (ver .env.example).
 """
+import sys
 from pathlib import Path
 
 import environ
@@ -31,6 +32,11 @@ if RENDER_EXTERNAL_HOSTNAME:
 # Panel /admin/ de Django: permite editar cualquier tabla sin dejar rastro (ventas, cierres de caja…). Todo se maneja
 # desde las pantallas del sistema, así que en producción viene apagado; se enciende solo para una revisión puntual.
 ADMIN_ACTIVO = env.bool("ADMIN_ACTIVO", default=DEBUG)
+
+# Cuántos proxies de confianza hay delante (Render / DigitalOcean = 1). Con 0 se usa la IP de la conexión; con 1 o más,
+# la que deja el proxy en X-Forwarded-For (para el bloqueo de ingresos y la bitácora). Nunca más de los que hay de verdad:
+# si no, un atacante podría inventarse la IP.
+PROXIES_CONFIABLES = env.int("PROXIES_CONFIABLES", default=0)
 
 # Modo demostración: muestra un aviso y los usuarios de prueba, y no deja cambiar contraseñas
 DEMO = env.bool("DEMO", default=False)
@@ -88,6 +94,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "core.middleware.ModoDemoMiddleware",
+    "core.bitacora.BitacoraMiddleware",
+    "core.dos_factor.SegundoFactorMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -198,8 +206,18 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
         "LOCATION": BASE_DIR / "privado" / "cache",
-    }
+    },
+    # Intentos fallidos de ingreso: en la base (tabla creada por la migración core/0016), compartidos
+    # entre todos los procesos y servidores de la empresa.
+    "seguridad": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "core_cache_seguridad",
+    },
 }
+
+# Código del celular (segundo factor) obligatorio para Administración: por defecto en producción;
+# apagado en la PC local (DEBUG), en las demos y al correr las pruebas.
+DOS_FACTOR_OBLIGATORIO = env.bool("DOS_FACTOR_OBLIGATORIO", default=not DEBUG and not DEMO) and "test" not in sys.argv[1:2]
 
 
 # --- Sesiones ----------------------------------------------------------------

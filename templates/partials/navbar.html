@@ -6,8 +6,11 @@
           <i class="bi bi-list fs-5"></i>
         </a>
       </li>
-      <li class="nav-item d-none d-md-block">
-        <a href="{% url 'core:inicio' %}" class="nav-link">Inicio</a>
+      <li class="nav-item">
+        {# Atajo a Inicio: en el celular, solo el ícono de la casita (siempre a mano, sin abrir el menú) #}
+        <a href="{% url 'core:inicio' %}" class="nav-link {% if request.resolver_match.url_name == 'inicio' and request.resolver_match.namespace == 'core' %}active fw-semibold{% endif %}" aria-label="Inicio" title="Inicio">
+          <i class="bi bi-house-door fs-5 align-middle"></i><span class="d-none d-md-inline ms-1 align-middle">Inicio</span>
+        </a>
       </li>
     </ul>
 
@@ -37,6 +40,7 @@
           </li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="{% url 'password_change' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
+          <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Código del celular</a></li>
           <li>
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}

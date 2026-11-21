@@ -246,6 +246,12 @@
             <p>Roles y permisos</p>
           </a>
         </li>
+        <li class="nav-item">
+          <a href="{% url 'core:bitacora' %}" class="nav-link {% if '/configuracion/bitacora/' in path %}active{% endif %}">
+            <i class="nav-icon bi bi-journal-check"></i>
+            <p>Bitácora</p>
+          </a>
+        </li>
         {% endif %}
 
         {% if user.is_superuser %}

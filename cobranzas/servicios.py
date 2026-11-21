@@ -303,6 +303,9 @@ def anular_pago(pago, usuario, motivo):
             insc.add(d.cuota.inscripcion)
         p.anulado, p.anulado_en, p.anulado_por, p.motivo_anulacion = True, timezone.now(), usuario, motivo
         p.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
+        from core.bitacora import anotar
+
+        anotar("cuota.pago_anulado", f"Recibo {p.numero} de {p.cliente} por S/ {p.monto:.2f} anulado: {motivo}", objeto=p, usuario=usuario)
         for i in insc:
             _revisar_terminada(i)
     return p
