@@ -87,8 +87,12 @@ class Ajustes(models.Model):
                                             help_text="Platos «por la casa» (S/ 0.00), con motivo y autorización.")
     # --- Impresión y cocina ---
     ticket_ancho = models.PositiveSmallIntegerField(
-        "ancho del papel de la ticketera", choices=[(80, "80 mm (el más común)"), (58, "58 mm (ticketeras pequeñas o portátiles)")],
-        default=80)
+        "papel de la ticketera", choices=[
+            (80, "80 mm (el más común)"),
+            (76, "76 mm (de impacto o matricial, como las de cocina)"),
+            (58, "58 mm (pequeñas o portátiles; también las de 57 mm)"),
+            (210, "Hoja A4 o carta (impresora normal)")],
+        default=80, help_text="El ancho del rollo de papel. Si no lo sabes, mídelo con una regla: 8 cm, 7.6 cm o 5.8 cm.")
     imprimir_auto = models.BooleanField(
         "imprimir el ticket al terminar cada venta", default=False,
         help_text="Abre la impresión sola. Con Chrome en modo «kiosk-printing» imprime sin preguntar.")
@@ -141,6 +145,12 @@ class Ajustes(models.Model):
     # --- funciones avanzadas (core/rubros.py): ocultas si el negocio no las usa ---
     def usa(self, funcion):
         return funcion not in (self.funciones_inactivas or [])
+
+    @property
+    def papel(self):
+        """Cómo se arma la hoja de lo impreso: ancho útil, tamaño de letra y si es una hoja normal (A4) en vez de un rollo."""
+        ancho, letra = {58: ("48mm", "10.5px"), 76: ("64mm", "11.5px"), 210: ("120mm", "13px")}.get(self.ticket_ancho, ("72mm", "12px"))
+        return {"ancho": ancho, "letra": letra, "hoja": self.ticket_ancho == 210, "rollo": self.ticket_ancho if self.ticket_ancho != 210 else 0}
 
     @property
     def usa_comisiones(self):

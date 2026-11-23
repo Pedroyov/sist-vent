@@ -13,7 +13,7 @@
     <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
-  <a href="?{{ query.urlencode }}&excel=1" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+  <div class="ms-auto">{% include "partials/exportar.html" %}</div>
 </div>
 
 {# Totales del periodo #}

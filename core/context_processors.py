@@ -24,7 +24,9 @@ def negocio(request):
 
         contexto["DEMO_USUARIOS"] = usuarios_demo(datos)
     if user is not None and user.is_authenticated:
-        contexto.update({"MIS_ROLES": roles_de(user), "P": PermisosPlantilla(user)})
+        from .ayuda import de as ayuda_de
+
+        contexto.update({"MIS_ROLES": roles_de(user), "P": PermisosPlantilla(user), "AYUDA": ayuda_de(request)})
         from ventas.models import MetodoPago
 
         from .permisos import puede

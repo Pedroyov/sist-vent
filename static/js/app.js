@@ -91,7 +91,8 @@ window.imprimir = function (url) {
     var zona = document.createElement("div");
     zona.id = "zona-impresion";
     var sombra = zona.attachShadow({mode: "open"});
-    sombra.innerHTML = "<style>" + css + " @media print { .papel { width: 100%; } }</style>";
+    var hoja = papel.dataset.hoja === "1";  // impresora normal (A4 / carta): el ticket centrado en la hoja
+    sombra.innerHTML = "<style>" + css + (hoja ? " @media print { .papel { margin: 0 auto; } }" : " @media print { .papel { width: 100%; } }") + "</style>";
     sombra.appendChild(document.importNode(papel, true));
     zona.style.cssText = "display:block;position:absolute;left:-10000px;top:0";  // fuera de la vista, solo para medir
     document.body.appendChild(zona);
@@ -104,7 +105,7 @@ window.imprimir = function (url) {
       zona.style.cssText = "";
       var pagina = document.getElementById("pagina-impresion");
       if (!pagina) { pagina = document.createElement("style"); pagina.id = "pagina-impresion"; document.head.appendChild(pagina); }
-      pagina.textContent = "@page { size: " + (papel.dataset.ancho || 80) + "mm " + mm + "mm; margin: 0; }";
+      pagina.textContent = hoja ? "@page { size: auto; margin: 15mm; }" : "@page { size: " + (papel.dataset.ancho || 80) + "mm " + mm + "mm; margin: 0; }";
       document.body.classList.add("imprimiendo");
       var fin = function () {
         window.removeEventListener("afterprint", fin);

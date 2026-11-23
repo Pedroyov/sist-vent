@@ -6,7 +6,7 @@
 {% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'personal:lista' %}">Personal</a></li><li class="breadcrumb-item active">Pagos</li>{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3 no-print">
   <div class="btn-group btn-group-sm flex-wrap" role="group">
     {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
   </div>
@@ -15,6 +15,7 @@
     <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
+  <div class="ms-sm-auto">{% include "partials/exportar.html" %}</div>
 </div>
 
 <div class="card card-outline card-success mb-3" style="max-width: 32rem">

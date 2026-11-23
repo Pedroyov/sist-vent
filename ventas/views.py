@@ -393,7 +393,19 @@ def conciliar(request):
     from .conciliacion import pendientes, resumen
 
     desde, hasta, atajo = periodo(request, defecto="7d")
-    return render(request, "ventas/conciliar.html", {"filas": resumen(desde, hasta), "desde": desde, "hasta": hasta, "atajo": atajo,
+    filas = resumen(desde, hasta)
+    if request.GET.get("excel"):
+        from core.excel import descargar
+        from core.templatetags.sis import nombre
+
+        estados = {"ok": "Cuadra", "diferencia": "Con diferencia", "pendiente": "Sin conciliar"}
+        return descargar("conciliacion", [("Conciliación", ["Día", "Método", "Cobros", "Según el sistema", "Según el banco", "Diferencia",
+                                                            "Estado", "Concilió", "Nota"],
+                                           [[f["dia"], m["nombre"], m["n"], m["sistema"], m["conc"].banco if m["conc"] else "",
+                                             m["conc"].diferencia if m["conc"] else "", estados[m["estado"]],
+                                             nombre(m["conc"].usuario, "") if m["conc"] else "", m["conc"].nota if m["conc"] else ""]
+                                            for f in filas for m in f["metodos"]])])
+    return render(request, "ventas/conciliar.html", {"filas": filas, "desde": desde, "hasta": hasta, "atajo": atajo,
                                                      "atajos": ATAJOS, "pendientes": pendientes()})
 
 

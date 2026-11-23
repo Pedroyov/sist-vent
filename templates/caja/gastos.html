@@ -6,7 +6,7 @@
 {% block breadcrumb %}<li class="breadcrumb-item active">Gastos</li>{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3 no-print">
   <div class="btn-group btn-group-sm flex-wrap" role="group">
     {% for k, t in atajos %}<a href="?p={{ k }}{% if motivo %}&motivo={{ motivo }}{% endif %}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
   </div>
@@ -16,6 +16,7 @@
     {% if motivo %}<input type="hidden" name="motivo" value="{{ motivo }}">{% endif %}
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
+  {% include "partials/exportar.html" %}
   <a href="{% url 'caja:gasto_nuevo' %}" class="btn btn-danger ms-sm-auto"><i class="bi bi-plus-lg me-1"></i>Gasto fuera de caja</a>
 </div>
 

@@ -45,7 +45,11 @@
       <div class="container-fluid">
         <div class="row align-items-center">
           <div class="col-sm-6">
-            <h3 class="mb-0">{% block page_title %}{% endblock %}</h3>
+            <div class="d-flex align-items-center gap-2">
+              <h3 class="mb-0">{% block page_title %}{% endblock %}</h3>
+              {% if AYUDA %}<button type="button" class="btn btn-link p-0 text-body-secondary ayuda-pantalla" data-bs-toggle="offcanvas" data-bs-target="#ayuda-pantalla"
+                      title="¿Para qué sirve esta pantalla?" aria-label="Ayuda de esta pantalla"><i class="bi bi-question-circle fs-5"></i></button>{% endif %}
+            </div>
           </div>
           <div class="col-sm-6 d-none d-sm-block">
             <ol class="breadcrumb float-sm-end mb-0">
@@ -77,5 +81,19 @@
 <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 <script src="{% static 'js/app.js' %}"></script>
 {% block extra_js %}{% endblock %}
+{% if AYUDA %}
+<div class="offcanvas offcanvas-end" tabindex="-1" id="ayuda-pantalla" aria-labelledby="ayuda-titulo">
+  <div class="offcanvas-header border-bottom">
+    <h5 class="offcanvas-title" id="ayuda-titulo"><i class="bi bi-question-circle me-1 text-primary"></i> {{ AYUDA.titulo }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body">
+    <p class="fs-6">{{ AYUDA.para_que }}</p>
+    {% if AYUDA.puntos %}<h6 class="text-body-secondary small text-uppercase">Lo más usado</h6>
+    <ul class="ps-3">{% for p in AYUDA.puntos %}<li class="mb-2">{{ p }}</li>{% endfor %}</ul>{% endif %}
+    <p class="small text-body-secondary mb-0 border-top pt-2"><i class="bi bi-book me-1"></i>Más detalle en el <strong>Manual de usuario</strong>, sección {{ AYUDA.seccion }}.</p>
+  </div>
+</div>
+{% endif %}
 </body>
 </html>

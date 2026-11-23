@@ -13,6 +13,7 @@
   <a href="?fecha={{ hoy|date:'Y-m-d' }}" class="btn btn-sm {% if fecha == hoy %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Hoy</a>
   <a href="?fecha={{ manana|date:'Y-m-d' }}" class="btn btn-sm {% if fecha == manana %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Mañana</a>
   <form method="get"><input type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}" class="form-control form-control-sm" onchange="this.form.submit()" aria-label="Elegir día"></form>
+  {% include "partials/exportar.html" with imprimir=False %}
   {% if gestiona %}<a href="{% url 'citas:registrar' %}" class="btn btn-outline-success" title="Empezar a atender a alguien que llegó sin cita"><i class="bi bi-person-plus me-1"></i>Cliente sin cita</a>
   <a href="{% url 'citas:nueva' %}?fecha={{ fecha|date:'Y-m-d' }}" class="btn btn-primary"><i class="bi bi-calendar-plus me-1"></i>Nueva cita</a>{% endif %}
 </div>

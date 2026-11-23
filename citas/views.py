@@ -78,6 +78,14 @@ def agenda(request):
     dia = Dia(fecha)
     personal = list(Persona.objects.filter(activo=True, atiende_citas=True).prefetch_related("horarios"))
     citas = list(Cita.objects.filter(fecha=fecha).select_related("profesional", "servicio__producto").order_by("inicio"))
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        return descargar(f"citas_{fecha:%Y%m%d}", [(f"Citas {fecha:%d.%m.%Y}", ["Inicio", "Fin", "Cliente", "Celular", "Servicio", "Atiende",
+                                                                             "Precio", "Estado", "Cobrada"],
+                                                    [[c.inicio.strftime("%H:%M"), c.fin.strftime("%H:%M"), c.nombre, c.telefono, c.servicio_nombre,
+                                                      c.profesional.nombre, c.precio if c.precio is not None else "", c.get_estado_display(),
+                                                      "Sí" if c.cobrada else "No"] for c in citas])])
     # alto de la agenda: de la primera entrada a la última salida (o 9 a 19 si nadie trabaja)
     inicios = [m(h.entrada) for h in dia.horarios.values()] + [m(c.inicio) for c in citas]
     fines = [m(h.salida) for h in dia.horarios.values()] + [m(c.fin) for c in citas]

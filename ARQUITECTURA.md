@@ -255,11 +255,22 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 
 ## Impresión (ticketera)
 
-- Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del rollo (Datos del negocio → 80 o 58 mm). Un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4.
+- Todo lo que se imprime hereda de `templates/impresion/base.html`: una página sin menús, del ancho del papel. `Ajustes.ticket_ancho` (Datos del negocio) tiene 80, 76 (impacto/matricial), 58 (también 57) o 210 (hoja A4/carta); la propiedad `Ajustes.papel` da el ancho impreso, la letra y el rollo (`{ancho, letra, hoja, rollo}`) y es la única fuente de esas medidas. En rollo, un script calcula el alto del contenido y fija `@page` a ese tamaño, así no sale una hoja A4. En hoja (`data-hoja="1"`) usa `@page { size: auto; margin: 15mm }` y centra el ticket.
 - Para imprimir sin salir de la pantalla: `<a data-imprimir="/ruta/">` (o `window.imprimir(url)`, en `static/js/app.js`). En la PC trae el ticket con `fetch`, lo pone en `#zona-impresion` (aislado con Shadow DOM para que sus estilos no choquen con los de la pantalla), fija `@page` al ancho del rollo y al alto medido, imprime y al terminar (`afterprint`) quita ese `@page`. **No usar un marco oculto (iframe):** Chrome ignora el tamaño de hoja de un marco y sale en carta/A4 con encabezado y pie. En el celular abre otra pestaña con `?auto=1`.
 - En la pantalla de una venta, Ctrl+P imprime el ticket del rollo.
 - Impresiones: ticket (`ventas:imprimir`), precuenta y comanda (`mesas:precuenta`, `mesas:comanda`), cierre o corte de caja (`caja:imprimir`).
 - Para imprimir **sin el cuadro de diálogo** (ticket automático o comandas en cocina), abre Chrome con `--kiosk-printing` y deja la ticketera como impresora predeterminada.
+
+## Exportar (Excel e Imprimir / PDF)
+
+- **Una sola forma de exportar:** la vista atiende `?excel=1` y devuelve `core.excel.descargar(nombre, hojas)`, con `hojas = [(título, encabezados, filas)]` (encabezado en negrita, fila fija, anchos, `Decimal`→número, sin fórmulas). Usa los mismos datos y filtros que la pantalla (llama al mismo servicio; no repetir consultas).
+- **Botones:** `{% include "partials/exportar.html" %}` pone Excel (`{% querystring excel=1 page=None %}`) e Imprimir / PDF (`window.print()`). `with excel=False` o `imprimir=False` quitan uno.
+- **Imprimir la pantalla:** las reglas `@media print` de `static/css/app.css` ocultan menú, migas, `.barra-fija`, `.ayuda-pantalla` y todo lo marcado `no-print` (filtros, barras de herramientas), y dejan el título. El PDF es «Guardar como PDF» del navegador.
+
+## Ayuda de cada pantalla («?»)
+
+- `core/ayuda.py`: diccionario `AYUDA` con clave `"namespace:nombre_de_url"` → `(título, para qué sirve, [lo más usado], sección del manual)`. El context processor pone `AYUDA` según `request.resolver_match`; `templates/base.html` muestra el botón **?** junto al título y el panel (offcanvas `#ayuda-pantalla`).
+- **Toda pantalla nueva de lista o tablero agrega su entrada** (los formularios no la necesitan). `core/tests_exportar.py` comprueba que cada clave exista como ruta.
 
 ## Pantalla de cocina
 
@@ -325,6 +336,7 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 3. En `templates/partials/sidebar.html`: su entrada en el grupo que corresponda (Atención, Hoy, Gestión), con `{% if P.ventas_ver %}`, y agregar el permiso a la condición del encabezado.
 4. En `core/tablero.py`: sus atajos, pendientes y tarjetas.
 5. Datos de ejemplo en `datos_demo`.
+6. Su ayuda («?») en `core/ayuda.py` y, si tiene listas, Excel con `core.excel.descargar` + `partials/exportar.html`.
 
 ## Historial
 

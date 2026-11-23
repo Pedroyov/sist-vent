@@ -48,6 +48,13 @@ def lista(request):
             qs = qs.filter(total__gt=F("_pagado"))
         elif estado == "vencidas":
             qs = qs.filter(total__gt=F("_pagado"), vence__lt=hoy)
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        filas = [[c.fecha, str(c.proveedor), c.proveedor.ruc, c.documento_str, c.base, c.igv, c.total, c.pagado, c.saldo,
+                  c.vence or "", "Anulada: " + c.motivo_anulacion if c.anulada else ""] for c in qs.order_by("fecha", "id")[:20000]]
+        return descargar("compras", [("Compras", ["Fecha", "Proveedor", "RUC", "Documento", "Valor sin IGV", "IGV", "Total", "Pagado",
+                                                  "Falta pagar", "Vence", "Anulada"], filas)])
     vigentes = Compra.objects.filter(fecha__gte=desde, fecha__lte=hasta, anulada=False)
     query = request.GET.copy()
     query.pop("page", None)
@@ -120,7 +127,16 @@ def _reponer(clave):
 
 @permiso_requerido("compras.ver")
 def reponer(request):
-    return render(request, "compras/reponer.html", {"grupos": s.reposicion()})
+    grupos = s.reposicion()
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        filas = [[str(g["proveedor"] or "Sin proveedor"), x["variante"].nombre_completo, x["variante"].codigo, x["stock"], x["minimo"],
+                  x["ultima"].cantidad if x["ultima"] else "", x["ultima"].costo_unitario if x["ultima"] else "",
+                  x["ultima"].compra.fecha if x["ultima"] else ""] for g in grupos for x in g["items"]]
+        return descargar("por_reponer", [("Por reponer", ["Proveedor", "Producto", "Código", "Stock", "Mínimo", "Última cantidad comprada",
+                                                          "Último costo", "Última compra"], filas)])
+    return render(request, "compras/reponer.html", {"grupos": grupos})
 
 
 @permiso_requerido("compras.ver")
@@ -197,6 +213,13 @@ def proveedores(request):
     for p in lista:
         p.d = deudas.get(p.pk)
     lista.sort(key=lambda p: (-(p.d["deuda"] if p.d else 0), p.nombre.lower()))
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        filas = [[p.nombre, p.comercial, p.ruc, p.contacto, p.telefono, p.email, p.direccion, p.plazo,
+                  p.d["deuda"] if p.d else 0, p.d["vencido"] if p.d else 0, "Sí" if p.activo else "No"] for p in lista]
+        return descargar("proveedores", [("Proveedores", ["Razón social", "Nombre comercial", "RUC o DNI", "Contacto", "Celular", "Correo",
+                                                          "Dirección", "Plazo (días)", "Se le debe", "Vencido", "Activo"], filas)])
     return render(request, "compras/proveedores.html", {"lista": lista, "q": q, "ver": request.GET.get("ver", "")})
 
 
@@ -231,6 +254,17 @@ def proveedor(request, pk=None):
 
 @permiso_requerido("compras.ver")
 def por_pagar(request):
+    deudas, compras = s.deudas_por_proveedor(), list(s.con_saldo()[:2000])
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        hoy = timezone.localdate()
+        return descargar("por_pagar", [
+            ("Por proveedor", ["Proveedor", "Se le debe", "Vencido", "Compras", "Próximo vencimiento"],
+             [[str(d["proveedor"]), d["deuda"], d["vencido"], d["compras"], d["proxima"] or ""] for d in deudas]),
+            ("Compras por pagar", ["Vence", "Proveedor", "Documento", "Fecha", "Total", "Pagado", "Falta", "Estado"],
+             [[c.vence or "", str(c.proveedor), c.documento_str, c.fecha, c.total, c.pagado, c.saldo,
+               "Vencida" if c.vence and c.vence < hoy else "Por pagar"] for c in compras])])
     return render(request, "compras/por_pagar.html", {
-        "deudas": s.deudas_por_proveedor(), "compras": list(s.con_saldo()[:200]), "hoy": timezone.localdate(),
+        "deudas": deudas, "compras": compras[:200], "hoy": timezone.localdate(),
     })

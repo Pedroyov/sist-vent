@@ -6,7 +6,7 @@
 {% block content %}
 <p class="small text-body-secondary mb-2">Cada día, compara lo que el sistema registró por Yape, Plin, tarjeta y transferencia con lo que muestra la app del banco. Toca un día para escribir el monto del banco.</p>
 {% for p in pendientes %}<div class="alert alert-warning py-2 small mb-2"><i class="bi bi-bank me-1"></i><strong>{{ p.nombre }}</strong> sin conciliar desde el {{ p.desde|date:"d/m" }} ({{ p.dias }} día{{ p.dias|pluralize }}).</div>{% endfor %}
-<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3 no-print">
   <div class="btn-group btn-group-sm flex-wrap" role="group">
     {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
   </div>
@@ -15,6 +15,7 @@
     <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Hasta">
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
+  <div class="ms-sm-auto">{% include "partials/exportar.html" %}</div>
 </div>
 {% for f in filas %}
 <div class="card mb-2">

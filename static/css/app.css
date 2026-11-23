@@ -41,7 +41,8 @@ body {
 
 /* Impresión: solo el contenido (recibos, reportes) */
 @media print {
-  .app-header, .app-sidebar, .app-footer, .app-content-header, .no-print, .alert-dismissible { display: none !important; }
+  .app-header, .app-sidebar, .app-footer, .app-content-header .breadcrumb, .no-print, .alert-dismissible, .barra-fija, .ayuda-pantalla { display: none !important; }
+  .app-content-header { padding: 0 0 .5rem !important; }
   .app-wrapper, .app-main { margin: 0 !important; padding: 0 !important; display: block !important; }
   body { background: #fff !important; }
   .card { box-shadow: none !important; border: 0 !important; }

@@ -47,6 +47,12 @@ def agenda(request):
         reservas = list(reservas.order_by("-fecha", "hora")[:50])
     else:
         reservas = list(del_dia(fecha))
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        return descargar(f"reservas_{fecha:%Y%m%d}", [("Reservas", ["Fecha", "Hora", "Nombre", "Celular", "Personas", "Mesa", "Nota", "Estado"],
+                                                       [[r.fecha, r.hora.strftime("%H:%M"), r.nombre, r.telefono, r.personas, str(r.mesa or ""),
+                                                         r.nota, r.get_estado_display()] for r in reservas])])
     for r in reservas:
         r.es_atrasada = r.atrasada(ahora, cfg)
         r.wa = enlace_whatsapp(r, hoy) if r.activa else ""

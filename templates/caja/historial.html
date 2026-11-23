@@ -6,7 +6,7 @@
 {% block breadcrumb %}<li class="breadcrumb-item active">Cajas</li>{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="d-flex flex-wrap gap-2 mb-3 no-print">
   {% if P.caja_usar %}<a href="{% url 'caja:mi_caja' %}" class="btn btn-success"><i class="bi bi-safe2 me-1"></i>Mi caja</a>{% endif %}
   {% if P.config_negocio %}<a href="{% url 'caja:puntos' %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Cajas y series</a>{% endif %}
   <form class="d-flex gap-2 ms-sm-auto" method="get">
@@ -15,6 +15,7 @@
     <select name="estado" class="form-select form-select-sm" onchange="this.form.submit()"><option value="">Abiertas y cerradas</option>
       <option value="ABI" {% if estado == "ABI" %}selected{% endif %}>Abiertas</option><option value="CER" {% if estado == "CER" %}selected{% endif %}>Cerradas</option></select>
   </form>
+  {% include "partials/exportar.html" with imprimir=False %}
 </div>
 
 {% if abiertas %}

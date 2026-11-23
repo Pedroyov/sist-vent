@@ -1,0 +1,5 @@
+{# Botones para bajar lo que se ve: Excel (todo el periodo/filtro) e Imprimir / PDF («Guardar como PDF» del navegador). #}
+<div class="btn-group no-print" role="group" aria-label="Exportar">
+  {% if excel is not False %}<a href="{% querystring excel=1 page=None %}" class="btn btn-sm btn-outline-success" title="Bajar en Excel"><i class="bi bi-file-earmark-excel"></i><span class="d-none d-sm-inline ms-1">Excel</span></a>{% endif %}
+  {% if imprimir is not False %}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()" title="Imprimir o guardar como PDF"><i class="bi bi-printer"></i><span class="d-none d-sm-inline ms-1">Imprimir / PDF</span></button>{% endif %}
+</div>

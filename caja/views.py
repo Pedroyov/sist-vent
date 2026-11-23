@@ -156,6 +156,19 @@ def historial(request):
         cajas = cajas.filter(usuario_id=usuario)
     if request.GET.get("estado") in SesionCaja.Estado.values:
         cajas = cajas.filter(estado=request.GET["estado"])
+    if request.GET.get("excel"):
+        from core.excel import descargar
+        from core.templatetags.sis import nombre
+
+        filas = []
+        for s in cajas.order_by("-abierta_en")[:5000]:
+            r = calcular(s) if s.abierta else resumen_guardado(s)
+            filas.append([timezone.localtime(s.abierta_en).strftime("%d/%m/%Y %H:%M"),
+                          timezone.localtime(s.cerrada_en).strftime("%d/%m/%Y %H:%M") if s.cerrada_en else "",
+                          nombre(s.usuario), str(s.punto or ""), s.get_estado_display(), s.monto_inicial,
+                          r.get("total_ventas"), r.get("n_ventas"), r.get("esperado"), s.contado, s.diferencia, s.queda])
+        return descargar("cajas", [("Cajas", ["Apertura", "Cierre", "Cajero", "Caja", "Estado", "Sencillo inicial", "Ventas",
+                                              "N° ventas", "Esperado", "Contado", "Diferencia", "Dejado en el cajón"], filas)])
     pagina = Paginator(cajas, 30).get_page(request.GET.get("page"))
     for s in pagina.object_list:
         s.r = calcular(s) if s.abierta else resumen_guardado(s)
@@ -191,6 +204,15 @@ def lista_gastos(request):
     persona = entero(request.GET.get("persona"))
     if persona:
         qs = qs.filter(persona_id=persona)
+    if request.GET.get("excel"):
+        from core.excel import descargar
+        from core.templatetags.sis import nombre
+
+        filas = [[timezone.localtime(m.fecha).strftime("%d/%m/%Y %H:%M"), m.concepto, m.get_categoria_display(),
+                  m.persona.nombre if m.persona_id else "", "De una caja" if m.sesion_id else "Fuera de caja", nombre(m.usuario),
+                  m.monto, "Anulado: " + m.motivo_anulacion if m.anulado else ""] for m in qs.order_by("fecha")[:20000]]
+        return descargar("gastos", [("Gastos", ["Fecha", "Detalle", "Motivo", "Persona", "De dónde salió", "Registró", "Monto",
+                                                "Anulado"], filas)])
     query = request.GET.copy()
     query.pop("page", None)
     filtro = {k: v for k, v in query.items() if k in ("p", "desde", "hasta")}

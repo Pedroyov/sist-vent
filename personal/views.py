@@ -93,9 +93,16 @@ def pagos(request):
         messages.info(request, "Activa «Pagos al personal» en Configuración → Módulos del sistema.")
         return redirect("personal:lista")
     desde, hasta, atajo = periodo(request, defecto="mes")
+    c = cuentas(desde, hasta)
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        return descargar("pagos_personal", [(f"{desde:%d.%m} al {hasta:%d.%m.%Y}", ["Persona", "Sueldo", "Comisión", "Le toca", "Pagado", "Falta"],
+                                             [[f["persona"].nombre, f["sueldo"], f["comision"], f["toca"], f["pagado"], f["falta"]]
+                                              for f in c["filas"]])])
     caja = SesionCaja.abierta_de(request.user) if puede(request.user, "caja.usar") else None
     return render(request, "personal/pagos.html", {
-        "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": ATAJOS, "c": cuentas(desde, hasta), "caja": caja,
+        "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": ATAJOS, "c": c, "caja": caja,
         "fuera": puede(request.user, "caja.ver"), "volver": request.get_full_path(),
     })
 
