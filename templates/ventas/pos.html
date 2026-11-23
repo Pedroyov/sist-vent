@@ -175,8 +175,9 @@
   function grid() {
     var lista = filtrados(), html = "";
     lista.slice(0, 120).forEach(function (p) {
-      html += '<div class="col-6 col-sm-4 col-xl-3"><div class="card pos-card' + (p.ag ? " opacity-50" : "") + '" data-p="' + p.id + '" role="button" tabindex="0">' +
-        (p.ag ? '<span class="badge text-bg-danger position-absolute m-1" style="z-index: 1">Agotado</span>' : "") +
+      html += '<div class="col-6 col-sm-4 col-xl-3"><div class="card pos-card' + (p.ag ? " opacity-50" : p.qn === "muy_pocas" ? " border-danger border-2" : p.qn === "pocas" ? " border-warning border-2" : "") + '" data-p="' + p.id + '" role="button" tabindex="0">' +
+        (p.ag ? '<span class="badge text-bg-danger position-absolute m-1" style="z-index: 1">Agotado</span>'
+              : p.qn ? '<span class="badge position-absolute m-1 ' + (p.qn === "muy_pocas" ? "text-bg-danger" : "text-bg-warning") + '" style="z-index: 1">Quedan ' + p.q + "</span>" : "") +
         '<div class="img">' + (p.img ? '<img src="' + esc(p.img) + '" alt="" loading="lazy">' : '<i class="bi ' + (p.s ? "bi-scissors" : "bi-box") + '"></i>') + "</div>" +
         '<div class="card-body p-2"><div class="nombre">' + esc(p.n) + "</div>" +
         '<div class="d-flex align-items-center mt-1"><span class="fw-bold">' + precioDe(p) + '</span><span class="ms-auto">' + stockDe(p) + "</span></div>" +

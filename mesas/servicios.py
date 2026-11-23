@@ -5,7 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from productos.models import Variante
-from productos.servicios import OpcionInvalida, resolver_opciones
+from productos.servicios import OpcionInvalida, PorcionesError, devolver_porciones, resolver_opciones, tomar_porciones
 
 from .models import CERO, Cuenta, ItemCuenta, Mesa
 
@@ -177,6 +177,10 @@ def agregar(cuenta, items, usuario):
                 foto, extra, _ = resolver_opciones(v.producto, it.get("opciones") or [])
             except OpcionInvalida as e:
                 raise MesaError(str(e))
+            try:
+                tomar_porciones(v.producto_id, cantidad)  # porciones del día: «quedan 3»
+            except PorcionesError as e:
+                raise MesaError(str(e))
             previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True, cortesia=False)
                            if [o["id"] for o in p.opciones or []] == [o["id"] for o in foto]), None)
             if previo:  # mismo plato, misma nota, aún no enviado: se suma
@@ -216,11 +220,19 @@ def cambiar_cantidad(item, delta):
     if item.enviado or item.venta_id or item.anulado:
         raise MesaError("Eso ya se envió a cocina: para cambiarlo, quítalo con un motivo.")
     nueva = item.cantidad + Decimal(delta)
-    if nueva <= 0:
-        item.delete()
-    else:
-        item.cantidad = nueva
-        item.save(update_fields=["cantidad"])
+    with transaction.atomic():
+        try:
+            if Decimal(delta) > 0:
+                tomar_porciones(item.variante.producto_id, Decimal(delta))
+            else:
+                devolver_porciones(item.variante.producto_id, min(item.cantidad, -Decimal(delta)))
+        except PorcionesError as e:
+            raise MesaError(str(e))
+        if nueva <= 0:
+            item.delete()
+        else:
+            item.cantidad = nueva
+            item.save(update_fields=["cantidad"])
 
 
 def quitar(item, usuario, motivo="", puede_anular=False):
@@ -228,7 +240,9 @@ def quitar(item, usuario, motivo="", puede_anular=False):
     if item.venta_id:
         raise MesaError("Eso ya se cobró: anula la venta si hace falta.")
     if not item.enviado:
-        item.delete()
+        with transaction.atomic():
+            devolver_porciones(item.variante.producto_id, item.cantidad)  # no se preparó: la porción vuelve
+            item.delete()
         return
     if not puede_anular:
         raise MesaError("Ya se envió a cocina: solo alguien con permiso puede quitarlo.")
@@ -454,6 +468,34 @@ def cotizar(cuenta, item_ids=None):
         return armar_lineas(_items_venta(_pendientes(cuenta, item_ids)), desde_pedido=True, puede_cambiar_precio=True)
     except VentaInvalida as e:
         raise MesaError(str(e))
+
+
+def mozos_disponibles():
+    """Usuarios activos que pueden atender mesas (para pasarles una mesa)."""
+    from django.contrib.auth import get_user_model
+
+    from core.permisos import puede
+
+    return [u for u in get_user_model().objects.filter(is_active=True).order_by("first_name", "username") if puede(u, "mesas.atender")]
+
+
+def pasar_mozo(cuenta, nuevo, usuario):
+    """Cambio de turno: la mesa pasa a otro mozo. Lo ya pedido sigue diciendo quién lo pidió; la venta, al cobrar, cuenta
+    para el mozo que tenga la mesa en ese momento."""
+    from core.bitacora import anotar
+
+    _abierta(cuenta)
+    if nuevo is None or nuevo not in mozos_disponibles():
+        raise MesaError("Elige un mozo que pueda atender mesas.")
+    if nuevo.pk == cuenta.mozo_id:
+        return cuenta
+    antes = cuenta.mozo
+    with transaction.atomic():
+        cuenta.mozo = nuevo
+        cuenta.save(update_fields=["mozo"])
+        anotar("mesa.mozo", f"{cuenta.titulo} pasó de {antes.get_full_name() or antes.username} a {nuevo.get_full_name() or nuevo.username}",
+               objeto=cuenta, usuario=usuario)
+    return cuenta
 
 
 def falta_de_cocina(items):

@@ -8,6 +8,7 @@
 <div class="linea"></div>
 {% for i in items %}
 <div class="grande">{{ i.cantidad|cantidad }} x {{ i.descripcion }}</div>
+{% if i.agregado_por_id != c.mozo_id %}<div>&nbsp;&nbsp;(pidió {{ i.agregado_por.first_name|default:i.agregado_por.username }})</div>{% endif %}
 {% for o in i.opciones %}<div class="b">&nbsp;&nbsp;› {{ o.n|upper }}</div>{% endfor %}
 {% if i.nota %}<div class="b">&nbsp;&nbsp;» {{ i.nota|upper }}</div>{% endif %}
 {% empty %}<p>Nada enviado.</p>{% endfor %}

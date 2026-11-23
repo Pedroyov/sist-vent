@@ -106,3 +106,23 @@ def qr_svg(texto, tam=110):
     svg = buf.getvalue().decode()
     svg = svg[svg.index("<svg"):].replace("<svg ", f'<svg width="{tam}" height="{tam}" ', 1)
     return mark_safe(svg)
+
+
+# --- Archivos subidos (disco local o DigitalOcean Spaces: el mismo código para los dos) -------------
+
+def guardar_archivo(nombre, contenido):
+    """Guarda (o reemplaza) un archivo subido con ese nombre exacto, por ejemplo «negocio/logo.png»."""
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    if default_storage.exists(nombre):
+        default_storage.delete(nombre)
+    return default_storage.save(nombre, ContentFile(contenido))
+
+
+def imagen_a_bytes(im, formato, **opciones):
+    from io import BytesIO
+
+    salida = BytesIO()
+    im.save(salida, formato, **opciones)
+    return salida.getvalue()

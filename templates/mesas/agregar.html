@@ -74,8 +74,9 @@
       return (categoria === "" || String(p.c) === String(categoria)) && palabras.every(function (w) { return p.busca.indexOf(w) >= 0; });
     }).slice(0, 150).map(function (p) {
       var n = cuantos(p), min = Math.min.apply(null, p.v.map(function (v) { return cent(v.p); }));
-      return '<div class="col-6 col-sm-4 col-lg-3"><div class="card pos-card position-relative' + (p.ag ? " opacity-50" : "") + '" data-p="' + p.id + '"><div class="card-body p-2">' +
-        (p.ag ? '<span class="badge text-bg-danger">Agotado</span> ' : "") +
+      var aviso = p.qn === "muy_pocas" ? " border-danger border-2" : p.qn === "pocas" ? " border-warning border-2" : "";
+      return '<div class="col-6 col-sm-4 col-lg-3"><div class="card pos-card position-relative' + (p.ag ? " opacity-50" : aviso) + '" data-p="' + p.id + '"><div class="card-body p-2">' +
+        (p.ag ? '<span class="badge text-bg-danger">Agotado</span> ' : p.qn ? '<span class="badge ' + (p.qn === "muy_pocas" ? "text-bg-danger" : "text-bg-warning") + '">Quedan ' + p.q + "</span> " : "") +
         (n ? '<span class="badge rounded-pill text-bg-primary cuantos">' + n + "</span>" : "") +
         '<div class="nombre">' + esc(p.n) + '</div><div class="small mt-1">' + (p.v.length > 1 ? "desde " : "") + soles(min) +
         (p.v.length > 1 || (p.g && p.g.length) ? ' · <span class="text-primary">opciones</span>' : "") + "</div></div></div></div>";

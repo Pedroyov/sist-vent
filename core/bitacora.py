@@ -29,6 +29,7 @@ ACCIONES = {
     "venta.descuento": ("Descuento", "Descuentos y cortesías"),
     "venta.precio": ("Precio cambiado al vender", "Descuentos y cortesías"),
     "mesa.cortesia": ("Cortesía", "Descuentos y cortesías"),
+    "mesa.mozo": ("Mesa pasada a otro mozo", "Mesas"),
     "caja.diferencia": ("Cierre con diferencia", "Caja"),
     "caja.cierre_ajeno": ("Caja cerrada por otra persona", "Caja"),
     "caja.apertura": ("Apertura con monto distinto", "Caja"),

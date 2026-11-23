@@ -59,6 +59,8 @@ class Tablero:
             self._clientes()
         if puede(self.user, "productos.ver"):
             self._productos()
+        if puede(self.user, "productos.agotar", "mesas.atender", "mesas.cocina"):
+            self._porciones()
         if puede(self.user, "facturacion.ver"):
             self._facturacion()
         if puede(self.user, "compras.ver"):
@@ -298,6 +300,17 @@ class Tablero:
                 monto = sum(a["monto"] for a in atrasos.values())
                 self.pendientes.append(_pend(f"{_plural(len(atrasos), 'cliente')} con fiado vencido", reverse("clientes:lista") + "?ver=vencido",
                                              "bi-journal-x", "danger", f"{soles(monto)} vencido. Recuérdales desde su ficha."))
+
+    def _porciones(self):
+        """Platos con porciones de hoy que se están acabando («quedan 3»)."""
+        from productos.servicios import con_pocas_porciones
+
+        lista = con_pocas_porciones()
+        if lista:
+            rojo = any(p.nivel != "pocas" for p in lista)
+            self.pendientes.insert(0, _pend("Quedan pocas porciones", reverse("productos:agotados"), "bi-hourglass-split",
+                                            "danger" if rojo else "warning",
+                                            ", ".join(f"{p.nombre}: {p.porciones or 'agotado'}" for p in lista[:6])))
 
     def _productos(self):
         from productos.models import Categoria, Producto

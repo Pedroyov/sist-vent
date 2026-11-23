@@ -62,6 +62,26 @@ Toda la información del negocio está en `db.sqlite3` y las fotos en `media/`. 
 - Guarda los respaldos **fuera de la PC**: `respaldo.bat "C:\Users\TU_USUARIO\Google Drive\Respaldos"` (o OneDrive, o una USB).
 - Para restaurar: cierra el sistema, descomprime el `.zip`, pon el `db.sqlite3` en la carpeta del proyecto y la carpeta `media/` junto a él.
 
+## En la nube (DigitalOcean App Platform, una instancia por empresa)
+
+Todo se configura con variables de entorno (ver `.env.example`):
+
+- **Base de datos:** `DATABASE_URL` del clúster PostgreSQL (una base y un usuario por empresa). DigitalOcean hace respaldos diarios automáticos de la base.
+- **Secretos:** `SECRET_KEY` y `CLAVE_CIFRADO` (distintas, largas, guardadas aparte). El token de Nubefact y el código del celular se guardan cifrados con `CLAVE_CIFRADO`: si se pierde, hay que volver a escribirlos.
+- **Fotos:** `SPACES_BUCKET`, `SPACES_KEY`, `SPACES_SECRET`, `SPACES_ENDPOINT`, `SPACES_REGION` y `SPACES_CARPETA` (una carpeta por empresa). El espacio es privado: las fotos se ven solo dentro del sistema.
+- **Proxy:** `PROXIES_CONFIABLES=1`.
+- **Salud:** en la app, *Health check* HTTP en la ruta `/salud/` (responde «ok» si el sistema y la base funcionan). Con eso, DigitalOcean reinicia la app si se cae y puede mandar una alerta.
+- **Avisos de errores:** `ALERTAS_CORREO`, `EMAIL_URL` y `CORREO_REMITENTE`: cada error del sistema llega por correo.
+- **Trabajos programados:** `python manage.py reenviar_comprobantes` cada 15 minutos (si usa facturación) y `python manage.py respaldo --nube` una vez al día (copia extra de los datos en Spaces, fuera de la base).
+
+**Empresa nueva:** después del primer despliegue (que corre `migrate`), en la consola de la app:
+
+```
+python manage.py crear_empresa --nombre "Bodega Doña Rosa" --rubro TIE --usuario rosa --nombre-admin "Rosa Mamani" --ruc 10456789012
+```
+
+Deja los datos del negocio, los módulos de su tipo de negocio y el administrador principal con una clave temporal (se muestra una sola vez). Solo funciona en una base vacía.
+
 ## Estructura
 
 Ver [ARQUITECTURA.md](ARQUITECTURA.md).

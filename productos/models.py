@@ -155,6 +155,9 @@ class Producto(models.Model):
     grupos = models.ManyToManyField(GrupoOpciones, blank=True, related_name="productos", verbose_name="opciones al pedir",
                                     help_text="Término, acompañamiento, adicionales… Se crean en Productos → Opciones.")
     agotado_en = models.DateTimeField(null=True, blank=True, help_text="Agotado por hoy (vuelve solo mañana).")
+    porciones = models.PositiveIntegerField("porciones que quedan hoy", null=True, blank=True,
+                                            help_text="Lo pone la cocina cada día. Vacío = sin límite.")
+    porciones_dia = models.DateField(null=True, blank=True, help_text="Las porciones valen solo ese día.")
     activo = models.BooleanField(default=True, help_text="Desmárcalo para dejar de venderlo sin borrarlo.")
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
@@ -183,8 +186,15 @@ class Producto(models.Model):
         return self.area or (self.categoria.area if self.categoria_id else Area.COCINA)
 
     @property
+    def porciones_hoy(self):
+        """Cuántas porciones quedan hoy, o None si hoy no tiene límite."""
+        if self.porciones is None or self.porciones_dia != timezone.localdate():
+            return None
+        return self.porciones
+
+    @property
     def agotado(self):
-        return agotado_hoy(self.agotado_en)
+        return agotado_hoy(self.agotado_en) or self.porciones_hoy == 0
 
     @property
     def es_servicio(self):
@@ -224,15 +234,18 @@ class Producto(models.Model):
         """Reduce la imagen subida a 800 px como máximo (las fotos del celular pesan mucho)."""
         from PIL import Image, ImageOps
 
-        with Image.open(self.imagen.path) as im:
+        from core.utils import guardar_archivo, imagen_a_bytes
+
+        with self.imagen.open("rb") as archivo, Image.open(archivo) as im:  # en disco o en Spaces
             im = ImageOps.exif_transpose(im)
             if im.mode not in ("RGB", "RGBA"):
                 im = im.convert("RGB")
             im.thumbnail((800, 800))
-            fmt = "PNG" if self.imagen.path.lower().endswith(".png") else "JPEG"
+            fmt = "PNG" if self.imagen.name.lower().endswith(".png") else "JPEG"
             if fmt == "JPEG" and im.mode == "RGBA":
                 im = im.convert("RGB")
-            im.save(self.imagen.path, fmt, quality=85, optimize=True)
+            contenido = imagen_a_bytes(im, fmt, quality=85, optimize=True)
+        guardar_archivo(self.imagen.name, contenido)
 
 
 class Componente(models.Model):

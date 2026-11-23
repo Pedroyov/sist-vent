@@ -20,5 +20,11 @@ Pillow>=10.4
 # Servidor para producción / Render
 gunicorn>=23.0
 
+# Fotos en DigitalOcean Spaces en producción (solo si se pone SPACES_BUCKET)
+django-storages[s3]>=1.14
+
+# Cifrar los secretos guardados en la base (token de Nubefact, código del celular)
+cryptography>=43
+
 # PostgreSQL en producción (con SQLite no se usa)
 psycopg[binary]>=3.2

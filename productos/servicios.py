@@ -270,6 +270,76 @@ def marcar_agotado(objeto, agotado=True):
     objeto.save(update_fields=[campo])
 
 
+# --- Porciones del día --------------------------------------------------------------
+# La cocina dice cuántas porciones hay hoy de un plato («quedan 15 ceviches»). Cada pedido descuenta; con pocas se avisa
+# en amarillo (5 o menos) y en rojo (2 o menos); al llegar a 0 queda agotado solo. Al día siguiente no hay límite.
+# Vuelven solo si se quita algo que aún no se mandó a cocina (lo enviado ya se preparó).
+
+POCAS_PORCIONES = 5
+MUY_POCAS_PORCIONES = 2
+
+
+class PorcionesError(Exception):
+    pass
+
+
+def nivel_porciones(quedan):
+    """Para pintar el aviso: "" (nada), "pocas" (amarillo), "muy_pocas" (rojo) o "agotado"."""
+    if quedan is None:
+        return ""
+    if quedan <= 0:
+        return "agotado"
+    if quedan <= MUY_POCAS_PORCIONES:
+        return "muy_pocas"
+    return "pocas" if quedan <= POCAS_PORCIONES else ""
+
+
+def poner_porciones(producto, quedan):
+    """Lo que hay hoy (None = sin límite). Quitar el límite no quita un «agotado» marcado a mano."""
+    from django.utils import timezone
+
+    producto.porciones = None if quedan in (None, "") else max(0, int(quedan))
+    producto.porciones_dia = timezone.localdate() if producto.porciones is not None else None
+    producto.save(update_fields=["porciones", "porciones_dia"])
+
+
+def tomar_porciones(producto_id, cantidad):
+    """Descuenta porciones de un pedido (dentro de la transacción de quien llama). Sin límite hoy, no hace nada."""
+    from .models import Producto
+
+    p = Producto.objects.select_for_update().get(pk=producto_id)
+    quedan = p.porciones_hoy
+    if quedan is None:
+        return
+    pide = int(Decimal(str(cantidad)).to_integral_value(rounding="ROUND_CEILING"))
+    if pide > quedan:
+        raise PorcionesError(f"{p.nombre}: {'ya no quedan porciones hoy' if not quedan else f'solo quedan {quedan}'}.")
+    p.porciones = quedan - pide
+    p.save(update_fields=["porciones"])
+
+
+def devolver_porciones(producto_id, cantidad):
+    from .models import Producto
+
+    p = Producto.objects.select_for_update().get(pk=producto_id)
+    if p.porciones_hoy is not None:
+        p.porciones += int(Decimal(str(cantidad)).to_integral_value(rounding="ROUND_CEILING"))
+        p.save(update_fields=["porciones"])
+
+
+def con_pocas_porciones():
+    """Los platos con porciones de hoy que se están acabando (para la cocina, el Inicio y los avisos)."""
+    from django.utils import timezone
+
+    from .models import Producto
+
+    lista = [p for p in Producto.objects.filter(activo=True, porciones_dia=timezone.localdate(), porciones__lte=POCAS_PORCIONES)
+             .order_by("porciones", "nombre")]
+    for p in lista:
+        p.nivel = nivel_porciones(p.porciones)
+    return lista
+
+
 # --- Menú del día ------------------------------------------------------------------
 # El menú es un producto normal ("Menú ejecutivo", precio fijo) con grupos de opciones marcados "cambia cada día"
 # ("Entrada", "Segundo"). Cada mañana se activan las opciones de hoy; las de otros días quedan guardadas (inactivas)

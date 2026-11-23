@@ -241,8 +241,6 @@ def datos_negocio(request):
         if not a.logo and a.version_logo:
             a.version_logo = 0
             a.save(update_fields=["version_logo"])
-        from .models import Rubro
-
         if a.rubro != rubro_antes:  # otro tipo de negocio: se ajustan las funciones (lo que ya se usa no se apaga)
             from .rubros import aplicar
 
@@ -251,14 +249,16 @@ def datos_negocio(request):
                 messages.info(request, f"Ajustado para {a.get_rubro_display().lower()}:"
                               + (f" se activó {', '.join(encendidas)}." if encendidas else "")
                               + (f" Se ocultó {', '.join(apagadas)} (no se estaba usando)." if apagadas else ""))
-        if a.rubro == Rubro.RESTAURANTE and "mesas" in a.modulos_inactivos:
-            a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "mesas"]
-            a.save(update_fields=["modulos_inactivos"])
-            messages.info(request, "Se activó el módulo Mesas, porque el negocio es un restaurante.")
-        if a.rubro == Rubro.ACADEMIA and ("cobranzas" in a.modulos_inactivos or "clientes" in a.modulos_inactivos):
-            a.modulos_inactivos = [m for m in a.modulos_inactivos if m not in ("cobranzas", "clientes")]
-            a.save(update_fields=["modulos_inactivos"])
-            messages.info(request, "Se activó el módulo Cobranzas (mensualidades), porque el negocio es una academia o gimnasio.")
+        if a.rubro != rubro_antes:
+            # Los módulos no cambian solos: los decide el administrador principal (pueden ser parte del plan contratado).
+            from .permisos import NOMBRE_MODULO
+            from .rubros import perfil
+
+            faltan = [NOMBRE_MODULO[m] for m in perfil(a.rubro)["encendido"] if m in (a.modulos_inactivos or []) and m in NOMBRE_MODULO]
+            if faltan:
+                messages.info(request, f"Para {a.get_rubro_display().lower()} se recomienda: {', '.join(faltan)}. "
+                              + ("Actívalos en Configuración → Módulos." if request.user.is_superuser
+                                 else "Pídele al administrador principal que los active."))
         messages.success(request, "Datos del negocio guardados. Si instalaste la app en el celular, el ícono nuevo puede tardar en aparecer (o reinstálala).")
         return redirect("core:datos_negocio")
     return render(request, "core/config/negocio.html", {"form": form, "c": ajustes})

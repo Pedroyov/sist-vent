@@ -632,11 +632,21 @@ def grupos_sugeridos(request):
 
 @permiso_requerido("productos.agotar")
 def agotados(request):
-    from .servicios import marcar_agotado
+    from .servicios import marcar_agotado, nivel_porciones, poner_porciones
 
+    error = ""
     if request.method == "POST":
         objeto = None
-        if request.POST.get("producto"):
+        if request.POST.get("porciones_producto"):  # porciones de hoy («quedan 15 ceviches»; vacío = sin límite)
+            p = get_object_or_404(Producto, pk=entero(request.POST.get("porciones_producto")), activo=True)
+            valor = (request.POST.get("porciones") or "").strip()
+            if valor and not valor.isdigit():
+                error = "Escribe cuántas porciones quedan (un número entero)."
+            elif p.fraccionable:
+                error = f"{p.nombre} se vende por peso o medida: usa Agotado."
+            else:
+                poner_porciones(p, int(valor) if valor else None)
+        elif request.POST.get("producto"):
             objeto = get_object_or_404(Producto, pk=entero(request.POST.get("producto")))
         elif request.POST.get("opcion"):
             objeto = get_object_or_404(Opcion, pk=entero(request.POST.get("opcion")))
@@ -651,7 +661,13 @@ def agotados(request):
     opciones_ = Opcion.objects.filter(activa=True, grupo__activo=True).select_related("grupo").order_by("grupo__orden", "orden")
     if q:
         opciones_ = opciones_.filter(nombre__icontains=q)
-    contexto = {"productos": productos, "opciones": opciones_, "q": q,
+    hoy = timezone.localdate()
+    con_porciones = list(Producto.objects.filter(activo=True, porciones_dia=hoy, porciones__isnull=False).order_by("porciones", "nombre"))
+    for p in con_porciones:
+        p.nivel = nivel_porciones(p.porciones)
+    contexto = {"productos": productos, "opciones": opciones_, "q": q, "con_porciones": con_porciones, "error_porciones": error,
+                "para_porciones": Producto.objects.filter(activo=True, unidad__in=["UND", "PAQ", "CAJ", "DOC", "PAR"])
+                                  .exclude(tipo=Producto.Tipo.SERVICIO).order_by("nombre").only("pk", "nombre"),
                 "n_agotados": sum(1 for p in productos if p.agotado) + sum(1 for o in opciones_ if o.agotada)}
     if request.htmx:
         return render(request, "productos/partials/agotados.html", contexto)

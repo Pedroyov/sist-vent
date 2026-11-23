@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+from .cifrado import CampoCifrado
+
 from .utils import TamanoMaximo
 
 
@@ -239,13 +241,11 @@ class Ajustes(models.Model):
 
     def generar_iconos(self):
         """Del logo subido saca: logo.png (máx. 600 px) e íconos cuadrados 180/192/512 para el celular."""
-        import os
-
         from PIL import Image, ImageOps
 
-        carpeta = os.path.join(settings.MEDIA_ROOT, "negocio")
-        os.makedirs(carpeta, exist_ok=True)
-        with Image.open(self.logo.path) as im:
+        from .utils import guardar_archivo, imagen_a_bytes
+
+        with self.logo.open("rb") as archivo, Image.open(archivo) as im:  # en disco o en Spaces
             im = ImageOps.exif_transpose(im).convert("RGBA")
             # recorta bordes vacíos (transparentes o blancos)
             fondo = Image.new("RGBA", im.size, (255, 255, 255, 0))
@@ -254,14 +254,14 @@ class Ajustes(models.Model):
                 im = im.crop(caja)
             logo = im.copy()
             logo.thumbnail((600, 600))
-            logo.save(os.path.join(carpeta, "logo.png"))
+            guardar_archivo("negocio/logo.png", imagen_a_bytes(logo, "PNG"))
             for tam in (180, 192, 512):
                 lienzo = Image.new("RGBA", (tam, tam), (255, 255, 255, 255))
                 interior = int(tam * 0.84)
                 copia = im.copy()
                 copia.thumbnail((interior, interior), Image.LANCZOS)
                 lienzo.alpha_composite(copia, ((tam - copia.width) // 2, (tam - copia.height) // 2))
-                lienzo.convert("RGB").save(os.path.join(carpeta, f"icono-{tam}.png"))
+                guardar_archivo(f"negocio/icono-{tam}.png", imagen_a_bytes(lienzo.convert("RGB"), "PNG"))
         self.version_logo += 1
 
 
@@ -331,7 +331,7 @@ class SegundoFactor(models.Model):
     """Código de 6 dígitos de una app del celular (Google Authenticator o similar), además de la contraseña.
     La lógica está en core/dos_factor.py."""
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="segundo_factor")
-    secreto = models.CharField(max_length=64)
+    secreto = CampoCifrado()  # se guarda cifrado (core/cifrado.py)
     activo = models.BooleanField(default=False)
     activado_en = models.DateTimeField(null=True, blank=True)
     ultimo_paso = models.BigIntegerField(default=0, help_text="Último código usado: no se acepta dos veces.")

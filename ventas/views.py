@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 from core.permisos import permiso_requerido, puede
 from core.utils import dias, enlace_whatsapp, entero, url_segura
 from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variante
-from productos.servicios import minimo_disponible, ordenar_grupos
+from productos.servicios import minimo_disponible, nivel_porciones, ordenar_grupos
 
 from .models import MetodoPago, Venta
 from .servicios import VentaInvalida, anular_venta, armar_lineas, registrar_venta, resumen
@@ -61,6 +61,8 @@ def _catalogo():
             "v": [{"id": v.pk, "n": v.nombre, "cod": v.codigo, "p": str(v.precio_venta),
                    "st": f"{v.stock.normalize():f}" if p.maneja_stock else None} for v in p.vars],
             "ag": p.agotado,
+            "q": p.porciones_hoy,  # porciones que quedan hoy (None = sin límite)
+            "qn": nivel_porciones(p.porciones_hoy),  # "pocas" (amarillo) / "muy_pocas" (rojo)
             "k": [{"id": c.pk, "n": c.nombre, "q": c.quitable, "g": c.cambiar_con_id} for c in p.componentes.all()] if ajustes.usa_lleva else [],
             "g": [{"id": g.pk, "n": g.nombre.removeprefix(f"{p.nombre}: "), "min": minimo_disponible(g), "max": g.maximo, "r": g.regla,
                    "o": [{"id": o.pk, "n": o.nombre, "p": str(o.precio), "ag": o.agotada, "d": o.por_defecto} for o in g.opciones.all()]}

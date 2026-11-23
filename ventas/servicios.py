@@ -224,6 +224,13 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             )
             for ln in lineas:
                 v, cantidad, foto, cortesia = ln["v"], ln["cantidad"], ln["foto"], ln["cortesia"]
+                if not desde_pedido:  # en mesas y delivery se descontaron al pedir
+                    from productos.servicios import PorcionesError, tomar_porciones
+
+                    try:
+                        tomar_porciones(v.producto_id, cantidad)
+                    except PorcionesError as e:
+                        raise VentaInvalida(str(e))
                 VentaItem.objects.create(venta=venta, variante=v, descripcion=descripcion_con_opciones(v.nombre_completo, foto)[:240],
                                          opciones=foto, cantidad=cantidad, cortesia=bool(cortesia),
                                          cortesia_motivo=(cortesia or {}).get("motivo", "")[:120], cortesia_por_id=(cortesia or {}).get("por"),

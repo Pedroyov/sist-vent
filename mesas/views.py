@@ -177,7 +177,11 @@ def cuenta(request, pk):
         falta_caja = False
     except CajaError:
         falta_caja = True
+    from .servicios import mozos_disponibles
+
+    puede_pasar = c.abierta and _puede_pasar(request.user, c)
     return render(request, "mesas/cuenta.html", {
+        "puede_pasar": puede_pasar, "mozos": mozos_disponibles() if puede_pasar else [],
         "c": c, "por_enviar": por_enviar, "enviados": enviados, "pagados": pagados, "anulados": anulados,
         "pendiente": sum((i.subtotal for i in por_enviar + enviados), 0),
         "ventas": sorted({i.venta for i in pagados}, key=lambda v: v.numero),
@@ -287,6 +291,30 @@ def cortesia_vista(request, pk):
     except (AutorizacionError, MesaError) as e:
         messages.error(request, str(e))
     return redirect("mesas:cuenta", pk=it.cuenta_id)
+
+
+@permiso_requerido("mesas.atender", "mesas.cobrar")
+@require_POST
+def pasar_mozo(request, pk):
+    """Cambio de turno: la mesa pasa a otro mozo (lo hace su mozo o quien cobra)."""
+    from django.contrib.auth import get_user_model
+
+    from .servicios import pasar_mozo as pasar
+
+    c = _cuenta(pk, request.user)
+    if not _puede_pasar(request.user, c):
+        raise PermissionDenied
+    nuevo = get_user_model().objects.filter(pk=entero(request.POST.get("mozo")), is_active=True).first()
+    try:
+        pasar(c, nuevo, request.user)
+        messages.success(request, f"{c.titulo} ahora la atiende {nuevo.get_full_name() or nuevo.username}.")
+    except MesaError as e:
+        messages.error(request, str(e))
+    return redirect("mesas:cuenta", pk=pk)
+
+
+def _puede_pasar(user, c):
+    return not c.es_delivery and (c.mozo_id == user.pk or puede(user, "mesas.cobrar"))
 
 
 @permiso_requerido("mesas.atender", "mesas.cobrar")
@@ -705,7 +733,9 @@ def _comandas(area="COC"):
             comanda["listo"] = max(i.listo_en for i in vigentes)
             listas.append(comanda)
     listas.sort(key=lambda c: c["listo"], reverse=True)
-    return {"pendientes": pendientes, "listas": listas[:12], "area": area}
+    from productos.servicios import con_pocas_porciones
+
+    return {"pendientes": pendientes, "listas": listas[:12], "area": area, "pocas": con_pocas_porciones()}
 
 
 @permiso_requerido("mesas.cocina")

@@ -19,6 +19,8 @@ env = environ.Env(
 environ.Env.read_env(BASE_DIR / ".env")
 
 SECRET_KEY = env("SECRET_KEY")
+# Clave para cifrar los secretos guardados en la base (token de Nubefact, código del celular). Vacía = la SECRET_KEY.
+CLAVE_CIFRADO = env("CLAVE_CIFRADO", default="")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
@@ -84,6 +86,7 @@ LOCAL_APPS = [
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+    "core.salud.SaludMiddleware",  # /salud/ para el hosting: primero de todo
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -169,8 +172,30 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Archivos temporales que nunca se publican (caché, importaciones)
 ARCHIVOS_PRIVADOS = BASE_DIR / "privado"
 
+# Fotos y logo en DigitalOcean Spaces (producción): basta con poner SPACES_BUCKET y sus claves en las variables de
+# entorno. Un solo espacio para todas las empresas, cada una en su carpeta (SPACES_CARPETA). Es privado: las imágenes
+# siempre pasan por /archivos/ con el permiso de quien las pide. Sin SPACES_BUCKET se guardan en la carpeta media/.
+SPACES_BUCKET = env("SPACES_BUCKET", default="")
+if SPACES_BUCKET:
+    ALMACEN_ARCHIVOS = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": SPACES_BUCKET,
+            "endpoint_url": env("SPACES_ENDPOINT", default="https://sfo3.digitaloceanspaces.com"),
+            "region_name": env("SPACES_REGION", default="sfo3"),
+            "access_key": env("SPACES_KEY"),
+            "secret_key": env("SPACES_SECRET"),
+            "location": env("SPACES_CARPETA", default="empresa"),
+            "default_acl": "private",
+            "file_overwrite": False,
+            "querystring_auth": True,
+        },
+    }
+else:
+    ALMACEN_ARCHIVOS = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": ALMACEN_ARCHIVOS,
     "staticfiles": {
         "BACKEND": (
             "django.contrib.staticfiles.storage.StaticFilesStorage"
@@ -246,3 +271,27 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+
+
+# --- Avisos de errores ---------------------------------------------------------
+# Si el sistema falla (error 500), se manda un correo con el detalle a ALERTAS_CORREO (separar con comas).
+# El correo sale por EMAIL_URL, por ejemplo smtp+tls://usuario:clave@smtp.gmail.com:587 (Gmail con «contraseña de
+# aplicación») o el SMTP de un servicio de correos. Sin EMAIL_URL no se envía nada; los errores igual quedan en el
+# registro (logs) del hosting.
+ADMINS = [("Soporte", c.strip()) for c in env.list("ALERTAS_CORREO", default=[]) if c.strip()]
+EMAIL_CONFIG = env.email_url("EMAIL_URL", default="consolemail://")
+vars().update(EMAIL_CONFIG)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL = env("CORREO_REMITENTE", default="sistema@localhost")
+EMAIL_SUBJECT_PREFIX = f"[{NEGOCIO_NOMBRE_CORTO}] "
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "consola": {"class": "logging.StreamHandler"},
+        "correo": {"class": "django.utils.log.AdminEmailHandler", "level": "ERROR", "include_html": False},
+    },
+    "root": {"handlers": ["consola"], "level": "WARNING"},
+    "loggers": {
+        "django.request": {"handlers": ["consola"] + (["correo"] if ADMINS and not DEBUG else []), "level": "ERROR", "propagate": False},
+    },
+}

@@ -24,6 +24,7 @@ for %%a in (%*) do (
 set BASE=db_demo_%RUBRO%.sqlite3
 set DATABASE_URL=sqlite:///%BASE%
 set DEMO=True
+pip install -q --disable-pip-version-check -r requirements.txt || echo (No se pudo instalar algo de requirements.txt: revisa el internet)
 if defined NUEVO if exist %BASE% del %BASE%
 if not exist %BASE% (
   echo Creando la demo %RUBRO%, espera unos segundos...

@@ -91,7 +91,6 @@ def archivo(request, ruta):
     Cada app que guarde imágenes agrega su carpeta en `reglas`, por ejemplo
     "productos/": ("productos.ver",)."""
     import mimetypes
-    import os
 
     from django.core.exceptions import PermissionDenied
     from django.http import FileResponse, Http404
@@ -110,14 +109,21 @@ def archivo(request, ruta):
             return redirect_to_login(request.get_full_path())
         if not puede(request.user, *permisos):
             raise PermissionDenied
-    base = os.path.realpath(settings.MEDIA_ROOT)
-    camino = os.path.realpath(os.path.join(base, ruta))
-    if not camino.startswith(base + os.sep) or not os.path.isfile(camino):
+    from django.core.files.storage import default_storage
+
+    partes = ruta.split("/")
+    if any(p in ("", ".", "..") for p in partes) or "\\" in ruta:  # nada de salir de la carpeta
         raise Http404
-    tipo = mimetypes.guess_type(camino)[0] or "application/octet-stream"
+    tipo = mimetypes.guess_type(ruta)[0] or "application/octet-stream"
     if not tipo.startswith("image/"):
         raise Http404
-    resp = FileResponse(open(camino, "rb"), content_type=tipo)
+    try:  # en disco o en Spaces (privado): siempre pasa por aquí, con su permiso
+        if not default_storage.exists(ruta):
+            raise Http404
+        archivo = default_storage.open(ruta, "rb")
+    except (FileNotFoundError, OSError):
+        raise Http404
+    resp = FileResponse(archivo, content_type=tipo)
     resp["Cache-Control"] = "public, max-age=86400" if publico else "private, max-age=3600"
     resp["X-Content-Type-Options"] = "nosniff"
     return resp

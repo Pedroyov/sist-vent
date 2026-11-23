@@ -1,4 +1,6 @@
 {% load sis %}
+{% if pocas %}<div class="d-flex flex-wrap gap-2 mb-3 align-items-center"><span class="small fw-semibold"><i class="bi bi-exclamation-triangle"></i> Quedan pocas:</span>
+  {% for p in pocas %}<span class="badge fs-6 {% if p.nivel == 'pocas' %}text-bg-warning{% else %}text-bg-danger{% endif %}">{{ p.nombre }}: {% if p.porciones %}{{ p.porciones }}{% else %}agotado{% endif %}</span>{% endfor %}</div>{% endif %}
 {% if pendientes %}
 <div class="row g-3">
   {% for co in pendientes %}

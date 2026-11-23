@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from core.cifrado import CampoCifrado
+
 CERO = Decimal("0")
 
 
@@ -22,7 +24,7 @@ class Config(models.Model):
 
     proveedor = models.CharField(max_length=3, choices=Proveedor.choices, default=Proveedor.PRUEBA)
     ruta = models.URLField("ruta de la API", blank=True, help_text="La da el proveedor (en Nubefact: opción API - Integración).")
-    token = models.CharField(max_length=200, blank=True, help_text="Clave de la API. No la compartas.")
+    token = CampoCifrado(blank=True, help_text="Clave de la API. No la compartas. Se guarda cifrada.")
     igv = models.DecimalField("IGV %", max_digits=5, decimal_places=2, default=Decimal("18"),
                               validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("50"))],
                               help_text="Lo normal es 18. Cámbialo solo si tu contador te indica otra tasa.")
