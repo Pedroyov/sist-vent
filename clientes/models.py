@@ -26,6 +26,11 @@ class Cliente(models.Model):
     limite_credito = models.DecimalField("límite de fiado", max_digits=10, decimal_places=2, default=CERO,
                                          validators=[MinValueValidator(CERO)],
                                          help_text="Hasta cuánto puede deber. 0 = sin límite.")
+    dias_credito = models.PositiveSmallIntegerField(
+        "días para pagar", null=True, blank=True,
+        help_text="Plazo de cada fiado. Vacío = el general de Datos del negocio. 0 = su fiado no vence.")
+    lista = models.ForeignKey("productos.ListaPrecios", on_delete=models.PROTECT, null=True, blank=True, related_name="clientes",
+                              verbose_name="lista de precios", help_text="Vacío = precio normal.")
     nota = models.CharField(max_length=200, blank=True)
     activo = models.BooleanField(default=True)
     creado = models.DateTimeField(auto_now_add=True)
@@ -103,4 +108,42 @@ class Abono(models.Model):
 
         if self.metodo == "INC":
             return "Incobrable"
+        if self.metodo == "DEV":
+            return "Devolución"
         return dict(MetodoPago.choices).get(self.metodo, self.metodo)
+
+
+class MovimientoSaldo(models.Model):
+    """Saldo a favor del cliente: lo que entra (una devolución, el monedero) y lo que sale (lo usó para pagar, se le devolvió
+    en efectivo, venció). El saldo = entradas − salidas vigentes. La lógica está en clientes/saldo.py."""
+    class Tipo(models.TextChoices):
+        DEVOLUCION = "DEV", "Devolución"
+        USO = "USO", "Pagó una compra"
+        REINTEGRO = "REI", "Se le devolvió en efectivo"
+        MONEDERO = "MON", "Monedero (por su compra)"
+        QUITA = "QUI", "Monedero descontado (devolvió o se anuló)"
+
+    ENTRADAS = (Tipo.DEVOLUCION, Tipo.MONEDERO)
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="saldo_movimientos")
+    fecha = models.DateTimeField(default=timezone.now, db_index=True)
+    tipo = models.CharField(max_length=3, choices=Tipo.choices)
+    monto = models.DecimalField(max_digits=12, decimal_places=2, help_text="Siempre positivo: el tipo dice si suma o resta.")
+    venta = models.ForeignKey("ventas.Venta", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    devolucion = models.ForeignKey("ventas.Devolucion", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    movimiento = models.ForeignKey("caja.MovimientoCaja", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    abono = models.ForeignKey(Abono, on_delete=models.PROTECT, null=True, blank=True, related_name="+",
+                              help_text="Monedero ganado al pagar una deuda (el fiado da monedero cuando se paga).")
+    vence = models.DateField(null=True, blank=True, help_text="El monedero vence; lo de una devolución, no.")
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    nota = models.CharField(max_length=200, blank=True)
+    anulado = models.BooleanField(default=False, help_text="Se anuló la venta que lo usó: el saldo vuelve.")
+
+    class Meta:
+        verbose_name = "movimiento de saldo a favor"
+        verbose_name_plural = "movimientos de saldo a favor"
+        ordering = ["-fecha", "-id"]
+
+    @property
+    def entra(self):
+        return self.tipo in self.ENTRADAS

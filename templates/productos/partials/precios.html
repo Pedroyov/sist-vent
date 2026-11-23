@@ -1,0 +1,36 @@
+{% load sis %}
+<div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-tags me-1"></i> Precios especiales</h3></div>
+{% if error_precios %}<div class="alert alert-danger small m-2 mb-0 py-2">{{ error_precios }}</div>{% endif %}
+{% if especiales %}
+<ul class="list-group list-group-flush">
+  {% for e in especiales %}
+  <li class="list-group-item d-flex align-items-center gap-2 py-2">
+    <div class="flex-grow-1"><div class="fw-semibold">{{ e.precio|soles }}{% if not e.lista or e.desde > 1 %} <span class="fw-normal text-body-secondary small">desde {{ e.desde|cantidad }}{% if p.fraccionable %} {{ p.get_unidad_display|lower }}{% endif %}</span>{% endif %}</div>
+      <div class="small">{% if e.lista %}<span class="badge text-bg-info">{{ e.lista.nombre }}</span>{% if not e.lista.activa %} <span class="badge text-bg-secondary">lista inactiva</span>{% endif %}{% else %}<span class="badge text-bg-light border">Todos los clientes</span>{% endif %}</div></div>
+    {% if P.productos_editar %}
+    <form hx-post="{% url 'productos:precios' p.pk %}" hx-target="#precios">{% csrf_token %}<input type="hidden" name="especial" value="{{ e.pk }}">
+      <button name="accion" value="quitar" class="btn btn-sm btn-link text-danger px-1" aria-label="Quitar"><i class="bi bi-x-lg"></i></button></form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="card-body small text-body-secondary pb-2">Sin precios especiales: siempre {{ p.precio|soles }}{% if listas %} (las listas con % igual se aplican){% endif %}.</div>
+{% endif %}
+{% if P.productos_editar %}
+<form hx-post="{% url 'productos:precios' p.pk %}" hx-target="#precios" class="card-body border-top bg-body-tertiary" novalidate>{% csrf_token %}
+  <input type="hidden" name="accion" value="agregar">
+  <div class="row g-2">
+    <div class="col-12"><select name="lista" class="form-select form-select-sm" aria-label="Para quién">
+      <option value="">Para todos los clientes (por cantidad)</option>
+      {% for l in listas %}<option value="{{ l.pk }}">Solo lista {{ l.nombre }}</option>{% endfor %}</select></div>
+    <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">Desde</span>
+      <input type="number" name="desde" class="form-control" min="1" step="{% if p.fraccionable %}0.001{% else %}1{% endif %}" placeholder="6" inputmode="decimal" aria-label="Desde qué cantidad"></div></div>
+    <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">S/</span>
+      <input type="number" name="precio" class="form-control" min="0" step="0.01" placeholder="c/u" inputmode="decimal" required aria-label="Precio por unidad"></div></div>
+    <div class="col-12"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Agregar precio</button></div>
+  </div>
+  <div class="form-text">Ej.: desde 6, S/ 2.30 c/u. Cuenta todo lo que se lleva de este producto en la venta. Gana el precio más bajo que le toque.
+    {% if variantes_propias %}Las variantes con precio propio no usan estos precios (solo el % de las listas).{% endif %}</div>
+</form>
+{% endif %}

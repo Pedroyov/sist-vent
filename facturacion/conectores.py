@@ -118,7 +118,7 @@ class Nubefact:
                                             "importe": q["monto"]} for q in c.cuotas]})
         if c.es_nota:
             d.update({"documento_que_se_modifica_tipo": self.TIPOS[c.modifica.tipo], "documento_que_se_modifica_serie": c.modifica.serie,
-                      "documento_que_se_modifica_numero": c.modifica.numero, "tipo_de_nota_de_credito": 1, "observaciones": c.motivo})
+                      "documento_que_se_modifica_numero": c.modifica.numero, "tipo_de_nota_de_credito": c.tipo_nota, "observaciones": c.motivo})
         return d
 
 

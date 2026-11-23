@@ -19,7 +19,7 @@
       <div class="col-md-8"><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
         <input type="search" name="q" id="q" value="{{ f.q }}" class="form-control" placeholder="Nombre, DNI, RUC o celular" autocomplete="off"></div></div>
       <div class="col-md-4"><select name="ver" class="form-select" aria-label="Ver">
-        <option value="">Todos los activos</option><option value="deben" {% if f.ver == "deben" %}selected{% endif %}>Solo los que deben</option>
+        <option value="">Todos los activos</option><option value="deben" {% if f.ver == "deben" %}selected{% endif %}>Solo los que deben</option><option value="vencido" {% if f.ver == "vencido" %}selected{% endif %}>Con fiado vencido</option>
         <option value="inactivos" {% if f.ver == "inactivos" %}selected{% endif %}>Inactivos</option></select></div>
     </form>
   </div>

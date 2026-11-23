@@ -117,7 +117,7 @@ def cuenta(request, pk):
         "c": c, "inscripciones": inscripciones, "pendientes": pend, "hoy": hoy,
         "total": sum((q.falta for q in pend), CERO), "vencido": sum((q.falta for q in pend if q.vence < hoy), CERO),
         "pagos": c.pagos_cobranza.select_related("usuario").prefetch_related("detalles__cuota")[:30],
-        "metodos": [(k, v) for k, v in MetodoPago.choices if k in aceptados and k != MetodoPago.CREDITO],
+        "metodos": [(k, v) for k, v in MetodoPago.choices if k in aceptados and k not in (MetodoPago.CREDITO, MetodoPago.SALDO)],
         "wa": enlace_whatsapp(c, wa_cuotas, hoy) if wa_cuotas else "",
         "planes_activos": Plan.objects.filter(activo=True).exists(),
     })

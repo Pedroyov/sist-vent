@@ -7,19 +7,38 @@ from .models import Cliente
 class ClienteForm(forms.ModelForm):
     class Meta:
         model = Cliente
-        fields = ["tipo_documento", "numero_documento", "nombre", "telefono", "email", "direccion", "limite_credito", "nota", "activo"]
+        fields = ["tipo_documento", "numero_documento", "nombre", "telefono", "email", "direccion", "limite_credito", "dias_credito", "lista", "nota", "activo"]
         widgets = {
             "numero_documento": forms.TextInput(attrs={"inputmode": "numeric", "autofocus": True}),
             "telefono": forms.TextInput(attrs={"inputmode": "tel", "placeholder": "987654321"}),
             "limite_credito": forms.NumberInput(attrs={"step": "1", "min": "0", "inputmode": "decimal"}),
+            "dias_credito": forms.NumberInput(attrs={"step": "1", "min": "0", "inputmode": "numeric"}),
         }
 
-    def __init__(self, *args, puede_limite=True, **kwargs):
+    def __init__(self, *args, puede_limite=True, puede_precio=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["numero_documento"].required = False
+        from productos.models import ListaPrecios
+        from productos.precios import activa
+
+        if not activa():
+            del self.fields["lista"]
+        else:
+            self.fields["lista"].queryset = ListaPrecios.objects.filter(activa=True) | ListaPrecios.objects.filter(pk=self.instance.lista_id or 0)
+            self.fields["lista"].empty_label = "Precio normal"
+            if not puede_precio:
+                self.fields["lista"].disabled = True
+                self.fields["lista"].help_text = "Solo la cambia quien puede cambiar precios."
         if not puede_limite:
             self.fields["limite_credito"].disabled = True
             self.fields["limite_credito"].help_text = "Solo lo cambia quien tiene permiso especial de fiado."
+            self.fields["dias_credito"].disabled = True
+            self.fields["dias_credito"].help_text = "Solo lo cambia quien tiene permiso especial de fiado."
+        else:
+            from core.models import Ajustes
+
+            general = Ajustes.cargar().dias_fiado
+            self.fields["dias_credito"].widget.attrs["placeholder"] = f"{general} (el general)" if general else "Sin plazo (el general)"
 
     def clean(self):
         datos = super().clean()
@@ -49,4 +68,4 @@ class AbonoForm(forms.Form):
         super().__init__(*args, **kwargs)
         from ventas.models import MetodoPago
 
-        self.fields["metodo"].choices = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.CREDITO]
+        self.fields["metodo"].choices = [(k, v) for k, v in MetodoPago.choices if k not in (MetodoPago.CREDITO, MetodoPago.SALDO)]

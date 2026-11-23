@@ -381,6 +381,25 @@ def cambiar_mesa(request, pk):
 
 @permiso_requerido(*COBRAR)
 @require_POST
+def cotizar_vista(request, pk):
+    """Total con promociones de lo que se va a cobrar (todo o los ítems marcados al dividir)."""
+    from .servicios import cotizar
+
+    c = _cuenta(pk, request.user, ("cobrar",))
+    try:
+        datos = json.loads(request.body or b"{}")
+        lineas, total = cotizar(c, datos.get("items") or None)
+    except (ValueError, AttributeError):
+        return JsonResponse({"error": "Datos no válidos."}, status=400)
+    except MesaError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    rebaja = sum((l["promo_desc"] for l in lineas), Decimal("0"))
+    nombres = list(dict.fromkeys(f"{l['promo'].nombre} ({l['promo'].etiqueta})" for l in lineas if l["promo"]))
+    return JsonResponse({"total": f"{total:.2f}", "rebaja": f"{rebaja:.2f}", "promos": nombres})
+
+
+@permiso_requerido(*COBRAR)
+@require_POST
 def cobrar_vista(request, pk):
     c = _cuenta(pk, request.user, ("cobrar",))
     try:

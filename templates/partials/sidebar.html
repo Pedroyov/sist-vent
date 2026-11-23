@@ -153,7 +153,7 @@
           </a>
           <ul class="nav nav-treeview">
             <li class="nav-item">
-              <a href="{% url 'productos:lista' %}" class="nav-link {% if ns == 'productos' and url != 'kardex' and 'categoria' not in url and 'grupo' not in url and url != 'opciones' and url != 'agotados' and url != 'menu' %}active{% endif %}">
+              <a href="{% url 'productos:lista' %}" class="nav-link {% if ns == 'productos' and url != 'kardex' and 'categoria' not in url and 'grupo' not in url and url != 'opciones' and url != 'agotados' and url != 'menu' and 'listas' not in url and 'lista_precios' not in url and 'promoci' not in url %}active{% endif %}">
                 <i class="nav-icon bi bi-circle"></i><p>Catálogo</p>
               </a>
             </li>
@@ -168,6 +168,16 @@
                 <i class="nav-icon bi bi-circle"></i><p>Categorías</p>
               </a>
             </li>
+            {% if NEGOCIO.usa_promociones %}<li class="nav-item">
+              <a href="{% url 'productos:promociones' %}" class="nav-link {% if ns == 'productos' and 'promoci' in url %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Promociones</p>
+              </a>
+            </li>{% endif %}
+            {% if NEGOCIO.usa_precios %}<li class="nav-item">
+              <a href="{% url 'productos:listas_precios' %}" class="nav-link {% if ns == 'productos' and 'lista_precios' in url or ns == 'productos' and url == 'listas_precios' %}active{% endif %}">
+                <i class="nav-icon bi bi-circle"></i><p>Listas de precios</p>
+              </a>
+            </li>{% endif %}
             {% endif %}
             {% if P.productos_stock %}
             <li class="nav-item">

@@ -1,5 +1,6 @@
 /* Cuadro de cobro compartido (punto de venta y mesas).
-   Cobro.abrir({total: centimos, titulo, detalle, nota, onConfirmar: function (datos, terminar) {}})
+   Cobro.abrir({total: centimos, titulo, detalle, nota, onConfirmar: function (datos, terminar) {},
+                onCliente: function (cliente) { return {total, detalle} }})   ← opcional: precios por tipo de cliente
    datos = {pagos: [{metodo, monto}], propina: "0.00", cliente_nombre, cliente_documento, nota, liberar}
    terminar(mensajeError) vuelve a habilitar el botón y muestra el error (si lo hay). */
 window.Cobro = (function () {
@@ -15,7 +16,7 @@ window.Cobro = (function () {
   var cent = function (t) { var n = parseFloat(String(t).replace(",", ".")); return isFinite(n) && n > 0 ? Math.round(n * 100) : 0; };
   var soles = function (c) { return "S/ " + (c / 100).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
   var esc = function (s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; };
-  var actual = null, cliente = null, buscando = null;
+  var actual = null, cliente = null, buscando = null, esperando = false;
   var visibles = [], combinar = false;  // métodos a la vista (por defecto uno solo: efectivo)
   var soloSoles = function (t) { return "S/ " + parseFloat(t || 0).toFixed(2); };
 
@@ -31,10 +32,37 @@ window.Cobro = (function () {
     if (hay) {
       $("c-cli-nombre").textContent = cliente.n;
       $("c-cli-info").textContent = [cliente.doc, parseFloat(cliente.saldo) > 0 ? "debe " + soloSoles(cliente.saldo) : "",
+        parseFloat(cliente.vencido) > 0 ? "vencido " + soloSoles(cliente.vencido) : "",
+        parseFloat(cliente.favor) > 0 ? "saldo a favor " + soloSoles(cliente.favor) : "",
         parseFloat(cliente.limite) > 0 ? "límite " + soloSoles(cliente.limite) : ""].filter(Boolean).join(" · ");
     }
   }
-  function elegir(c) { cliente = c; $("c-cli-q").value = ""; $("c-cli-res").innerHTML = ""; mostrarCliente(); compDesdeCliente(c); estado(); }
+  function elegir(c) { cliente = c; $("c-cli-q").value = ""; $("c-cli-res").innerHTML = ""; mostrarCliente(); compDesdeCliente(c); cambioCliente(); ajustarSaldo(); estado(); }
+  // Listas de precios: quien abrió el cobro recalcula el total con los precios de este cliente
+  function cambioCliente() {
+    if (!actual || !actual.onCliente) return;
+    var r = actual.onCliente(cliente), abierto = actual;
+    function poner(r) {
+      esperando = false;
+      if (!r || actual !== abierto) { estado(); return; }
+      actual.detalle = r.detalle;
+      if (r.total !== actual.total) { actual.total = r.total; reajustar(); billetes(); }
+      estado();
+    }
+    if (r && r.then) { esperando = true; r.then(poner, function () { esperando = false; estado(); }); } else poner(r);  // puede llegar del servidor
+  }
+  // ---------- saldo a favor: solo aparece como método con un cliente que lo tiene ----------
+  function favor() { return cliente ? cent(cliente.favor || 0) : 0; }
+  function metodosVisibles() { return METODOS.filter(function (m) { return m.id !== "SAL" || favor() > 0; }); }
+  function ajustarSaldo() {
+    if (!$("c-metodos").children.length) return;
+    if (favor() <= 0 && visibles.indexOf("SAL") >= 0) {
+      var inp = modal.querySelector('[data-metodo="SAL"]'); if (inp) inp.value = "";
+      visibles = visibles.filter(function (id) { return id !== "SAL"; });
+      if (!visibles.length) visibles = [METODOS[0].id];
+    }
+    pintarMetodos();
+  }
   if ($("c-cli-q")) {
     $("c-cli-q").addEventListener("input", function () {
       var q = this.value.trim(), url = this.dataset.url;
@@ -55,7 +83,7 @@ window.Cobro = (function () {
       var b = e.target.closest("[data-i]");
       if (b) elegir(this.resultados[parseInt(b.dataset.i, 10)]);
     });
-    $("c-cli-quitar").addEventListener("click", function () { cliente = null; mostrarCliente(); estado(); });
+    $("c-cli-quitar").addEventListener("click", function () { cliente = null; mostrarCliente(); cambioCliente(); ajustarSaldo(); estado(); });
   }
   function abrirCliente(enfocar) {
     bootstrap.Collapse.getOrCreateInstance($("c-cliente"), {toggle: false}).show();
@@ -74,7 +102,7 @@ window.Cobro = (function () {
   function aCobrar() { return neto() + propina(); }
   // ---------- partes iguales (mesas): cada persona paga su parte con su método ----------
   var partes = {n: 0, filas: []};
-  var CON_PARTES = METODOS.filter(function (m) { return m.id !== "CRE"; });
+  var CON_PARTES = METODOS.filter(function (m) { return m.id !== "CRE" && m.id !== "SAL"; });
   function cuotas() {  // en céntimos; se redondea a 10 céntimos y la última parte cuadra la diferencia
     var t = aCobrar(), n = partes.n, base = Math.floor(t / n / 10) * 10, r = [];
     for (var i = 0; i < n; i++) r.push(i === n - 1 ? t - base * (n - 1) : base);
@@ -218,6 +246,10 @@ window.Cobro = (function () {
     var fiado = ps.filter(function (p) { return p.metodo === "CRE"; }).reduce(function (a, p) { return a + p.c; }, 0);
     var fc = faltaComp(neto(), fiado > 0);
     if (fc) { e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-receipt"></i> ' + esc(fc); $("c-confirmar").disabled = true; return false; }
+    var conSaldo = ps.filter(function (p) { return p.metodo === "SAL"; }).reduce(function (a, p) { return a + p.c; }, 0);
+    if (conSaldo > favor()) {
+      e.className = "alert alert-warning py-1 text-center mb-2"; e.textContent = "Su saldo a favor es " + soles(favor()) + "."; $("c-confirmar").disabled = true; return false;
+    }
     var conElectronico = ps.some(function (p) { return p.c > 0 && ELECTRONICOS.indexOf(p.metodo) >= 0; });
     var exige = EXIGIR_OPERACION && ps.some(function (p) { return p.c > 0 && (p.metodo === "YAP" || p.metodo === "PLI"); });
     $("c-oper-fila").classList.toggle("d-none", !conElectronico);
@@ -231,11 +263,16 @@ window.Cobro = (function () {
       e.className = "alert alert-danger py-1 text-center mb-2"; e.textContent = "Supera su límite de fiado (" + soloSoles(cliente.limite) + "). Solo con permiso especial.";
       $("c-confirmar").disabled = false; return true;
     }
+    if (fiado && cliente && parseFloat(cliente.vencido) > 0) {
+      e.className = "alert alert-danger py-1 text-center mb-2"; e.textContent = "Tiene " + soloSoles(cliente.vencido) + " vencido sin pagar. Solo con permiso especial.";
+      $("c-confirmar").disabled = false; return true;
+    }
     if (pagado === 0) { e.className = "alert alert-secondary py-1 text-center mb-2"; e.innerHTML = "Escribe cuánto paga, o pulsa <strong>Confirmar</strong> si es efectivo exacto."; ok = true; }
     else if (pagado < t) { e.className = "alert alert-warning py-1 text-center fs-5 mb-2"; e.innerHTML = "Falta <strong>" + soles(t - pagado) + "</strong>"; }
     else if (pagado - t > efectivo) { e.className = "alert alert-danger py-1 text-center mb-2"; e.textContent = "El vuelto solo puede salir del efectivo: revisa los montos."; }
     else if (pagado > t) { e.className = "alert alert-success py-1 text-center fs-4 mb-2"; e.innerHTML = "Vuelto: <strong>" + soles(pagado - t) + "</strong>"; ok = true; }
     else { e.className = "alert alert-success py-1 text-center fs-5 mb-2"; e.innerHTML = '<i class="bi bi-check-circle"></i> Pago completo'; ok = true; }
+    if (esperando) ok = false;  // el total con los precios del cliente aún no llega
     $("c-confirmar").disabled = !ok;
     return ok;
   }
@@ -250,7 +287,7 @@ window.Cobro = (function () {
     $("c-liberar-ayuda").textContent = $("c-liberar").checked ? l.si : l.no;
   }
   function abrir(opciones) {
-    actual = opciones;
+    actual = opciones; esperando = false;
     // Mesas: ¿se libera al cobrar? {valor, texto, si, no}
     $("c-liberar-fila").classList.toggle("d-none", !opciones.liberar);
     if (opciones.liberar) { $("c-liberar").checked = !!opciones.liberar.valor; $("c-liberar-texto").textContent = opciones.liberar.texto; ayudaLiberar(); }
@@ -293,9 +330,11 @@ window.Cobro = (function () {
   }
   // ---------- métodos: un botón por método; por defecto se paga con uno solo ----------
   function pintarMetodos() {
-    $("c-chips").innerHTML = METODOS.length > 1 ? '<span class="small text-body-secondary align-self-center me-1">Paga con</span>' + METODOS.map(function (m) {
+    var vis = metodosVisibles();
+    $("c-chips").innerHTML = vis.length > 1 ? '<span class="small text-body-secondary align-self-center me-1">Paga con</span>' + vis.map(function (m) {
       var on = visibles.indexOf(m.id) >= 0;
-      return '<button type="button" class="btn btn-sm ' + (on ? "btn-primary" : "btn-outline-primary") + '" data-chip="' + m.id + '" aria-pressed="' + on + '">' + esc(m.n) + "</button>";
+      return '<button type="button" class="btn btn-sm ' + (on ? "btn-primary" : "btn-outline-primary") + '" data-chip="' + m.id + '" aria-pressed="' + on + '">' +
+        esc(m.n) + (m.id === "SAL" ? " (" + soles(favor()) + ")" : "") + "</button>";
     }).join("") : "";
     modal.querySelectorAll("[data-fila-metodo]").forEach(function (f) { f.classList.toggle("d-none", visibles.indexOf(f.dataset.filaMetodo) < 0); });
     modal.querySelectorAll("[data-todo]").forEach(function (b) { b.classList.toggle("d-none", visibles.length < 2); });
@@ -311,7 +350,8 @@ window.Cobro = (function () {
     } else {
       visibles = [id];
       modal.querySelectorAll("[data-metodo]").forEach(function (x) { x.value = ""; });
-      if (id !== "EFE") poner(id, aCobrar());  // Yape, tarjeta…: normalmente es el total
+      if (id === "SAL") poner(id, Math.min(aCobrar(), favor()));  // el saldo a favor, hasta donde alcance
+      else if (id !== "EFE") poner(id, aCobrar());  // Yape, tarjeta…: normalmente es el total
     }
     pintarMetodos(); billetes(); estado();
     var campo = modal.querySelector('[data-metodo="' + id + '"]');
@@ -319,7 +359,7 @@ window.Cobro = (function () {
     if (id === "CRE") abrirCliente(true);
   }
   function reajustar() {  // cambió el total (descuento, propina): el pago único que no es efectivo sigue al total
-    if (!partes.n && !combinar && visibles.length === 1 && visibles[0] !== "EFE") poner(visibles[0], aCobrar());
+    if (!partes.n && !combinar && visibles.length === 1 && visibles[0] !== "EFE") poner(visibles[0], visibles[0] === "SAL" ? Math.min(aCobrar(), favor()) : aCobrar());
   }
   function poner(metodo, centimos) {
     modal.querySelectorAll("[data-metodo]").forEach(function (i) { i.value = i.dataset.metodo === metodo ? (centimos / 100).toFixed(2) : ""; });

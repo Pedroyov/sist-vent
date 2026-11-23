@@ -67,6 +67,9 @@
             </div>
             <div class="form-text">{{ form.metodos.help_text }}{% if P.mod_clientes %} «Fiado» además necesita el permiso de fiar.{% endif %}</div></div>
           {{ form.exigir_operacion|as_crispy_field }}
+          {{ form.dias_devolucion|as_crispy_field }}
+          {% if P.mod_clientes %}{{ form.dias_fiado|as_crispy_field }}{% endif %}
+          {% if P.mod_clientes and NEGOCIO.usa_monedero %}<div class="row g-2"><div class="col-6">{{ form.monedero_porcentaje|as_crispy_field }}</div><div class="col-6">{{ form.monedero_dias|as_crispy_field }}</div></div>{% endif %}
           {{ form.propina_activa|as_crispy_field }}
           {{ form.descuentos_activos|as_crispy_field }}
           {% if P.mod_mesas %}{{ form.cortesias_activas|as_crispy_field }}{% endif %}

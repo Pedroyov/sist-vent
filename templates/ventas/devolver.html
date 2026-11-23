@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Devolver productos · Venta {{ v.numero_str }}{% endblock %}
+{% block page_title %}Devolver productos <small class="text-body-secondary fs-6">Venta {{ v.numero_str }}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'ventas:ticket' v.pk %}">Venta {{ v.numero_str }}</a></li><li class="breadcrumb-item active">Devolver</li>{% endblock %}
+{% block content %}
+<form method="post" novalidate id="f-dev">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-arrow-return-left me-1"></i> ¿Qué devuelve?</h3></div>
+        <ul class="list-group list-group-flush">
+          {% for l in lineas %}
+          <li class="list-group-item">
+            <div class="d-flex align-items-start gap-2">
+              <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold">{{ l.item.descripcion }}</div>
+                <div class="small text-body-secondary">Vendido {{ l.vendido|cantidad }}{% if l.devuelto %} · ya devuelto {{ l.devuelto|cantidad }}{% endif %} · {{ l.unitario|soles }} c/u</div>
+              </div>
+              {% if l.queda > 0 %}
+              <div class="input-group input-group-sm flex-nowrap" style="width: 8.5rem">
+                <button type="button" class="btn btn-outline-secondary" data-menos="{{ l.item.pk }}" aria-label="Menos">−</button>
+                <input type="number" class="form-control text-center" name="c_{{ l.item.pk }}" id="c_{{ l.item.pk }}" min="0" max="{{ l.queda|stringformat:'s' }}"
+                       step="{% if l.fraccion %}0.001{% else %}1{% endif %}" value="0" inputmode="decimal"
+                       data-unitario="{{ l.unitario|stringformat:'.6f' }}" data-max="{{ l.queda|stringformat:'s' }}" aria-label="Cantidad a devolver de {{ l.item.descripcion }}">
+                <button type="button" class="btn btn-outline-secondary" data-mas="{{ l.item.pk }}" aria-label="Más">+</button>
+              </div>
+              {% else %}<span class="badge text-bg-light border">Devuelto</span>{% endif %}
+            </div>
+            {% if l.queda > 0 and not l.servicio %}
+            <div class="form-check small mt-1">
+              <input class="form-check-input" type="checkbox" name="merma_{{ l.item.pk }}" value="1" id="m_{{ l.item.pk }}">
+              <label class="form-check-label text-body-secondary" for="m_{{ l.item.pk }}">Llegó dañado: no vuelve al stock (merma)</label>
+            </div>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% if ya %}<div class="card-footer small text-body-secondary">Ya se devolvieron {{ ya|soles }} de esta venta; quedan {{ queda|soles }}.</div>{% endif %}
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex align-items-baseline mb-3"><span>Se devuelve</span><span class="ms-auto fs-3 fw-bold" id="total">S/ 0.00</span></div>
+          <div class="mb-2 small fw-semibold">¿Cómo se devuelve el dinero?</div>
+          {% for k, t in opciones %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="reembolso" value="{{ k }}" id="r_{{ k }}" {% if forloop.first %}checked{% endif %}>
+            <label class="form-check-label" for="r_{{ k }}">{{ t }}{% if k == "CAJ" and not caja_abierta %} <span class="small text-warning-emphasis">(abre tu caja primero)</span>{% endif %}{% if k == "DEU" %} <span class="small text-body-secondary">(debe {{ v.cliente.saldo|soles }})</span>{% endif %}</label>
+          </div>
+          {% endfor %}
+          <label class="form-label mt-3" for="motivo">Motivo *</label>
+          <input type="text" name="motivo" id="motivo" class="form-control" maxlength="200" required placeholder="Ej.: talla equivocada, vino fallado">
+          {% if not puede %}
+          <div class="small text-body-secondary mt-3"><i class="bi bi-shield-lock me-1"></i>Autoriza un supervisor:</div>
+          <div class="row g-2 mt-0">
+            <div class="col-6"><input type="text" name="sup_usuario" class="form-control" placeholder="Usuario" autocomplete="off" autocapitalize="none" aria-label="Usuario del supervisor"></div>
+            <div class="col-6"><input type="password" name="sup_clave" class="form-control" placeholder="Clave" autocomplete="new-password" aria-label="Clave del supervisor"></div>
+          </div>
+          {% endif %}
+          <p class="small text-body-secondary mt-3 mb-0">Lo devuelto vuelve al stock (salvo lo marcado como merma).{% if v.comprobantes.exists %} Si la venta tuvo boleta o factura, se emite una nota de crédito por lo devuelto.{% endif %} Queda en la bitácora.</p>
+          <button class="btn btn-danger w-100 mt-3 d-none d-lg-block" id="b-dev"><i class="bi bi-arrow-return-left me-1"></i>Registrar devolución</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="d-lg-none fixed-bottom bg-body border-top barra-fija px-3 pt-2">
+    <div class="d-flex align-items-center gap-2">
+      <span class="small text-nowrap">Devuelve <strong class="fs-5" id="total-m">S/ 0.00</strong></span>
+      <button class="btn btn-danger ms-auto"><i class="bi bi-arrow-return-left me-1"></i>Devolver</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    var f = document.getElementById("f-dev");
+    function total() {
+      var t = 0;
+      f.querySelectorAll("input[data-unitario]").forEach(function (i) { t += (parseFloat(i.value) || 0) * parseFloat(i.dataset.unitario); });
+      var s = "S/ " + t.toFixed(2);
+      document.getElementById("total").textContent = s; document.getElementById("total-m").textContent = s;
+    }
+    f.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-mas],[data-menos]");
+      if (!b) return;
+      var i = document.getElementById("c_" + (b.dataset.mas || b.dataset.menos)), max = parseFloat(i.dataset.max), v = parseFloat(i.value) || 0;
+      v = b.dataset.mas ? Math.min(max, v + 1) : Math.max(0, v - 1);
+      i.value = Math.round(v * 1000) / 1000; total();
+    });
+    f.addEventListener("input", total);
+    total();
+  })();
+</script>
+{% endblock %}

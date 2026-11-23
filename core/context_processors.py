@@ -31,5 +31,5 @@ def negocio(request):
 
         aceptados = datos.metodos_aceptados
         contexto["METODOS_PAGO"] = [(k, v) for k, v in MetodoPago.choices
-                                    if k in aceptados and (k != MetodoPago.CREDITO or (puede(user, "clientes.fiar") and datos.tiene_modulo("clientes")))]
+                                    if k in aceptados and k != MetodoPago.SALDO and (k != MetodoPago.CREDITO or (puede(user, "clientes.fiar") and datos.tiene_modulo("clientes")))]
     return contexto

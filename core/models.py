@@ -25,7 +25,7 @@ def modulos_inactivos_iniciales():
 
 def funciones_inactivas_iniciales():
     """Una instalación nueva empieza como tienda: solo variantes (ver core/rubros.py)."""
-    return ["combos", "servicios", "agotados", "atendio", "comisiones", "pagos"]
+    return ["combos", "servicios", "agotados", "atendio", "comisiones", "pagos", "precios", "promociones", "monedero"]
 
 
 class Ajustes(models.Model):
@@ -66,6 +66,16 @@ class Ajustes(models.Model):
         "pedir propina al cobrar", default=False, help_text="Muestra un campo de propina al cobrar (útil en restaurantes).")
     metodos_pago = models.JSONField("métodos de pago que acepta", default=list, blank=True,
                                     help_text="Vacío = todos. El efectivo siempre está.")
+    monedero_porcentaje = models.DecimalField(
+        "% de monedero", max_digits=4, decimal_places=2, default=Decimal("2"),
+        help_text="De cada compra pagada por un cliente registrado, este % vuelve como saldo a favor (función Monedero).")
+    monedero_dias = models.PositiveSmallIntegerField("el monedero vence a los (días)", default=90)
+    dias_fiado = models.PositiveSmallIntegerField(
+        "días para pagar el fiado", default=15,
+        help_text="Cada fiado vence a los días indicados; con algo vencido no se le vuelve a fiar sin el permiso de pasar el límite. "
+                  "0 = el fiado no vence. A cada cliente se le puede dar otro plazo.")
+    dias_devolucion = models.PositiveSmallIntegerField(
+        "días para devolver", default=30, help_text="Hasta cuántos días después de la venta se aceptan devoluciones de productos.")
     exigir_operacion = models.BooleanField(
         "pedir el N° de operación en Yape y Plin", default=False,
         help_text="Al cobrar con Yape o Plin no se confirma sin el número de operación. Ayuda a conciliar y a detectar capturas falsas; en hora punta frena un poco la caja.")
@@ -137,6 +147,18 @@ class Ajustes(models.Model):
     @property
     def usa_atendio(self):
         return self.usa("atendio")
+
+    @property
+    def usa_precios(self):
+        return self.usa("precios")
+
+    @property
+    def usa_promociones(self):
+        return self.usa("promociones")
+
+    @property
+    def usa_monedero(self):
+        return self.usa("monedero")
 
     @property
     def usa_pagos(self):

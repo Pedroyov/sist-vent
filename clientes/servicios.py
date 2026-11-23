@@ -76,16 +76,33 @@ def resolver_cliente(cliente_id=None, nombre="", documento="", crear=True):
 INCOBRABLE = "INC"  # «método» de un Abono que no es dinero: deuda que el negocio da por perdida
 
 
-def deudas(cliente, hoy=None):
-    """Cuenta corriente: cada venta al fiado con lo que falta pagar. Los pagos se aplican primero a lo más antiguo.
-    Si la venta tiene factura al crédito, sus cuotas dicen qué parte ya venció."""
-    from datetime import date
+def plazo(cliente, general=None):
+    """Días que tiene el cliente para pagar cada fiado (0 = no vence): el suyo o el general del negocio."""
+    if cliente.dias_credito is not None:
+        return cliente.dias_credito
+    if general is None:
+        from core.models import Ajustes
 
+        general = Ajustes.cargar().dias_fiado
+    return general
+
+
+def _deudas_lote(clientes, hoy=None):
+    """Cuenta corriente de varios clientes con pocas consultas: {cliente_id: [filas]}. Cada venta al fiado con lo que falta
+    pagar; los pagos se aplican primero a lo más antiguo. Vence a los días de plazo del cliente; si la venta tiene factura
+    al crédito, mandan sus cuotas."""
+    from datetime import date, timedelta
+
+    from core.models import Ajustes
     from ventas.models import MetodoPago, Pago, Venta
 
     hoy = hoy or timezone.localdate()
+    clientes = {c.pk: c for c in clientes}
+    if not clientes:
+        return {}
+    general = Ajustes.cargar().dias_fiado
     por_venta = {}
-    for p in (Pago.objects.filter(venta__cliente=cliente, metodo=MetodoPago.CREDITO, venta__estado=Venta.Estado.PAGADA)
+    for p in (Pago.objects.filter(venta__cliente_id__in=list(clientes), metodo=MetodoPago.CREDITO, venta__estado=Venta.Estado.PAGADA)
               .select_related("venta").order_by("venta__fecha", "venta_id")):
         por_venta.setdefault(p.venta_id, {"venta": p.venta, "monto": CERO})["monto"] += p.monto
     comprobantes = {}
@@ -97,30 +114,58 @@ def deudas(cliente, hoy=None):
             comprobantes[c.venta_id] = c
     except LookupError:
         pass
-    disponible = cliente.total_abonado
-    filas = []
+    disponible = {r["cliente"]: (r["t"] or CERO).quantize(Decimal("0.01")) for r in Abono.objects.filter(cliente_id__in=list(clientes), anulado=False)
+                  .values("cliente").annotate(t=Sum("monto"))}
+    resultado = {pk: [] for pk in clientes}
     for vid, d in por_venta.items():
-        pagado = min(disponible, d["monto"])
-        disponible -= pagado
+        cid = d["venta"].cliente_id
+        pagado = min(disponible.get(cid) or CERO, d["monto"])
+        disponible[cid] = (disponible.get(cid) or CERO) - pagado
+        pendiente = d["monto"] - pagado
         c = comprobantes.get(vid)
         cuotas = c.cuotas if c and c.al_credito else []
         vencido, atraso, cubre, vence = CERO, 0, pagado, None
-        for q in cuotas:
-            monto, fecha = Decimal(q["monto"]), date.fromisoformat(q["fecha"])
-            falta = max(CERO, monto - cubre)
-            cubre = max(CERO, cubre - monto)
-            if falta and vence is None:
-                vence = fecha
-            if falta and fecha < hoy:
-                vencido += falta
-                atraso = max(atraso, (hoy - fecha).days)
-        filas.append({**d, "pagado": pagado, "pendiente": d["monto"] - pagado, "comprobante": c, "vence": vence,
-                      "vencido": vencido, "dias_atraso": atraso})
-    return filas
+        if cuotas:
+            for q in cuotas:
+                monto, fecha = Decimal(q["monto"]), date.fromisoformat(q["fecha"])
+                falta = max(CERO, monto - cubre)
+                cubre = max(CERO, cubre - monto)
+                if falta and vence is None:
+                    vence = fecha
+                if falta and fecha < hoy:
+                    vencido += falta
+                    atraso = max(atraso, (hoy - fecha).days)
+        else:
+            dias_ = plazo(clientes[cid], general)
+            if dias_:
+                vence = timezone.localtime(d["venta"].fecha).date() + timedelta(days=dias_)
+                if pendiente > 0 and vence < hoy:
+                    vencido, atraso = pendiente, (hoy - vence).days
+        resultado[cid].append({**d, "pagado": pagado, "pendiente": pendiente, "comprobante": c, "vence": vence,
+                               "vencido": vencido, "dias_atraso": atraso})
+    return resultado
+
+
+def deudas(cliente, hoy=None):
+    return _deudas_lote([cliente], hoy)[cliente.pk]
 
 
 def vencido(cliente):
     return sum((f["vencido"] for f in deudas(cliente)), CERO)
+
+
+def vencidos(clientes=None, hoy=None):
+    """{cliente_id: {"monto": vencido, "dias": mayor atraso}} de los clientes con algo vencido (por defecto, todos los que deben)."""
+    if clientes is None:
+        from django.db.models import F
+
+        clientes = list(con_saldo().filter(fiado__gt=F("abonado")))
+    resultado = {}
+    for cid, filas in _deudas_lote(clientes, hoy).items():
+        monto = sum((f["vencido"] for f in filas), CERO)
+        if monto > 0:
+            resultado[cid] = {"monto": monto, "dias": max(f["dias_atraso"] for f in filas)}
+    return resultado
 
 
 def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
@@ -142,11 +187,14 @@ def validar_fiado(cliente, monto, puede_fiar, puede_exceder):
         if saldo + monto > cliente.limite_credito:
             raise ClienteError(f"{cliente.nombre} ya debe S/ {saldo:.2f} y su límite es S/ {cliente.limite_credito:.2f}. "
                                f"Puede fiársele hasta S/ {max(CERO, cliente.limite_credito - saldo):.2f}.")
-    if not puede_exceder:
-        atrasado = vencido(cliente)
-        if atrasado:
-            raise ClienteError(f"{cliente.nombre} tiene S/ {atrasado:.2f} vencido (facturas al crédito sin pagar). "
-                               "No se le puede dar más crédito sin autorización.")
+    atrasado = vencido(cliente)
+    if atrasado and not puede_exceder:
+        raise ClienteError(f"{cliente.nombre} tiene S/ {atrasado:.2f} vencido sin pagar. No se le puede fiar más sin el permiso "
+                           "de pasar el límite: que primero pague lo vencido.")
+    if atrasado:
+        from core.bitacora import anotar
+
+        anotar("fiado.con_vencido", f"Fiado de S/ {monto:.2f} a {cliente}, que tenía S/ {atrasado:.2f} vencido", objeto=cliente)
 
 
 def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
@@ -178,8 +226,12 @@ def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
         saldo = cliente.saldo
         if monto > saldo:
             raise ClienteError(f"{cliente.nombre} solo debe S/ {saldo:.2f}.")
-        return Abono.objects.create(cliente=cliente, monto=monto, metodo=metodo, usuario=usuario, sesion_caja=sesion,
-                                    nota=str(nota or "")[:200], referencia=str(referencia or "")[:60])
+        abono = Abono.objects.create(cliente=cliente, monto=monto, metodo=metodo, usuario=usuario, sesion_caja=sesion,
+                                     nota=str(nota or "")[:200], referencia=str(referencia or "")[:60])
+        from .saldo import ganar_por_pago
+
+        ganar_por_pago(abono)  # función Monedero: lo fiado da monedero cuando se paga
+        return abono
 
 
 def marcar_incobrable(cliente, monto, motivo, usuario):
@@ -222,6 +274,11 @@ def anular_abono(abono, usuario, motivo):
                 raise ClienteError(str(e))
         a.anulado, a.anulado_en, a.anulado_por, a.motivo_anulacion = True, timezone.now(), usuario, motivo
         a.save(update_fields=["anulado", "anulado_en", "anulado_por", "motivo_anulacion"])
+        from .models import MovimientoSaldo
+        from .saldo import quitar
+
+        ganado = sum((m.monto for m in MovimientoSaldo.objects.filter(abono=a, tipo=MovimientoSaldo.Tipo.MONEDERO)), Decimal("0"))
+        quitar(a.cliente_id, ganado, usuario, f"Pago {a.numero} anulado")
         from core.bitacora import anotar
 
         anotar("fiado.pago_anulado", f"Pago {a.numero} de {a.cliente} por S/ {a.monto:.2f} anulado: {motivo}", objeto=a, usuario=usuario)

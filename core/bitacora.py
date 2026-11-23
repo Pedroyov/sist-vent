@@ -17,6 +17,7 @@ _peticion = ContextVar("bitacora_peticion", default=None)
 # código → (texto para la pantalla, grupo para filtrar)
 ACCIONES = {
     "venta.anulada": ("Venta anulada", "Anulaciones"),
+    "venta.devolucion": ("Devolución de productos", "Anulaciones"),
     "compra.anulada": ("Compra anulada", "Anulaciones"),
     "fiado.pago_anulado": ("Pago de fiado anulado", "Anulaciones"),
     "cuota.pago_anulado": ("Pago de cuotas anulado", "Anulaciones"),
@@ -40,8 +41,13 @@ ACCIONES = {
     "pago.no_llego_quitado": ("Se quitó «no llegó» a un cobro", "Caja"),
     "stock.ajuste": ("Ajuste de stock por conteo", "Stock"),
     "stock.salida": ("Salida de stock (merma, uso interno)", "Stock"),
+    "cliente.saldo_devuelto": ("Saldo a favor devuelto en efectivo", "Clientes"),
     "cliente.limite": ("Cambio de límite de fiado", "Clientes"),
     "fiado.sobre_limite": ("Fiado sobre el límite", "Clientes"),
+    "fiado.con_vencido": ("Fiado con deuda vencida", "Clientes"),
+    "cliente.plazo": ("Cambio de plazo del fiado", "Clientes"),
+    "cliente.lista": ("Cambio de lista de precios", "Clientes"),
+    "promocion.cambio": ("Promoción creada o cambiada", "Precios y costos"),
     "fiado.incobrable": ("Deuda marcada incobrable", "Clientes"),
     "usuario.creado": ("Usuario creado", "Usuarios y permisos"),
     "usuario.modificado": ("Usuario modificado", "Usuarios y permisos"),

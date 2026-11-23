@@ -61,7 +61,7 @@
       <tbody>
         {% for v in pagina.object_list %}
         <tr onclick="location.href='{% url 'ventas:ticket' v.pk %}'" style="cursor: pointer" class="{% if v.anulada %}text-body-tertiary text-decoration-line-through{% endif %}">
-          <td class="ps-3"><a href="{% url 'ventas:ticket' v.pk %}" class="fw-semibold">{{ v.numero_str }}</a>{% if v.anulada %} <span class="badge text-bg-danger">Anulada</span>{% endif %}</td>
+          <td class="ps-3"><a href="{% url 'ventas:ticket' v.pk %}" class="fw-semibold">{{ v.numero_str }}</a>{% if v.anulada %} <span class="badge text-bg-danger">Anulada</span>{% elif v.n_dev %} <span class="badge text-bg-warning">Devolución</span>{% endif %}</td>
           <td class="small text-nowrap">{% if f.desde != f.hasta %}{{ v.fecha|date:"d/m" }} {% endif %}{{ v.fecha|date:"H:i" }}</td>
           <td class="d-none d-md-table-cell small">{{ v.cliente_nombre|default:"—" }}</td>
           <td class="d-none d-sm-table-cell small">{% for p in v.pagos.all %}<span class="badge text-bg-light border">{{ p.get_metodo_display }}</span> {% endfor %}</td>

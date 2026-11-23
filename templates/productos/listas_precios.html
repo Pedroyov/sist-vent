@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags sis %}
+{% block title %}Listas de precios{% endblock %}
+{% block page_title %}Listas de precios{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">Listas de precios</li>
+{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-lg-7">
+    <div class="card mb-4">
+      {% if listas %}
+      <ul class="list-group list-group-flush">
+        {% for l in listas %}
+        <li class="list-group-item d-flex align-items-center gap-2 {% if not l.activa %}text-body-secondary{% endif %}">
+          <div class="flex-grow-1"><div class="fw-semibold">{{ l.nombre }}{% if not l.activa %} <span class="badge text-bg-secondary">Inactiva</span>{% endif %}</div>
+            <div class="small">{% if l.porcentaje %}{{ l.porcentaje|floatformat:"-2" }} % menos en todo{% else %}Solo precios fijos{% endif %} · {{ l.n_productos }} precio{{ l.n_productos|pluralize }} fijo{{ l.n_productos|pluralize }} ·
+              <a href="{% url 'clientes:lista' %}?lista={{ l.pk }}">{{ l.n_clientes }} cliente{{ l.n_clientes|pluralize }}</a></div></div>
+          <a href="{% url 'productos:lista_precios_editar' l.pk %}" class="btn btn-sm btn-link" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body text-center text-body-secondary py-4">Aún no hay listas. Crea, por ejemplo, «Mayorista» con un 10 % menos.</div>
+      {% endif %}
+      <div class="card-footer small text-body-secondary">Cómo funciona: al cliente se le marca su lista en su ficha (Editar). Cuando en el cobro eliges a ese cliente, la venta se recalcula sola con sus precios y cada línea dice «Precio {{ listas.0.nombre|default:"Mayorista" }}». Los precios fijos por producto y los precios por cantidad se ponen en cada producto (Precios especiales).</div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-outline card-primary mb-4">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-plus-lg me-1"></i> Nueva lista</h3></div>
+      <form method="post" novalidate>{% csrf_token %}
+        <div class="card-body">{{ form|crispy }}</div>
+        <div class="card-footer text-end"><button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Crear</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

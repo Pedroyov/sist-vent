@@ -402,12 +402,7 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
     from ventas.servicios import VentaInvalida, registrar_venta
 
     _abierta(cuenta)
-    pendientes = list(cuenta.por_cobrar())
-    if item_ids:
-        elegidos = {int(i) for i in item_ids}
-        pendientes = [i for i in pendientes if i.pk in elegidos]
-    if not pendientes:
-        raise MesaError("No hay nada por cobrar.")
+    pendientes = _pendientes(cuenta, item_ids)
     ids = [i.pk for i in pendientes]
     enviado = {}
 
@@ -423,9 +418,7 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
 
     try:
         venta = registrar_venta(
-            cajero, [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones,
-                      "cortesia": {"motivo": i.cortesia_motivo, "por": i.cortesia_por_id} if i.cortesia else None}
-                     for i in pendientes],
+            cajero, _items_venta(pendientes),
             pagos, cliente_nombre=cliente_nombre, cliente_documento=cliente_documento, nota=(nota or cuenta.titulo)[:200],
             token=token, puede_cambiar_precio=True, puede_descontar=descuento_por is not None, propina=propina, atendio=cuenta.mozo,
             despues=marcar, descuento=descuento, descuento_motivo=descuento_motivo, descuento_por=descuento_por,
@@ -434,6 +427,33 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
         raise MesaError(str(e))
     venta.enviado_cocina = enviado.get("en")
     return venta
+
+
+def _pendientes(cuenta, item_ids=None):
+    pendientes = list(cuenta.por_cobrar())
+    if item_ids:
+        elegidos = {int(i) for i in item_ids}
+        pendientes = [i for i in pendientes if i.pk in elegidos]
+    if not pendientes:
+        raise MesaError("No hay nada por cobrar.")
+    return pendientes
+
+
+def _items_venta(pendientes):
+    """Lo pedido, como líneas de venta: con el precio y la hora en que se pidió (para las promociones por horario)."""
+    return [{"variante": i.variante_id, "cantidad": str(i.cantidad), "precio": str(i.precio), "opciones_foto": i.opciones,
+             "momento": i.creado.isoformat(), "cortesia": {"motivo": i.cortesia_motivo, "por": i.cortesia_por_id} if i.cortesia else None}
+            for i in pendientes]
+
+
+def cotizar(cuenta, item_ids=None):
+    """Lo que se cobraría con las promociones: (líneas, total). No guarda nada."""
+    from ventas.servicios import VentaInvalida, armar_lineas
+
+    try:
+        return armar_lineas(_items_venta(_pendientes(cuenta, item_ids)), desde_pedido=True, puede_cambiar_precio=True)
+    except VentaInvalida as e:
+        raise MesaError(str(e))
 
 
 def falta_de_cocina(items):

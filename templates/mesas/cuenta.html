@@ -319,7 +319,16 @@
     var items = elegidos();
     if (!items.length) { alert("Marca lo que se va a cobrar."); return; }
     var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
-    Cobro.abrir({total: total(), titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: parcial ? "Parte de la cuenta" : "Total de la mesa",
+    {% if NEGOCIO.usa_promociones %}  // promociones: el total lo calcula el servidor (lo mismo que se cobrará)
+    Cobro.enviar("{% url 'mesas:cotizar' c.pk %}", {items: items.map(function (li) { return li.dataset.item; })}).then(function (d) {
+      if (d.error) { alert(d.error); return; }
+      var rebaja = Math.round(parseFloat(d.rebaja) * 100);
+      abrirCobro(items, parcial, Math.round(parseFloat(d.total) * 100), rebaja ? d.promos.join(", ") + " −" + soles(rebaja) : "");
+    });
+    {% else %}abrirCobro(items, parcial, total(), "");{% endif %}
+  });
+  function abrirCobro(items, parcial, centimos, promo) {
+    Cobro.abrir({total: centimos, titulo: "Cobrar {{ c.titulo|escapejs }}", detalle: promo || (parcial ? "Parte de la cuenta" : "Total de la mesa"),
       descuento: {% if NEGOCIO.descuentos_activos %}{puede: {{ P.ventas_precio|yesno:"true,false" }}}{% else %}null{% endif %},
       partes: parcial ? null : {n: {{ c.personas|default:2 }}},
       liberar: parcial ? null : {valor: {{ liberar_al_cobrar|yesno:"true,false" }},
@@ -333,7 +342,7 @@
           if (d.ok) location.href = d.url; else terminar(d.error || "No se pudo cobrar.");
         });
       }});
-  });
+  }
   document.getElementById("m-cortesia").addEventListener("show.bs.modal", function (e) {
     var b = e.relatedTarget, quitar = b.dataset.es === "1", n = parseFloat(b.dataset.cant);
     document.getElementById("f-cortesia").action = b.dataset.url;

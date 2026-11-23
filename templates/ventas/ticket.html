@@ -48,6 +48,10 @@
         {% for i in v.items.all %}{% if i.cortesia %}<li class="list-group-item text-success"><i class="bi bi-gift me-1"></i>{{ i.descripcion }}: cortesía ({{ i.precio_lista|soles }}){% if i.cortesia_motivo %} · {{ i.cortesia_motivo }}{% endif %}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</li>
         {% elif i.precio_cambiado %}
         <li class="list-group-item text-warning-emphasis"><i class="bi bi-tag me-1"></i>{{ i.descripcion }}: precio cambiado de {{ i.precio_lista|soles }} a {{ i.precio_unitario|soles }}</li>
+        {% elif i.promo_id %}
+        <li class="list-group-item text-success"><i class="bi bi-stars me-1"></i>{{ i.descripcion }}: promo {{ i.promo.nombre }} ({{ i.promo.etiqueta }}) −{{ i.promo_descuento|soles }}</li>
+        {% elif i.precio_regla %}
+        <li class="list-group-item text-success"><i class="bi bi-tag me-1"></i>{{ i.descripcion }}: {{ i.precio_regla|lower }} ({{ i.precio_unitario|soles }} c/u)</li>
         {% endif %}{% endfor %}
       </ul>
     </div>
@@ -63,7 +67,7 @@
           {% if cp.prueba %}<span class="badge text-bg-secondary">modo prueba</span>{% endif %}</div>
         {% if cp.mensaje %}<div class="text-body-secondary mt-1">{{ cp.mensaje }}</div>{% endif %}
         {% if cp.al_credito %}<div class="mt-1"><span class="badge text-bg-info">Al crédito</span> pendiente {{ cp.pendiente }}{% for q in cp.cuotas %} · cuota {{ q.n }} vence {{ q.fecha|slice:"8:10" }}/{{ q.fecha|slice:"5:7" }}{% endfor %}</div>{% endif %}
-        {% for n in cp.notas.all %}<div class="mt-1 text-danger"><i class="bi bi-arrow-return-left"></i> Anulada con {{ n.get_tipo_display|lower }} {{ n.numero_str }} ({{ n.get_estado_display|lower }})</div>{% endfor %}
+        {% for n in cp.notas.all %}<div class="mt-1 {% if n.tipo_nota == 1 %}text-danger{% else %}text-warning-emphasis{% endif %}"><i class="bi bi-arrow-return-left"></i> {% if n.tipo_nota == 1 %}Anulada con{% else %}Devolución por {{ n.total|soles }} con{% endif %} {{ n.get_tipo_display|lower }} {{ n.numero_str }} ({{ n.get_estado_display|lower }})</div>{% endfor %}
         <div class="d-flex flex-wrap gap-2 mt-2">
           {% if cp.enlace_pdf %}<a href="{{ cp.enlace_pdf }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">PDF</a>{% endif %}
           {% if cp.enlace_xml %}<a href="{{ cp.enlace_xml }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">XML</a>{% endif %}
@@ -90,11 +94,29 @@
     </div>
     {% endif %}
 
+    {% if devoluciones %}
+    <div class="card card-outline card-warning mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-arrow-return-left me-1"></i> Devoluciones</h3></div>
+      <ul class="list-group list-group-flush small">
+        {% for d in devoluciones %}
+        <li class="list-group-item">
+          <div class="d-flex"><strong>{{ d.total|soles }}</strong><span class="ms-auto text-body-secondary">{{ d.fecha|date:"d/m/Y H:i" }}</span></div>
+          <div>{% for it in d.items.all %}{{ it.cantidad|cantidad }} × {{ it.item.descripcion }}{% if not it.al_stock %} (merma){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+          <div class="text-body-secondary">{{ d.get_reembolso_display }} · {{ d.usuario|nombre }}{% if d.autorizo %} · autorizó {{ d.autorizo|nombre }}{% endif %}{% if d.nota_credito %} · {{ d.nota_credito.get_tipo_display|lower }} {{ d.nota_credito.numero_str }}{% endif %}</div>
+          <div class="text-body-secondary">Motivo: {{ d.motivo }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if se_puede_devolver %}
+    <a href="{% url 'ventas:devolver' v.pk %}" class="btn btn-outline-warning w-100 mb-2"><i class="bi bi-arrow-return-left me-1"></i>Devolver productos</a>
+    {% endif %}
     {% if v.anulada %}
     <div class="alert alert-danger small">
       <strong>Anulada</strong> el {{ v.anulada_en|date:"d/m/Y H:i" }} por {{ v.anulada_por|nombre }}.<br>Motivo: {{ v.motivo_anulacion }}
     </div>
-    {% elif P.ventas_anular %}
+    {% elif P.ventas_anular and not devoluciones %}
     <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#m-anular"><i class="bi bi-x-circle me-1"></i>Anular venta</button>
     <div class="modal fade" id="m-anular" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
@@ -138,7 +160,8 @@
           <table>
             {% for i in v.items.all %}
             <tr><td colspan="2">{{ i.descripcion }}</td></tr>
-            <tr><td>&nbsp;&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% endif %}</td><td class="der">{{ i.subtotal }}</td></tr>
+            <tr><td>&nbsp;&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% if i.precio_regla %} ({{ i.precio_regla|lower|cut:"precio " }}){% endif %}{% endif %}</td><td class="der">{% if i.promo_id %}{{ i.importe_bruto }}{% else %}{{ i.subtotal }}{% endif %}</td></tr>
+            {% if i.promo_id %}<tr><td>&nbsp;&nbsp;PROMO {{ i.promo.etiqueta }}</td><td class="der">-{{ i.promo_descuento }}</td></tr>{% endif %}
             {% endfor %}
           </table>
           <div class="linea"></div>
@@ -156,6 +179,7 @@
           </table>
           {% if v.nota %}<div class="linea"></div><div>Nota: {{ v.nota }}</div>{% endif %}
           <div class="linea"></div>
+          {% if monedero %}<div class="text-center">Ganaste S/ {{ monedero.ganado }} · tu saldo: S/ {{ monedero.saldo }}</div>{% endif %}
           <div class="text-center">{{ NEGOCIO.nota_ticket|default:"¡Gracias por su compra!" }}</div>
         </div>
       </div>

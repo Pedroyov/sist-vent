@@ -32,7 +32,8 @@
 <table>
   {% for i in v.items.all %}
   <tr><td colspan="2">{{ i.descripcion }}</td></tr>
-  <tr><td>&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% endif %}</td><td class="r">{{ i.subtotal }}</td></tr>
+  <tr><td>&nbsp;{% if i.cortesia %}{{ i.cantidad|cantidad }} x CORTESÍA{% else %}{{ i.cantidad|cantidad }} x {{ i.precio_unitario }}{% if i.precio_regla %} ({{ i.precio_regla|lower|cut:"precio " }}){% endif %}{% endif %}</td><td class="r">{% if i.promo_id %}{{ i.importe_bruto }}{% else %}{{ i.subtotal }}{% endif %}</td></tr>
+            {% if i.promo_id %}<tr><td>&nbsp;&nbsp;PROMO {{ i.promo.etiqueta }}</td><td class="r">-{{ i.promo_descuento }}</td></tr>{% endif %}
   {% endfor %}
 </table>
 <div class="linea"></div>
@@ -64,5 +65,6 @@
 {% for n in cp.notas.all %}<div class="c b">ANULADA CON NOTA DE CRÉDITO {{ n.numero_str }}</div>{% endfor %}
 {% endif %}
 <div class="linea"></div>
+{% if monedero %}<div class="c">Ganaste S/ {{ monedero.ganado }} · tu saldo: S/ {{ monedero.saldo }}</div>{% endif %}
 <div class="c">{{ NEGOCIO.nota_ticket|default:"¡Gracias por su compra!" }}</div>
 {% endblock %}

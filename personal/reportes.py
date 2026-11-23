@@ -72,6 +72,19 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
                 g["atendio"] += max(v.total - citas_por_venta.get(v.pk, CERO), CERO)  # los servicios ya cuentan en «Servicios»
                 g["propinas"] += v.propina or CERO
 
+    # Devoluciones del periodo: restan a quien cobró la venta y a quien la atendió
+    from ventas.devoluciones import en_periodo
+
+    for d in en_periodo(desde, hasta).select_related("venta__usuario", "venta__atendio", "venta__atendio_persona"):
+        v = d.venta
+        f = de_usuario(v.usuario)
+        if f is not None:
+            f["ventas"] -= d.total
+        if con_atendio:
+            g = de_persona(v.atendio_persona) if v.atendio_persona_id else de_usuario(v.atendio)
+            if g is not None:
+                g["atendio"] = max(g["atendio"] - d.total, CERO)
+
     # Otros cobros que también entran a la caja de quien cobra
     cobros = []
     if "cobranzas" in modulos:
@@ -83,7 +96,8 @@ def reporte(desde, hasta, modulos, comisiones=False, atendio=False):
 
         cobros.append(("deudas", Abono))
     for campo, modelo in cobros:
-        for p in modelo.objects.filter(anulado=False, **dias("fecha", desde, hasta)).select_related("usuario"):
+        for p in (modelo.objects.filter(anulado=False, **dias("fecha", desde, hasta)).exclude(metodo__in=["INC", "DEV"])
+                  .select_related("usuario")):  # incobrables y devoluciones no son dinero cobrado
             f = de_usuario(p.usuario)
             f[f"{campo}_n"] += 1
             f[campo] += p.monto

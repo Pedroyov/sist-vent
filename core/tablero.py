@@ -291,6 +291,13 @@ class Tablero:
         if total > 0:
             self.tarjetas.append({"titulo": "Por cobrar (fiado)", "valor": soles(total), "icono": "bi-journal-text",
                                   "color": "warning", "url": reverse("clientes:lista") + "?ver=deben"})
+            from clientes.servicios import vencidos
+
+            atrasos = vencidos()
+            if atrasos:
+                monto = sum(a["monto"] for a in atrasos.values())
+                self.pendientes.append(_pend(f"{_plural(len(atrasos), 'cliente')} con fiado vencido", reverse("clientes:lista") + "?ver=vencido",
+                                             "bi-journal-x", "danger", f"{soles(monto)} vencido. Recuérdales desde su ficha."))
 
     def _productos(self):
         from productos.models import Categoria, Producto

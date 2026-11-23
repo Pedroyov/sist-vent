@@ -14,6 +14,12 @@ FUNCIONES = [
     ("atendio", "Quién atendió la venta", "En Vender se elige qué persona del personal atendió al cliente (vendedores a comisión, "
                 "servicios cobrados directo). Sale en el reporte de Personal."),
     ("comisiones", "Comisiones del personal", "A cada persona se le pone un % de lo que atiende y el reporte de Personal dice cuánto le toca."),
+    ("precios", "Listas de precios", "Precios por cantidad («desde 6 unidades, S/ 2.30») y precios por tipo de cliente "
+                "(mayorista, revendedor). Se calculan solos al vender."),
+    ("promociones", "Promociones", "2×1, 3×2, % de descuento o precio especial en productos o categorías, con fechas, días y "
+                    "horario (happy hour). Se aplican solas al vender."),
+    ("monedero", "Monedero", "Un % de cada compra pagada vuelve al cliente registrado como saldo a favor para su próxima compra "
+                 "(por ejemplo 2 %, vence a los 90 días)."),
     ("pagos", "Pagos al personal", "Sueldo fijo de cada persona (por semana, quincena o mes), pagos y adelantos ligados a la persona "
               "y cuánto falta pagarle a cada uno."),
 ]
@@ -69,6 +75,18 @@ def en_uso(funcion):
         from personal.models import Persona
 
         return Persona.objects.filter(sueldo__gt=0).exists() or MovimientoCaja.objects.filter(persona__isnull=False).exists()
+    if funcion == "precios":
+        from productos.models import ListaPrecios, PrecioEspecial
+
+        return PrecioEspecial.objects.exists() or ListaPrecios.objects.filter(clientes__isnull=False).exists()
+    if funcion == "promociones":
+        from productos.models import Promocion
+
+        return Promocion.objects.filter(activa=True).exists()
+    if funcion == "monedero":
+        from clientes.models import MovimientoSaldo
+
+        return MovimientoSaldo.objects.filter(tipo="MON").exists()
     if funcion == "agotados":
         return False  # se reinicia cada día: apagarla no pierde nada
     return False

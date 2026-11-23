@@ -98,6 +98,8 @@ class Comprobante(models.Model):
     modifica = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="notas",
                                  help_text="Para notas de crédito: el comprobante que anula.")
     motivo = models.CharField(max_length=200, blank=True)
+    tipo_nota = models.PositiveSmallIntegerField("tipo de nota de crédito", default=1,
+                                                 help_text="SUNAT: 1 = anulación de la operación; 7 = devolución por ítem (parcial).")
     # respuesta del proveedor
     proveedor = models.CharField(max_length=3)
     estado = models.CharField(max_length=3, choices=Estado.choices, default=Estado.PENDIENTE)
@@ -145,7 +147,8 @@ class Comprobante(models.Model):
 
     @property
     def anulado(self):
-        return self.notas.exclude(estado=self.Estado.RECHAZADO).exists()
+        """Anulado del todo (nota de anulación). Las notas por devolución parcial no lo anulan."""
+        return self.notas.exclude(estado=self.Estado.RECHAZADO).filter(tipo_nota=1).exists()
 
     @property
     def nombre_impreso(self):

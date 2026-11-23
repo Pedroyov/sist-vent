@@ -111,6 +111,8 @@
   "use strict";
   var CAT = JSON.parse(document.getElementById("datos-catalogo").textContent);
   var CATS = JSON.parse(document.getElementById("datos-categorias").textContent);
+  var COTIZA = {{ cotiza|yesno:"true,false" }};  // listas de precios o promociones: el precio de cada línea lo calcula el servidor
+  var URL_COTIZAR = "{% url 'ventas:cotizar' %}";
   var PUEDE_PRECIO = {{ puede_precio|yesno:"true,false" }};
   var URL_REGISTRAR = "{% url 'ventas:registrar' %}";
   var GUARDADO = "pos_carrito_{{ user.pk }}";
@@ -129,7 +131,7 @@
   });
 
   // ---------------- estado ----------------
-  var carrito = [], categoria = "", token = nuevoToken(), citas = [];
+  var carrito = [], categoria = "", token = nuevoToken(), citas = [], clienteCotiza = null;
   try {
     var g = JSON.parse(sessionStorage.getItem(GUARDADO) || "null");
     if (g && g.items) {
@@ -195,20 +197,39 @@
   function agregar(sel) {
     var x = porVariante[sel.vid];
     if (!x) return;
-    var nueva = {vid: sel.vid, ops: sel.ops || [], txt: sel.txt || "", cant: 1, precio: ((cent(x.v.p) + (sel.extra || 0)) / 100).toFixed(2)};
+    var nueva = {vid: sel.vid, ops: sel.ops || [], txt: sel.txt || "", cant: 1, extra: sel.extra || 0, precio: ((cent(x.v.p) + (sel.extra || 0)) / 100).toFixed(2)};
     var l = carrito.find(function (l) { return clave(l) === clave(nueva); });
     if (l) l.cant += 1; else carrito.push(nueva);
     pintar();
     var fila = document.querySelector('#carrito [data-k="' + clave(nueva) + '"]');
     if (fila) { fila.classList.add("list-group-item-success"); setTimeout(function () { fila.classList.remove("list-group-item-success"); }, 350); }
   }
-  function lineaCent(l) { return Math.round(cent(l.precio) * l.cant); }
+  function lineaCent(l) { return Math.round(cent(l.precio) * l.cant) - cent(l.desc || 0); }
+  function itemsVenta() {  // el precio solo va si se cambió a mano (con permiso); si no, lo pone el servidor
+    return carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO && l.manual ? l.precio : null, opciones: l.ops}; });
+  }
+  // Listas de precios y promociones: el servidor dice el precio, la regla y la promo de cada línea (lo mismo que cobrará)
+  var vuelta = 0, esperar = null;
+  function cotizar() {
+    if (!COTIZA || !carrito.length) return Promise.resolve();
+    var n = ++vuelta, foto = carrito.slice();
+    return Cobro.enviar(URL_COTIZAR, {items: itemsVenta(), cliente_id: clienteCotiza}).then(function (d) {
+      if (n !== vuelta || !d.lineas || d.lineas.length !== foto.length) return;
+      foto.forEach(function (l, i) {
+        var r = d.lineas[i];
+        if (!l.manual) l.precio = r.precio;
+        l.regla = r.regla; l.promo = r.promo; l.desc = r.desc;
+      });
+      pintar(true);
+    });
+  }
+  function cotizarLuego() { clearTimeout(esperar); if (COTIZA) esperar = setTimeout(cotizar, 250); }
   function totales() {
     var sub = carrito.reduce(function (a, l) { return a + lineaCent(l); }, 0);
     var desc = $("descuento") ? Math.min(cent($("descuento").value || 0), sub) : 0;
     return {sub: sub, desc: desc, total: sub - desc};
   }
-  function pintar() {
+  function pintar(cotizado) {
     var html = "";
     carrito.forEach(function (l, i) {
       var x = porVariante[l.vid], p = x.p, v = x.v;
@@ -218,6 +239,8 @@
         '<div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate">' + esc(p.n) + "</div>" +
         (v.n ? '<div class="small text-body-secondary">' + esc(v.n) + "</div>" : "") +
         (l.txt ? '<div class="small text-primary-emphasis">' + esc(l.txt) + "</div>" : "") +
+        (l.regla && !l.manual ? '<div class="small text-success"><i class="bi bi-tag"></i> ' + esc(l.regla) + "</div>" : "") +
+        (cent(l.desc || 0) ? '<div class="small text-success"><i class="bi bi-stars"></i> ' + esc(l.promo) + " −" + soles(cent(l.desc)) + "</div>" : "") +
         (falta ? '<div class="small text-danger"><i class="bi bi-exclamation-triangle"></i> Stock: ' + num(parseFloat(v.st)) + "</div>" : "") + "</div>" +
         '<div class="text-end fw-semibold text-nowrap">' + soles(lineaCent(l)) + "</div></div>" +
         '<div class="d-flex align-items-center gap-1 mt-1">' +
@@ -233,6 +256,7 @@
     $("carrito-vacio").classList.toggle("d-none", carrito.length > 0);
     actualizarTotales();
     guardar();
+    if (!cotizado) cotizarLuego();
   }
   function actualizarTotales() {
     var t = totales(), n = carrito.length;
@@ -248,12 +272,18 @@
   // ---------------- cobro ----------------
   function abrirCobro() {
     if (!carrito.length || {{ falta_caja|yesno:"true,false" }}) return;
-    var t = totales();
-    Cobro.abrir({total: t.total, titulo: "Cobrar", onConfirmar: function (datos, terminar) {
+    clienteCotiza = null;  // el cobro empieza sin cliente: sin su lista de precios
+    clearTimeout(esperar);
+    cotizar().then(function () {
+    Cobro.abrir({total: totales().total, titulo: "Cobrar", detalle: detalleRebajas(), onCliente: !COTIZA ? null : function (c) {
+      clienteCotiza = c ? c.id : null;
+      return cotizar().then(function () { return {total: totales().total, detalle: detalleRebajas()}; });
+    }, onConfirmar: function (datos, terminar) {
+      var t = totales();
       datos.token = token;
       datos.citas = carrito.length ? citas : [];
       if ($("atendio")) datos.atendio = $("atendio").value;
-      datos.items = carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null, opciones: l.ops}; });
+      datos.items = itemsVenta();
       datos.descuento = (t.desc / 100).toFixed(2);
       Cobro.enviar(URL_REGISTRAR, datos).then(function (d) {
         if (d.ok) {
@@ -262,6 +292,15 @@
         } else terminar(d.error || "No se pudo registrar la venta.");
       });
     }});
+    });
+  }
+  function detalleRebajas() {  // «Precio Mayorista · Happy hour (2×1)» arriba del total
+    var txt = [];
+    carrito.forEach(function (l) {
+      if (l.regla && !l.manual && txt.indexOf(l.regla) < 0) txt.push(l.regla);
+      if (cent(l.desc || 0) && txt.indexOf(l.promo) < 0) txt.push(l.promo);
+    });
+    return txt.length ? txt.slice(0, 2).join(" · ") + (txt.length > 2 ? " …" : "") : "Total a cobrar";
   }
 
   // ---------------- eventos ----------------
@@ -311,6 +350,7 @@
     } else if ((i = e.target.dataset.precio) !== undefined) {
       var c = cent(e.target.value);
       carrito[i].precio = (Math.max(0, c) / 100).toFixed(2);
+      carrito[i].manual = true;
       pintar();
     }
   });
@@ -326,13 +366,19 @@
   // Delivery: el carrito pasa a un pedido de delivery (dirección, "paga con", repartidor) y se cobra ahí
   function abrirDelivery() {
     if (!carrito.length) return;
-    $("dl-items").value = JSON.stringify(carrito.map(function (l) { return {variante: l.vid, cantidad: num(l.cant), precio: PUEDE_PRECIO ? l.precio : null, opciones: l.ops}; }));
-    $("dl-boton").textContent = "Crear el pedido (" + soles(totales().total) + " + envío)";
+    $("dl-items").value = JSON.stringify(itemsVenta());
+    var normal = carrito.reduce(function (a, l) {  // el pedido guarda el precio normal (las promos se aplican al cobrarlo)
+      return a + Math.round((l.manual || l.extra === undefined ? cent(l.precio) : cent(porVariante[l.vid].v.p) + l.extra) * l.cant);
+    }, 0);
+    $("dl-boton").textContent = "Crear el pedido (" + soles(normal - totales().desc) + " + envío)";
     bootstrap.Modal.getOrCreateInstance(document.getElementById("m-delivery")).show();
   }
   if ($("btn-delivery")) { $("btn-delivery").addEventListener("click", abrirDelivery); $("btn-delivery-m").addEventListener("click", abrirDelivery); }
   $("btn-cobrar-m").addEventListener("click", abrirCobro);
-  $("m-cobro").addEventListener("hidden.bs.modal", function () { $("buscar").focus(); });
+  $("m-cobro").addEventListener("hidden.bs.modal", function () {
+    if (clienteCotiza) { clienteCotiza = null; cotizarLuego(); }  // sin cobrar: vuelve el precio sin cliente
+    $("buscar").focus();
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key === "F9") { e.preventDefault(); abrirCobro(); }
     else if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("buscar").focus(); }

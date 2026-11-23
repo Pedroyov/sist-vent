@@ -186,6 +186,89 @@ class CategoriaForm(forms.ModelForm):
         return nombre
 
 
+class ListaPreciosForm(forms.ModelForm):
+    class Meta:
+        from .models import ListaPrecios
+
+        model = ListaPrecios
+        fields = ["nombre", "porcentaje", "activa"]
+        widgets = {"porcentaje": forms.NumberInput(attrs={"step": "0.5", "min": "0", "max": "99", "inputmode": "decimal"})}
+
+    def clean_nombre(self):
+        from .models import ListaPrecios
+
+        nombre = " ".join(self.cleaned_data["nombre"].split())
+        if ListaPrecios.objects.filter(nombre__iexact=nombre).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("Ya existe una lista con ese nombre.")
+        return nombre
+
+    def clean_porcentaje(self):
+        p = self.cleaned_data["porcentaje"]
+        if p >= 100:
+            raise forms.ValidationError("Tiene que ser menos de 100 %.")
+        return p
+
+
+class PromocionForm(forms.ModelForm):
+    dias = forms.TypedMultipleChoiceField(label="Días", required=False, coerce=int, widget=forms.CheckboxSelectMultiple,
+                                          help_text="Ninguno marcado = todos los días.")
+
+    class Meta:
+        from .models import Promocion
+
+        model = Promocion
+        fields = ["nombre", "tipo", "lleva", "paga", "porcentaje", "precio", "productos", "categorias", "desde", "hasta", "dias",
+                  "hora_desde", "hora_hasta", "activa"]
+        widgets = {
+            "tipo": forms.RadioSelect,
+            "productos": forms.SelectMultiple(attrs={"size": 8}),
+            "categorias": forms.CheckboxSelectMultiple,
+            "desde": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "hasta": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "hora_desde": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
+            "hora_hasta": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
+            "lleva": forms.NumberInput(attrs={"min": 2, "inputmode": "numeric"}),
+            "paga": forms.NumberInput(attrs={"min": 1, "inputmode": "numeric"}),
+            "porcentaje": forms.NumberInput(attrs={"min": 1, "max": 99, "step": "0.5", "inputmode": "decimal"}),
+            "precio": forms.NumberInput(attrs={"min": 0, "step": "0.10", "inputmode": "decimal"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import Promocion
+
+        self.fields["dias"].choices = Promocion.DIAS
+        self.fields["productos"].queryset = Producto.objects.filter(activo=True).order_by("nombre")
+        self.fields["productos"].help_text = "Ctrl o Mayús para elegir varios. En el celular, toca cada uno."
+        self.fields["categorias"].queryset = Categoria.objects.filter(activa=True)
+        self.fields["categorias"].help_text = "Todos los productos de esas categorías entran."
+
+    def clean(self):
+        from .models import Promocion
+
+        d = super().clean()
+        tipo = d.get("tipo")
+        if tipo == Promocion.Tipo.NXM:
+            if not d.get("lleva") or d.get("paga") is None or d["lleva"] <= d["paga"] or d["paga"] < 1:
+                self.add_error("lleva", "Para 2×1 pon lleva 2 y paga 1 (lleva tiene que ser mayor que paga).")
+            d["porcentaje"] = d["precio"] = None
+        elif tipo == Promocion.Tipo.PORCENTAJE:
+            if not d.get("porcentaje") or not 0 < d["porcentaje"] < 100:
+                self.add_error("porcentaje", "Escribe un % entre 1 y 99.")
+            d["lleva"] = d["paga"] = d["precio"] = None
+        elif tipo == Promocion.Tipo.PRECIO:
+            if d.get("precio") is None:
+                self.add_error("precio", "Escribe el precio de la promoción.")
+            d["lleva"] = d["paga"] = d["porcentaje"] = None
+        if not d.get("productos") and not d.get("categorias"):
+            self.add_error("productos", "Elige al menos un producto o una categoría.")
+        if d.get("hasta") and d.get("desde") and d["hasta"] < d["desde"]:
+            self.add_error("hasta", "La fecha final es antes que la inicial.")
+        if bool(d.get("hora_desde")) != bool(d.get("hora_hasta")):
+            self.add_error("hora_hasta", "Pon las dos horas (de … a …) o ninguna.")
+        return d
+
+
 class ImportarForm(forms.Form):
     archivo = forms.FileField(label="Archivo Excel (.xlsx)", widget=forms.ClearableFileInput(attrs={"accept": ".xlsx"}))
 

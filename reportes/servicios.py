@@ -70,11 +70,19 @@ def resumen(desde, hasta):
     from ventas.models import Venta
     from ventas.servicios import resumen as resumen_ventas
 
+    from ventas.devoluciones import resumen_periodo
+
     todas = Venta.objects.filter(**dias("fecha", desde, hasta))
     r = resumen_ventas(todas)
     r["anuladas_monto"] = c(todas.filter(estado=Venta.Estado.ANULADA).aggregate(t=Sum("total"))["t"])
+    # vendido neto: las devoluciones restan el día que se hicieron (con su ganancia: lo devuelto menos el costo que volvió)
+    dv = resumen_periodo(desde, hasta)
+    r["bruto"], r["devuelto"], r["devoluciones_n"] = r["total"], dv["total"], dv["n"]
+    r["total"] -= dv["total"]
+    r["ganancia"] -= dv["ganancia"]
     d0, d1 = anterior(desde, hasta)
     previo = resumen_ventas(Venta.objects.filter(**dias("fecha", d0, d1)))
+    previo["total"] -= resumen_periodo(d0, d1)["total"]
     r["anterior"] = {"desde": d0, "hasta": d1, "total": previo["total"], "n": previo["n"]}
     r["variacion"] = ((r["total"] - previo["total"]) / previo["total"] * 100).quantize(Decimal("0.1")) if previo["total"] else None
     r["por_dia"] = c(r["total"] / ((hasta - desde).days + 1))
@@ -149,6 +157,24 @@ def productos(desde, hasta, limite=None):
                       "total": t, "costo": c(r["r_costo"]) if r["r_costo"] is not None else None,
                       "ganancia": t - c(r["r_costo"]) if r["r_costo"] is not None else None, "n_ventas": r["n_ventas"],
                       "servicio": r["variante__producto__tipo"] == "S"})
+    # devoluciones del periodo: restan cantidad, total y ganancia del producto
+    from ventas.devoluciones import en_periodo
+    from ventas.models import DevolucionItem
+
+    por_id = {f["id"]: f for f in filas}
+    for d in (DevolucionItem.objects.filter(devolucion__in=en_periodo(desde, hasta))
+              .values("item__variante__producto_id", "cantidad", "importe", "costo_unitario", "al_stock")):
+        f = por_id.get(d["item__variante__producto_id"])
+        if f is None:
+            continue
+        f["cantidad"] = (f["cantidad"] - d["cantidad"]).normalize()
+        f["total"] -= d["importe"]
+        total -= d["importe"]
+        if f["ganancia"] is not None:
+            recupera = d["cantidad"] * d["costo_unitario"] if d["al_stock"] and d["costo_unitario"] is not None else CERO
+            f["costo"] -= recupera
+            f["ganancia"] -= d["importe"] - recupera
+    filas.sort(key=lambda f: -f["total"])
     for f in filas:
         f["participacion"] = (f["total"] / total * 100).quantize(Decimal("0.1")) if total else CERO
     filas = _con_barras(filas)
@@ -285,12 +311,14 @@ def inventario(desde, hasta):
 
 def deudores(limite=20):
     from clientes.models import Abono
-    from clientes.servicios import con_saldo, total_por_cobrar, vencido
+    from clientes.servicios import con_saldo, total_por_cobrar, vencidos
     from ventas.models import MetodoPago, Pago, Venta
 
     hoy = timezone.localdate()
     filas = []
-    for cl in con_saldo().filter(fiado__gt=F("abonado")).order_by("-fiado")[:200]:
+    deben = list(con_saldo().filter(fiado__gt=F("abonado")).order_by("-fiado")[:200])
+    atrasos = vencidos(deben)
+    for cl in deben:
         saldo = c(cl.fiado - cl.abonado)
         ultimo_pago = Abono.objects.filter(cliente=cl, anulado=False).order_by("-fecha").values_list("fecha", flat=True).first()
         ultimo_fiado = (Pago.objects.filter(venta__cliente=cl, metodo=MetodoPago.CREDITO, venta__estado=Venta.Estado.PAGADA)
@@ -299,10 +327,12 @@ def deudores(limite=20):
                                 .order_by("venta__fecha").values_list("venta__fecha", flat=True).first())
         dias = (hoy - timezone.localtime(desde).date()).days if desde else None
         filas.append({"cliente": cl, "saldo": saldo, "ultimo_pago": ultimo_pago, "ultimo_fiado": ultimo_fiado, "dias": dias,
-                      "vencido": vencido(cl),
+                      "vencido": atrasos.get(cl.pk, {}).get("monto", CERO), "dias_vencido": atrasos.get(cl.pk, {}).get("dias", 0),
                       "excede": bool(cl.limite_credito and saldo > cl.limite_credito)})
     filas.sort(key=lambda f: -f["saldo"])
-    return {"total": total_por_cobrar(), "filas": filas[:limite], "n": len(filas),
+    from clientes.saldo import total_a_favor
+
+    return {"total": total_por_cobrar(), "filas": filas[:limite], "n": len(filas), "a_favor": total_a_favor(),
             "antiguos": sum(1 for f in filas if f["dias"] is not None and f["dias"] > 30),
             "vencido": sum((f["vencido"] for f in filas), CERO)}
 
@@ -350,7 +380,11 @@ def cortesias_descuentos(desde, hasta):
         m = motivos[i.cortesia_motivo or "Sin motivo"]
         m["veces"] += 1
         m["valor"] += i.valor
-    return {"cortesias": cortesias, "descuentos": descuentos,
+    from productos.promociones import resumen as promos
+
+    promociones = promos(desde, hasta)
+    return {"cortesias": cortesias, "descuentos": descuentos, "promociones": promociones,
+            "valor_promociones": sum((p["rebajado"] for p in promociones), CERO),
             "valor_cortesias": sum((i.valor for i in cortesias), CERO),
             "valor_descuentos": c(sum((v.descuento for v in descuentos), CERO)),
             "motivos": sorted([{"etiqueta": k, **v} for k, v in motivos.items()], key=lambda f: -f["valor"])}

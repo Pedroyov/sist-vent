@@ -165,7 +165,7 @@ class DatosNegocioForm(forms.ModelForm):
         model = Ajustes
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
-                  "vender_sin_caja", "cierre_ciego", "propina_activa", "exigir_operacion", "descuentos_activos", "cortesias_activas",
+                  "vender_sin_caja", "cierre_ciego", "propina_activa", "exigir_operacion", "dias_devolucion", "dias_fiado", "monedero_porcentaje", "monedero_dias", "descuentos_activos", "cortesias_activas",
                   "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo"]
         widgets = {
             "nivel_pedido": forms.RadioSelect,
@@ -185,7 +185,11 @@ class DatosNegocioForm(forms.ModelForm):
         self.fields["funciones"].choices = [(c, n) for c, n, _ in FUNCIONES]
         self.fields["funciones"].initial = [c for c in CODIGOS_FUNCIONES if self.instance.usa(c)]
         self.explicacion_funciones = {c: t for c, _, t in FUNCIONES}
-        self.fields["metodos"].choices = [(k, v) for k, v in MetodoPago.choices if k != MetodoPago.EFECTIVO]
+        self.fields["dias_devolucion"].required = False  # vacío = se queda como estaba
+        self.fields["dias_fiado"].required = False
+        self.fields["monedero_porcentaje"].required = False
+        self.fields["monedero_dias"].required = False
+        self.fields["metodos"].choices = [(k, v) for k, v in MetodoPago.choices if k not in (MetodoPago.EFECTIVO, MetodoPago.SALDO)]
         self.fields["metodos"].initial = [m for m in self.instance.metodos_aceptados if m != MetodoPago.EFECTIVO]
         if not self.instance.tiene_modulo("mesas"):
             del self.fields["cortesias_activas"]  # no se muestra: que no se apague sin querer
@@ -201,6 +205,24 @@ class DatosNegocioForm(forms.ModelForm):
         elegidas = set(self.cleaned_data.get("funciones") or [])
         self.instance.funciones_inactivas = [c for c in CODIGOS_FUNCIONES if c not in elegidas]
         return super().save(commit)
+
+    def clean_dias_devolucion(self):
+        valor = self.cleaned_data.get("dias_devolucion")
+        return self.instance.dias_devolucion if valor is None else valor
+
+    def clean_monedero_porcentaje(self):
+        valor = self.cleaned_data.get("monedero_porcentaje")
+        if valor is not None and not 0 <= valor <= 50:
+            raise forms.ValidationError("Entre 0 y 50 %.")
+        return self.instance.monedero_porcentaje if valor is None else valor
+
+    def clean_monedero_dias(self):
+        valor = self.cleaned_data.get("monedero_dias")
+        return self.instance.monedero_dias if not valor else valor
+
+    def clean_dias_fiado(self):
+        valor = self.cleaned_data.get("dias_fiado")
+        return self.instance.dias_fiado if valor is None else valor
 
     def clean_ruc(self):
         ruc = self.cleaned_data["ruc"].strip()

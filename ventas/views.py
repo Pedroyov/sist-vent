@@ -19,7 +19,7 @@ from productos.models import Categoria, GrupoOpciones, Opcion, Producto, Variant
 from productos.servicios import minimo_disponible, ordenar_grupos
 
 from .models import MetodoPago, Venta
-from .servicios import VentaInvalida, anular_venta, registrar_venta, resumen
+from .servicios import VentaInvalida, anular_venta, armar_lineas, registrar_venta, resumen
 
 User = get_user_model()
 MAX_CATALOGO = 5000
@@ -108,6 +108,7 @@ def pos(request):
     return render(request, "ventas/pos.html", {
         "falta_caja": falta_caja,
         "catalogo": _catalogo(),
+        "cotiza": Ajustes.cargar().usa_precios or Ajustes.cargar().usa_promociones,  # el precio de cada línea lo da el servidor
         "categorias": [{"id": c.pk, "n": c.nombre} for c in categorias],
         "puede_precio": puede(request.user, "ventas.precio"),
         "con_delivery": Ajustes.cargar().delivery_activo and puede(request.user, "delivery.atender"),
@@ -115,6 +116,26 @@ def pos(request):
         "agregar": agregar, "citas": citas, "citas_texto": citas_texto, "n_por_cobrar": n_por_cobrar,
         "personas_atienden": personas_atienden, "atendio_inicial": atendio_inicial,
     })
+
+
+def lineas_json(lineas):
+    """Lo que la pantalla necesita de cada línea cotizada (listas de precios y promociones)."""
+    return [{"precio": f"{l['precio']:.2f}", "regla": l["regla"] if l["precio"] == l["lista"] else "",
+             "promo": f"{l['promo'].nombre} ({l['promo'].etiqueta})" if l["promo"] else "", "desc": f"{l['promo_desc']:.2f}",
+             "importe": f"{l['importe']:.2f}"} for l in lineas]
+
+
+@permiso_requerido("ventas.vender")
+@require_POST
+def cotizar(request):
+    """Precios y promociones de lo que está en Vender, calculados aquí (lo mismo que se cobrará)."""
+    try:
+        datos = json.loads(request.body or b"{}")
+        lineas, subtotal = armar_lineas(datos.get("items") or [], cliente_id=entero(datos.get("cliente_id")),
+                                        puede_cambiar_precio=puede(request.user, "ventas.precio"))
+    except (ValueError, AttributeError, VentaInvalida) as e:
+        return JsonResponse({"error": str(e) if isinstance(e, VentaInvalida) else "Datos no válidos."}, status=400)
+    return JsonResponse({"lineas": lineas_json(lineas), "subtotal": f"{subtotal:.2f}"})
 
 
 @permiso_requerido("ventas.vender")
@@ -185,12 +206,23 @@ def ticket(request, pk):
         lineas += ["", negocio.nota_ticket]
     texto = "\n".join(lineas)
     volver = request.GET.get("volver", "")
+    from .devoluciones import por_que_no
+
+    devoluciones = list(venta.devoluciones.select_related("usuario", "autorizo", "nota_credito").prefetch_related("items__item"))
     return render(request, "ventas/ticket.html", {
-        "v": venta, "nueva": request.GET.get("nueva") == "1",
+        "v": venta, "nueva": request.GET.get("nueva") == "1", "devoluciones": devoluciones,
+        "se_puede_devolver": not venta.anulada and not por_que_no(venta),
         "volver": url_segura(request, volver, ""),
         "wa_enlace": enlace_whatsapp(None, texto),  # elige a quién mandarlo
         "ver_costos": puede(request.user, "productos.costos"),
+        "monedero": _monedero(venta),
     })
+
+
+def _monedero(venta):
+    from clientes.saldo import del_ticket
+
+    return None if venta.anulada else del_ticket(venta)
 
 
 @permiso_requerido("ventas.vender", "ventas.ver")
@@ -198,7 +230,8 @@ def imprimir(request, pk):
     venta = get_object_or_404(Venta.objects.select_related("usuario", "atendio").prefetch_related("items", "pagos"), pk=pk)
     if not _puede_ver(request.user, venta):
         raise PermissionDenied
-    return render(request, "impresion/ticket.html", {"v": venta, "deuda": venta.cliente.saldo if venta.cliente_id and venta.fiado else None})
+    return render(request, "impresion/ticket.html", {"v": venta, "deuda": venta.cliente.saldo if venta.cliente_id and venta.fiado else None,
+                                                     "monedero": _monedero(venta)})
 
 
 def _rango(request):
@@ -253,7 +286,7 @@ def lista(request):
     if request.GET.get("excel"):
         return _excel(ventas.prefetch_related("pagos"))
     r = resumen(ventas)
-    pagina = Paginator(ventas.prefetch_related("pagos"), 40).get_page(request.GET.get("page"))
+    pagina = Paginator(ventas.prefetch_related("pagos").annotate(n_dev=Count("devoluciones")), 40).get_page(request.GET.get("page"))
     query = request.GET.copy()
     query.pop("page", None)
     hoy = timezone.localdate()
@@ -302,6 +335,51 @@ def anular(request, pk):
     except VentaInvalida as e:
         messages.error(request, str(e))
     return redirect("ventas:ticket", pk=pk)
+
+
+@permiso_requerido("ventas.vender", "ventas.ver")
+def devolver(request, pk):
+    """Devolver uno o varios productos de una venta. Quien no tiene el permiso, lo hace con la clave de un supervisor."""
+    from decimal import Decimal
+
+    from core.autorizacion import AutorizacionError, autorizar
+
+    from . import devoluciones as dv
+    from .models import Devolucion
+
+    venta = get_object_or_404(Venta.objects.select_related("cliente", "usuario"), pk=pk)
+    if not _puede_ver(request.user, venta):
+        raise PermissionDenied
+    if error := dv.por_que_no(venta):
+        messages.error(request, error)
+        return redirect("ventas:ticket", pk=pk)
+    lineas = dv.lineas(venta)
+    if request.method == "POST":
+        pedido = [{"item": l["item"].pk, "cantidad": request.POST.get(f"c_{l['item'].pk}") or "0",
+                   "al_stock": request.POST.get(f"merma_{l['item'].pk}") != "1"} for l in lineas]
+        try:
+            autorizo = autorizar(request, "ventas.devolver", request.POST.get("sup_usuario"), request.POST.get("sup_clave"))
+            d = dv.devolver(venta, pedido, request.POST.get("reembolso"), request.user, request.POST.get("motivo"), autorizo)
+        except (AutorizacionError, dv.VentaInvalida) as e:
+            messages.error(request, str(e))
+        else:
+            if d.nota_credito_id:
+                from facturacion.servicios import enviar_seguro
+
+                enviar_seguro(d.nota_credito)
+            messages.success(request, f"Devolución registrada: S/ {d.total:.2f} ({d.get_reembolso_display().lower()})."
+                             + (f" Nota de crédito {d.nota_credito.numero_str}." if d.nota_credito_id else ""))
+            return redirect("ventas:ticket", pk=pk)
+    opciones = [(k, t) for k, t in Devolucion.Reembolso.choices
+                if (k != Devolucion.Reembolso.DEUDA or (venta.cliente_id and venta.cliente.saldo > 0))
+                and (k != Devolucion.Reembolso.SALDO or venta.cliente_id)]
+    from caja.models import SesionCaja
+
+    return render(request, "ventas/devolver.html", {
+        "v": venta, "lineas": lineas, "opciones": opciones, "puede": puede(request.user, "ventas.devolver"),
+        "caja_abierta": SesionCaja.abierta_de(request.user) is not None, "ya": dv.devuelto_total(venta),
+        "queda": venta.total - dv.devuelto_total(venta),
+    })
 
 
 # --- Conciliación con el banco ----------------------------------------------------

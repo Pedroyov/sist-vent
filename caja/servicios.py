@@ -220,7 +220,7 @@ def calcular(sesion):
     resultado = {
         "inicial": sesion.monto_inicial, "n_ventas": v["n"] or 0, "total_ventas": v["total"] or CERO,
         "propinas": v["propinas"] or CERO, "metodos": metodos, "efectivo_ventas": efectivo_ventas,
-        "otros_medios": sum((m["total"] for m in metodos if m["codigo"] not in (MetodoPago.EFECTIVO, MetodoPago.CREDITO)), CERO)
+        "otros_medios": sum((m["total"] for m in metodos if m["codigo"] not in (MetodoPago.EFECTIVO, MetodoPago.CREDITO, MetodoPago.SALDO)), CERO)
                         + sum((t for k, t in abonos.items() if k != MetodoPago.EFECTIVO), CERO)
                         + sum((t for k, t in cuotas.items() if k != MetodoPago.EFECTIVO), CERO),
         "fiado": sum((m["total"] for m in metodos if m["codigo"] == MetodoPago.CREDITO), CERO),

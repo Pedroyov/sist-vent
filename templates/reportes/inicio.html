@@ -62,7 +62,7 @@
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100 kpi"><div class="inner"><h3>{{ r.total|soles }}</h3>
     <p class="mb-0">Vendido{% if r.variacion is not None %} · <span class="fw-bold">{% if r.variacion >= 0 %}▲ +{% else %}▼ {% endif %}{{ r.variacion }}%</span>{% endif %}</p>
-    <div class="small opacity-75">antes: {{ r.anterior.total|soles }}</div></div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
+    <div class="small opacity-75">antes: {{ r.anterior.total|soles }}{% if r.devuelto %} · devoluciones −{{ r.devuelto|soles }}{% endif %}</div></div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
   <div class="col-6 col-lg-3"><div class="small-box text-bg-primary mb-0 h-100 kpi"><div class="inner"><h3>{{ r.n }}</h3><p class="mb-0">Ventas · {{ r.promedio|soles }} c/u</p>
     <div class="small opacity-75">{{ r.por_dia|soles }} por día</div></div><i class="small-box-icon bi bi-receipt"></i></div></div>
   {% if ver_costos %}<div class="col-6 col-lg-3"><div class="small-box text-bg-info mb-0 h-100 kpi"><div class="inner"><h3>{{ r.ganancia|soles }}</h3>
@@ -340,10 +340,10 @@
 <section id="deudores">
 <div class="card mb-3">
   <div class="card-header d-flex align-items-center flex-wrap gap-2"><h3 class="card-title mb-0"><i class="bi bi-journal-text me-1"></i> Deudores (fiado)</h3>
-    <span class="ms-auto small">Por cobrar: <strong>{{ deudores.total|soles }}</strong> · {{ deudores.n }} cliente{{ deudores.n|pluralize }}{% if deudores.vencido %} · <span class="text-danger fw-semibold">vencido {{ deudores.vencido|soles }}</span>{% endif %}{% if deudores.antiguos %} · <span class="text-danger">{{ deudores.antiguos }} sin pagar hace más de 30 días</span>{% endif %}</span></div>
+    <span class="ms-auto small">Por cobrar: <strong>{{ deudores.total|soles }}</strong> · {{ deudores.n }} cliente{{ deudores.n|pluralize }}{% if deudores.vencido %} · <span class="text-danger fw-semibold">vencido {{ deudores.vencido|soles }}</span>{% endif %}{% if deudores.antiguos %} · <span class="text-danger">{{ deudores.antiguos }} sin pagar hace más de 30 días</span>{% endif %}{% if deudores.a_favor %} · saldo a favor de clientes {{ deudores.a_favor|soles }}{% endif %}</span></div>
   {% if deudores.filas %}
   <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th class="ps-3">Cliente</th><th class="text-end">Debe</th><th class="text-end">Último pago</th><th class="text-end pe-3">Días sin pagar</th></tr></thead>
-    <tbody>{% for f in deudores.filas %}<tr><td class="ps-3"><a href="{% url 'clientes:detalle' f.cliente.pk %}">{{ f.cliente.nombre }}</a>{% if f.excede %} <span class="badge text-bg-danger">pasó su límite</span>{% endif %}{% if f.vencido %} <span class="badge text-bg-danger">vencido {{ f.vencido|soles }}</span>{% endif %}</td>
+    <tbody>{% for f in deudores.filas %}<tr><td class="ps-3"><a href="{% url 'clientes:detalle' f.cliente.pk %}">{{ f.cliente.nombre }}</a>{% if f.excede %} <span class="badge text-bg-danger">pasó su límite</span>{% endif %}{% if f.vencido %} <span class="badge text-bg-danger">vencido {{ f.vencido|soles }} · {{ f.dias_vencido }} día{{ f.dias_vencido|pluralize }}</span>{% endif %}</td>
       <td class="text-end fw-semibold">{{ f.saldo|soles }}</td><td class="text-end small">{{ f.ultimo_pago|date:"d/m/Y"|default:"nunca" }}</td>
       <td class="text-end pe-3 {% if f.dias > 30 %}text-danger fw-semibold{% endif %}">{{ f.dias|default_if_none:"—" }}</td></tr>{% endfor %}</tbody></table></div>
   {% else %}<div class="card-body small text-body-secondary">Nadie debe. 🎉</div>{% endif %}
@@ -382,7 +382,8 @@
   {% endif %}
   <div class="col-12"><div class="card mb-0">
     <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-gift me-1"></i> Cortesías y descuentos
-      <small class="text-body-secondary">{{ rebajas.cortesias|length }} cortesía{{ rebajas.cortesias|length|pluralize }} · {{ rebajas.valor_cortesias|soles }} &nbsp;|&nbsp; {{ rebajas.descuentos|length }} descuento{{ rebajas.descuentos|length|pluralize }} · {{ rebajas.valor_descuentos|soles }}</small></h3></div>
+      <small class="text-body-secondary">{{ rebajas.cortesias|length }} cortesía{{ rebajas.cortesias|length|pluralize }} · {{ rebajas.valor_cortesias|soles }} &nbsp;|&nbsp; {{ rebajas.descuentos|length }} descuento{{ rebajas.descuentos|length|pluralize }} · {{ rebajas.valor_descuentos|soles }}{% if rebajas.promociones %} &nbsp;|&nbsp; promociones · {{ rebajas.valor_promociones|soles }}{% endif %}</small></h3></div>
+    {% if rebajas.promociones %}<ul class="list-group list-group-flush small">{% for p in rebajas.promociones %}<li class="list-group-item d-flex flex-wrap gap-2"><span><span class="badge text-bg-info">Promo</span> {{ p.nombre }}</span><span class="text-body-secondary">{{ p.ventas }} venta{{ p.ventas|pluralize }} · vendido {{ p.vendido|soles }}</span><span class="ms-auto fw-semibold">−{{ p.rebajado|soles }}</span></li>{% endfor %}</ul>{% endif %}
     {% if rebajas.cortesias or rebajas.descuentos %}
     {% if rebajas.motivos %}<div class="card-body py-2 small d-flex flex-wrap gap-2">{% for m in rebajas.motivos %}<span class="badge text-bg-light border">{{ m.etiqueta }}: {{ m.veces }} · {{ m.valor|soles }}</span>{% endfor %}</div>{% endif %}
     <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th class="ps-3">Venta</th><th>Qué</th><th>Motivo</th><th>Atendió / autorizó</th><th class="text-end pe-3">Valor</th></tr></thead><tbody>
@@ -395,7 +396,7 @@
         <td class="small">{{ v.atendio|default:v.usuario|nombre }}<div class="text-body-secondary">{% if v.descuento_por %}autorizó {{ v.descuento_por|nombre }}{% endif %}</div></td>
         <td class="text-end pe-3">{{ v.descuento|soles }}</td></tr>{% endfor %}
     </tbody></table></div>
-    {% else %}<div class="card-body small text-body-secondary">No se dieron cortesías ni descuentos en el periodo.</div>{% endif %}
+    {% elif not rebajas.promociones %}<div class="card-body small text-body-secondary">No se dieron cortesías ni descuentos en el periodo.</div>{% endif %}
   </div></div>
 </div>
 </section>

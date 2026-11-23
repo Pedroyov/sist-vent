@@ -3,7 +3,7 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
   Cobro.abrir({total: centimos, titulo: "...", onConfirmar: function (datos, terminar) {...}})
 {% endcomment %}{% load fe %}{% config_fe as FE %}
 <div class="modal fade" id="m-cobro" tabindex="-1" aria-hidden="true"
-     data-metodos='[{% for k, v in METODOS_PAGO %}{"id": "{{ k }}", "n": "{{ v }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+     data-metodos='[{% for k, v in METODOS_PAGO %}{"id": "{{ k }}", "n": "{{ v }}"}{% if not forloop.last %},{% endif %}{% endfor %}{% if P.mod_clientes %},{"id": "SAL", "n": "Saldo a favor"}{% endif %}]'
      data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}" data-operacion="{{ NEGOCIO.exigir_operacion|yesno:'1,0' }}">
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <form class="modal-content" id="f-cobro" novalidate>

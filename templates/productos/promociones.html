@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Promociones{% endblock %}
+{% block page_title %}Promociones{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item active">Promociones</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex mb-3"><a href="{% url 'productos:promocion_nueva' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nueva promoción</a></div>
+<div class="card mb-3">
+  {% if promociones %}
+  <ul class="list-group list-group-flush">
+    {% for p in promociones %}
+    <li class="list-group-item {% if not p.activa %}text-body-secondary{% endif %}">
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge {% if p.ahora %}text-bg-success{% elif p.activa %}text-bg-light border{% else %}text-bg-secondary{% endif %} fs-6">{{ p.etiqueta }}</span>
+        <div class="flex-grow-1 min-w-0"><div class="fw-semibold">{{ p.nombre }}</div>
+          <div class="small text-truncate">{% for x in p.productos.all %}{{ x.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if p.productos.all and p.categorias.all %} · {% endif %}{% for x in p.categorias.all %}categoría {{ x.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
+        <a href="{% url 'productos:promocion_editar' p.pk %}" class="btn btn-sm btn-link" aria-label="Editar"><i class="bi bi-pencil"></i></a>
+      </div>
+      <div class="small mt-1">
+        {% if not p.activa %}Desactivada{% elif p.ahora %}<span class="text-success fw-semibold">Vale ahora</span>{% else %}No vale ahora{% endif %} ·
+        desde {{ p.desde|date:"d/m/Y" }}{% if p.hasta %} hasta {{ p.hasta|date:"d/m/Y" }}{% endif %}{% if p.dias %} · {{ p.dias_texto }}{% endif %}{% if p.hora_desde %} · de {{ p.hora_desde|time:"g:i a" }} a {{ p.hora_hasta|time:"g:i a" }}{% endif %}
+      </div>
+      {% if p.mes %}<div class="small text-body-secondary">Este mes: {{ p.mes.ventas }} venta{{ p.mes.ventas|pluralize }} · vendido {{ p.mes.vendido|soles }} · rebajado {{ p.mes.rebajado|soles }}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="card-body text-center text-body-secondary py-4">Aún no hay promociones. Crea, por ejemplo, «2×1 en chicha» los martes o un happy hour de 6 a 8 pm.</div>
+  {% endif %}
+  <div class="card-footer small text-body-secondary">Se aplican solas al vender (Vender, mesas y delivery) y se ven en el ticket. Si un producto entra en dos promociones, gana la que más rebaja: no se suman. Con un precio especial (listas de precios) tampoco se suman: queda lo que salga más barato. En Reportes → Control sale cuánto se rebajó con cada una.</div>
+</div>
+{% endblock %}

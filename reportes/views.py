@@ -194,8 +194,9 @@ def _excel(d):
                i.motivo_anulacion, i.cuenta.mozo.get_full_name(), i.anulado_por.get_full_name() if i.anulado_por else ""]
               for i in d["mesas"]["quitados"]])
     if d["con_clientes"]:
-        hoja("Deudores", ["Cliente", "Documento", "Debe", "Días sin pagar", "Celular"],
-             [[f["cliente"].nombre, f["cliente"].documento, f["saldo"], f["dias"], f["cliente"].telefono] for f in d["deudores"]["filas"]])
+        hoja("Deudores", ["Cliente", "Documento", "Debe", "Vencido", "Días de atraso", "Días sin pagar", "Celular"],
+             [[f["cliente"].nombre, f["cliente"].documento, f["saldo"], f["vencido"], f["dias_vencido"] or "", f["dias"], f["cliente"].telefono]
+              for f in d["deudores"]["filas"]])
     hoja("Cajas", ["Cajero", "Cajas cerradas", "Con diferencia", "Faltante", "Sobrante"],
          [[f["etiqueta"], f["cajas"], f["con_diferencia"], f["faltante"], f["sobrante"]] for f in d["cajas"]["filas"]])
     if d["conciliacion"]["hay"]:

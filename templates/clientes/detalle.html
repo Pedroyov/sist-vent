@@ -18,6 +18,27 @@
       {% if vencido %}<p class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle"></i> Vencido: {{ vencido|soles }}</p>{% endif %}</div>
       <i class="small-box-icon bi bi-journal-text"></i>
     </div>
+    {% if mov_saldo %}
+    <div class="card card-outline card-success mb-3">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-wallet2 me-1"></i> Saldo a favor</h3><span class="ms-auto fs-5 fw-bold text-success">{{ favor|soles }}</span></div>
+      <ul class="list-group list-group-flush small">
+        {% for m in mov_saldo %}<li class="list-group-item d-flex {% if m.anulado %}text-body-tertiary text-decoration-line-through{% endif %}">
+          <span>{{ m.fecha|date:"d/m/Y" }} · {{ m.get_tipo_display }}{% if m.venta %} <a href="{% url 'ventas:ticket' m.venta_id %}">{{ m.venta.numero_str }}</a>{% endif %}{% if m.tipo == "REI" %} · {{ m.nota }}{% endif %}{% if m.vence %} <span class="text-body-secondary">· {% if m.vence < hoy %}venció{% else %}vence{% endif %} el {{ m.vence|date:"d/m" }}</span>{% endif %}</span>
+          <span class="ms-auto ps-2 text-nowrap {% if m.entra %}text-success{% endif %}">{% if m.entra %}+{% else %}−{% endif %}{{ m.monto|soles }}</span></li>{% endfor %}
+      </ul>
+      <div class="card-footer small text-body-secondary">{% if vence_pronto %}<div class="text-warning-emphasis mb-1"><i class="bi bi-hourglass-split"></i> S/ {{ vence_pronto.0|floatformat:2 }} de monedero vence el {{ vence_pronto.1|date:"d/m" }}.</div>{% endif %}Se usa al cobrar: con el cliente elegido aparece «Saldo a favor» entre los métodos de pago.
+        {% if favor > 0 and P.ventas_devolver %}
+        <details class="mt-2"><summary class="text-body">Devolverlo en efectivo</summary>
+          <form method="post" action="{% url 'clientes:devolver_saldo' c.pk %}" class="mt-2" novalidate>{% csrf_token %}
+            <div class="input-group input-group-sm mb-2"><span class="input-group-text">S/</span><input type="number" name="monto" class="form-control" step="0.01" min="0.01" max="{{ favor|stringformat:'.2f' }}" value="{{ favor|stringformat:'.2f' }}" inputmode="decimal" required aria-label="Monto"></div>
+            <input type="text" name="motivo" class="form-control form-control-sm mb-2" maxlength="200" required placeholder="Motivo (ej.: no volverá a comprar)" aria-label="Motivo">
+            <button class="btn btn-sm btn-outline-danger">Devolver de mi caja</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
     <div class="card mb-3">
       <ul class="list-group list-group-flush small">
         <li class="list-group-item d-flex"><span class="text-body-secondary">Documento</span><span class="ms-auto">{{ c.documento|default:"Sin documento" }}</span></li>
@@ -25,6 +46,7 @@
         {% if c.email %}<li class="list-group-item d-flex"><span class="text-body-secondary">Correo</span><span class="ms-auto">{{ c.email }}</span></li>{% endif %}
         {% if c.direccion %}<li class="list-group-item"><span class="text-body-secondary">Dirección</span><div>{{ c.direccion }}</div></li>{% endif %}
         {% if c.nota %}<li class="list-group-item"><span class="text-body-secondary">Nota</span><div>{{ c.nota }}</div></li>{% endif %}
+        {% if c.lista and NEGOCIO.usa_precios %}<li class="list-group-item d-flex"><span class="text-body-secondary">Lista de precios</span><span class="ms-auto"><span class="badge text-bg-info">{{ c.lista.nombre }}</span>{% if not c.lista.activa %} <span class="badge text-bg-secondary">inactiva</span>{% endif %}</span></li>{% endif %}
         <li class="list-group-item d-flex"><span class="text-body-secondary">Cliente desde</span><span class="ms-auto">{{ c.creado|date:"d/m/Y" }}</span></li>
       </ul>
     </div>
@@ -48,12 +70,12 @@
         {% if cuotas_debe %}<strong class="ms-auto text-danger text-nowrap">Debe {{ cuotas_debe|soles }}</strong>{% else %}<i class="bi bi-chevron-right ms-auto"></i>{% endif %}</div>
     </a>
     {% endif %}
-    {% if con_factura %}
+    {% if pendientes and con_plazo %}
     <div class="card mb-3 {% if vencido %}border-danger{% endif %}">
-      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-receipt me-1"></i> Cuenta corriente: lo que falta pagar</h3></div>
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-calendar-check me-1"></i> Lo que falta pagar y cuándo vence</h3></div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
-          <thead><tr><th class="ps-3">Comprobante</th><th class="d-none d-sm-table-cell">Fecha</th><th>Vence</th><th class="text-end pe-3">Falta</th></tr></thead>
+          <thead><tr><th class="ps-3">Venta</th><th class="d-none d-sm-table-cell">Fecha</th><th>Vence</th><th class="text-end pe-3">Falta</th></tr></thead>
           <tbody>
             {% for d in pendientes %}
             <tr>
@@ -66,7 +88,7 @@
           </tbody>
         </table>
       </div>
-      <div class="card-footer small text-body-secondary">Los pagos se aplican primero a lo más antiguo.</div>
+      <div class="card-footer small text-body-secondary">Los pagos se aplican primero a lo más antiguo. {% if c.dias_credito is not None %}Plazo de este cliente: {% if c.dias_credito %}{{ c.dias_credito }} días{% else %}sin vencimiento{% endif %}.{% endif %}{% if vencido %} Con algo vencido no se le fía más sin el permiso de pasar el límite.{% endif %}</div>
     </div>
     {% endif %}
     <div class="card mb-3">

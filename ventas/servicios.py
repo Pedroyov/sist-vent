@@ -41,24 +41,23 @@ def falta_operacion(metodo, referencia):
     return ""
 
 
-def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
-                    token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
-                    desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False,
-                    descuento_motivo="", descuento_por=None):
-    """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
-    El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
-    `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
-    if puede_descontar is None:
-        puede_descontar = puede_cambiar_precio
-    if token:
-        previa = Venta.objects.filter(token=token).first()
-        if previa:
-            return previa
+def _momento(valor):
+    """Cuándo se pidió un plato (para las promociones por horario); None = ahora."""
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(str(valor)) if valor else None
+    except ValueError:
+        return None
+
+
+def armar_lineas(items, desde_pedido=False, cliente_id=None, puede_cambiar_precio=False):
+    """Las líneas de una venta con su precio (listas de precios) y sus promociones, sin guardar nada.
+    La usan registrar_venta y la cotización que muestra la pantalla antes de cobrar: así lo que se ve es lo que se cobra."""
     if not items:
         raise VentaInvalida("No hay productos en la venta.")
     if len(items) > 300:
         raise VentaInvalida("Demasiados productos en una sola venta.")
-
     ids = []
     for it in items:
         try:
@@ -67,7 +66,23 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             raise VentaInvalida("Producto no válido.")
     variantes = Variante.objects.select_related("producto").in_bulk(ids)
 
-    lineas, subtotal = [], CERO
+    # Listas de precios: el precio por cantidad cuenta todo lo que se lleva de ese producto; el del cliente, por su lista
+    from productos import precios as reglas
+
+    lista_cliente, filas_precio, por_producto = None, {}, {}
+    if not desde_pedido and reglas.activa():
+        lista_cliente = reglas.lista_de(cliente_id)
+        filas_precio = reglas.especiales({v.producto_id for v in variantes.values()})
+        for it, vid in zip(items, ids):
+            v = variantes.get(vid)
+            try:
+                q = Decimal(str(it.get("cantidad")))
+            except (InvalidOperation, TypeError):
+                continue
+            if v is not None and q > 0:
+                por_producto[v.producto_id] = por_producto.get(v.producto_id, CERO) + q
+
+    lineas = []
     for it, vid in zip(items, ids):
         v = variantes.get(vid)
         if v is None or (not desde_pedido and (not v.activa or not v.producto.activo)):
@@ -88,7 +103,12 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             raise VentaInvalida(f"La cantidad de {nombre} debe ser mayor que cero.")
         if not v.producto.fraccionable and cantidad != cantidad.to_integral_value():
             raise VentaInvalida(f"{nombre} se vende por unidades enteras.")
-        lista = v.precio_venta + extra
+        regla = ""
+        if filas_precio or lista_cliente:
+            base, regla = reglas.precio(v, por_producto.get(v.producto_id, cantidad), lista_cliente, filas_precio.get(v.producto_id, ()))
+        else:
+            base = v.precio_venta
+        lista = base + extra
         if desde_pedido and it.get("precio") not in (None, ""):
             lista = dinero(_dec(it["precio"], f"Precio de {nombre}"))  # el precio que tenía al pedirlo
         precio = lista
@@ -98,8 +118,31 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         cortesia = it.get("cortesia") if desde_pedido else None  # solo llega desde una mesa (ya autorizada)
         if cortesia:
             precio, importe = CERO, CERO
-        lineas.append((v, cantidad, precio, lista, importe, foto, cortesia))
-        subtotal += importe
+        lineas.append({"v": v, "cantidad": cantidad, "precio": precio, "lista": lista, "importe": importe, "foto": foto,
+                       "normal": (v.precio_venta + extra) if regla else lista,
+                       "cortesia": cortesia, "regla": regla, "momento": _momento(it.get("momento")) if desde_pedido else None,
+                       "promo": None, "promo_desc": CERO})
+    from productos.promociones import aplicar
+
+    aplicar(lineas)  # promociones (2×1, %, precio especial): rebajan el importe de la línea
+    subtotal = sum((l["importe"] for l in lineas), CERO)
+    return lineas, subtotal
+
+
+def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
+                    token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
+                    desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False,
+                    descuento_motivo="", descuento_por=None):
+    """items: [{"variante": id, "cantidad": "2", "precio": "3.50"}]; pagos: [{"metodo": "EFE", "monto": "20"}].
+    El monto de efectivo es lo que entregó el cliente: el vuelto sale de ahí.
+    `despues(venta)` se ejecuta dentro de la misma transacción (por ejemplo, para marcar la mesa como cobrada)."""
+    if puede_descontar is None:
+        puede_descontar = puede_cambiar_precio
+    if token:
+        previa = Venta.objects.filter(token=token).first()
+        if previa:
+            return previa
+    lineas, subtotal = armar_lineas(items, desde_pedido, cliente_id, puede_cambiar_precio)
 
     from core.models import Ajustes
 
@@ -126,7 +169,7 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
         if metodo not in MetodoPago.values:
             raise VentaInvalida("Método de pago no válido.")
         monto = dinero(_dec(p.get("monto") or 0, "Monto"))
-        if monto > 0 and metodo not in ajustes.metodos_aceptados:
+        if monto > 0 and metodo not in ajustes.metodos_aceptados and metodo != MetodoPago.SALDO:
             raise VentaInvalida(f"El negocio no acepta pagos con {MetodoPago(metodo).label}.")
         if monto > 0:
             m = por_metodo.setdefault(metodo, {"monto": CERO, "referencia": ""})
@@ -179,12 +222,15 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 cliente_documento="".join(c for c in str(cliente_documento or "") if c.isalnum())[:11],
                 nota=str(nota or "").strip()[:200],
             )
-            for v, cantidad, precio, lista, importe, foto, cortesia in lineas:
+            for ln in lineas:
+                v, cantidad, foto, cortesia = ln["v"], ln["cantidad"], ln["foto"], ln["cortesia"]
                 VentaItem.objects.create(venta=venta, variante=v, descripcion=descripcion_con_opciones(v.nombre_completo, foto)[:240],
                                          opciones=foto, cantidad=cantidad, cortesia=bool(cortesia),
                                          cortesia_motivo=(cortesia or {}).get("motivo", "")[:120], cortesia_por_id=(cortesia or {}).get("por"),
-                                         precio_unitario=precio, precio_lista=lista, costo_unitario=v.costo_efectivo,
-                                         subtotal=importe)
+                                         precio_unitario=ln["precio"], precio_lista=ln["lista"],
+                                         precio_regla=ln["regla"] if ln["precio"] == ln["lista"] else "",
+                                         promo=ln["promo"], promo_descuento=ln["promo_desc"],
+                                         costo_unitario=v.costo_efectivo, subtotal=ln["importe"])
                 for vs, q in consumo(v, cantidad, foto):  # el producto, lo que trae el combo y las opciones que se cuentan
                     mover_stock(vs, -q, MovimientoStock.Tipo.VENTA, usuario, referencia=f"Venta {venta.numero_str}",
                                 nota="" if vs.pk == v.pk else f"En {v.nombre_completo}"[:200])
@@ -192,6 +238,20 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
                 monto = m["monto"] - (vuelto if metodo == MetodoPago.EFECTIVO else CERO)
                 if monto > 0:
                     Pago.objects.create(venta=venta, metodo=metodo, monto=monto, referencia=m["referencia"])
+            con_saldo = por_metodo.get(MetodoPago.SALDO, {}).get("monto", CERO)
+            if con_saldo > 0:
+                from clientes.saldo import SaldoError, usar
+
+                if cliente is None:
+                    raise VentaInvalida("Para pagar con saldo a favor, elige al cliente.")
+                try:
+                    usar(cliente, con_saldo, venta, usuario)
+                except SaldoError as e:
+                    raise VentaInvalida(str(e))
+            if cliente:
+                from clientes.saldo import ganar_por_venta
+
+                venta.monedero = ganar_por_venta(venta, usuario)  # función Monedero: un % de lo pagado vuelve como saldo
             _anotar_rebajas(venta, lineas, descuento, usuario, descuento_por)
             if despues:
                 despues(venta)
@@ -212,7 +272,7 @@ def _anotar_rebajas(venta, lineas, descuento, usuario, descuento_por):
         anotar("venta.descuento", f"Descuento de S/ {descuento:.2f} en la venta {venta.numero_str}"
                + (f": {venta.descuento_motivo}" if venta.descuento_motivo else ""), objeto=venta, usuario=usuario,
                despues={"descuento": descuento, "autorizo": str(descuento_por or usuario)})
-    cambiados = [(v, precio, lista) for v, cantidad, precio, lista, importe, foto, cortesia in lineas if precio != lista and not cortesia]
+    cambiados = [(l["v"], l["precio"], l["lista"]) for l in lineas if l["precio"] != l["lista"] and not l["cortesia"]]
     if cambiados:
         anotar("venta.precio", f"Precio cambiado en la venta {venta.numero_str}: " + ", ".join(
             f"{v.nombre_completo} S/ {lista:.2f} → S/ {precio:.2f}" for v, precio, lista in cambiados), objeto=venta, usuario=usuario)
@@ -227,11 +287,20 @@ def anular_venta(venta, usuario, motivo):
         v = Venta.objects.select_for_update().get(pk=venta.pk)
         if v.anulada:
             raise VentaInvalida("Esta venta ya estaba anulada.")
+        if v.devoluciones.exists():
+            raise VentaInvalida("Esta venta tiene devoluciones: para lo que queda, usa «Devolver productos».")
         for item in v.items.select_related("variante__producto"):
             for vs, q in consumo(item.variante, item.cantidad, item.opciones):
                 mover_stock(vs, q, MovimientoStock.Tipo.DEVOLUCION, usuario,
                             nota=f"Anulación: {motivo}", referencia=f"Venta {v.numero_str}")
         _devolver_efectivo(v, usuario, motivo)
+        from clientes.saldo import devolver_uso
+
+        devolver_uso(v)  # si se pagó con saldo a favor, el saldo vuelve
+        if v.cliente_id:
+            from clientes.saldo import ganado_en, quitar
+
+            quitar(v.cliente_id, ganado_en(v), usuario, f"Venta {v.numero_str} anulada", venta=v)  # el monedero que generó
         from mesas.servicios import reabrir_por_anulacion
 
         v.cuenta_reabierta = reabrir_por_anulacion(v)

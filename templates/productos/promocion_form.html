@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}{% if promo %}{{ promo.nombre }}{% else %}Nueva promoción{% endif %}{% endblock %}
+{% block page_title %}{% if promo %}Editar promoción{% else %}Nueva promoción{% endif %}{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">Productos</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'productos:promociones' %}">Promociones</a></li>
+  <li class="breadcrumb-item active">{% if promo %}{{ promo.nombre }}{% else %}Nueva{% endif %}</li>
+{% endblock %}
+{% block content %}
+<form method="post" novalidate class="pb-5">{% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-stars me-1"></i> Qué promoción</h3></div>
+        <div class="card-body">
+          {{ form.nombre|as_crispy_field }}
+          {{ form.tipo|as_crispy_field }}
+          <div class="row g-2" data-tipo="NXM"><div class="col-6">{{ form.lleva|as_crispy_field }}</div><div class="col-6">{{ form.paga|as_crispy_field }}</div>
+            <div class="col-12 form-text mt-0 mb-2">Junta todo lo que entra (tallas, sabores o productos de la categoría) y regala lo más barato.</div></div>
+          <div data-tipo="POR">{{ form.porcentaje|as_crispy_field }}</div>
+          <div data-tipo="PRE">{{ form.precio|as_crispy_field }}</div>
+        </div></div>
+      <div class="card mt-3"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-box-seam me-1"></i> En qué productos</h3></div>
+        <div class="card-body">{{ form.productos|as_crispy_field }}{{ form.categorias|as_crispy_field }}</div></div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card"><div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-calendar-week me-1"></i> Cuándo vale</h3></div>
+        <div class="card-body">
+          <div class="row g-2"><div class="col-6">{{ form.desde|as_crispy_field }}</div><div class="col-6">{{ form.hasta|as_crispy_field }}</div></div>
+          <div class="dias-inline">{{ form.dias|as_crispy_field }}</div>
+          <div class="row g-2"><div class="col-6">{{ form.hora_desde|as_crispy_field }}</div><div class="col-6">{{ form.hora_hasta|as_crispy_field }}</div></div>
+          <div class="form-text mb-3">Happy hour: de 6:00 p. m. a 8:00 p. m. Si cruza la medianoche (10 p. m. a 2 a. m.) también vale. En mesas cuenta la hora en que se pidió.</div>
+          {{ form.activa|as_crispy_field }}
+        </div></div>
+    </div>
+  </div>
+  <div class="fixed-bottom bg-body border-top barra-fija px-3 pt-2 d-flex gap-2">
+    <a href="{% url 'productos:promociones' %}" class="btn btn-outline-secondary">Cancelar</a>
+    <button class="btn btn-primary flex-grow-1"><i class="bi bi-check-lg me-1"></i>Guardar promoción</button>
+  </div>
+</form>
+<style>.dias-inline .form-check { display: inline-block; margin-right: 1rem; }</style>
+<script>
+(function () {
+  function mostrar() {
+    var t = (document.querySelector("[name=tipo]:checked") || {}).value;
+    document.querySelectorAll("[data-tipo]").forEach(function (el) { el.classList.toggle("d-none", el.dataset.tipo !== t); });
+  }
+  document.querySelectorAll("[name=tipo]").forEach(function (r) { r.addEventListener("change", mostrar); });
+  mostrar();
+})();
+</script>
+{% endblock %}

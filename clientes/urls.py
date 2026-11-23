@@ -13,6 +13,7 @@ urlpatterns = [
     path("<int:pk>/editar/", views.form, name="editar"),
     path("<int:pk>/pagar/", views.abonar, name="abonar"),
     path("<int:pk>/incobrable/", views.incobrable, name="incobrable"),
+    path("<int:pk>/saldo/devolver/", views.devolver_saldo, name="devolver_saldo"),
     path("<int:pk>/imprimir/", views.imprimir, name="imprimir"),
     path("pagos/<int:pk>/anular/", views.anular, name="anular_abono"),
 ]

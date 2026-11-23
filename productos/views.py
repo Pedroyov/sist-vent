@@ -16,8 +16,10 @@ from core.permisos import permiso_requerido, puede
 from core.utils import entero, inicio_dia
 
 from . import excel
-from .forms import CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, MovimientoForm, ProductoForm, VarianteForm
+from .forms import (CategoriaForm, GenerarVariantesForm, GrupoOpcionesForm, ImportarForm, ListaPreciosForm, MovimientoForm, ProductoForm,
+                    PromocionForm, VarianteForm)
 from .models import area_sugerida, CERO, Categoria, GrupoOpciones, MovimientoStock, Opcion, Producto, Variante
+from .precios import activa as usa_precios
 from .rubros import CATEGORIAS, GRUPOS, etiquetas_variantes, rubro_actual, valores_iniciales
 from .servicios import ajustar_a, asegurar_variante_unica, generar_variantes, leer_linea_opcion, mover_stock, por_reponer
 
@@ -199,6 +201,7 @@ def detalle(request, pk):
         "ver_costos": puede(request.user, "productos.costos"),
         **_datos_componentes(producto),
         **(_datos_combo(producto) if producto.es_combo else {}),
+        **(_datos_precios(producto) if usa_precios() else {}),
     })
 
 
@@ -704,3 +707,131 @@ def menu_dia(request):
     if request.htmx:
         return render(request, "productos/partials/menu.html", datos)
     return render(request, "productos/menu.html", datos)
+
+
+# --- Listas de precios (función «Listas de precios») -----------------------------------------
+
+def _datos_precios(producto):
+    from .models import ListaPrecios
+
+    return {"especiales": list(producto.precios_especiales.select_related("lista")),
+            "listas": list(ListaPrecios.objects.filter(activa=True)),
+            "variantes_propias": producto.variantes.filter(activa=True, precio__isnull=False).count()}
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def precios(request, pk):
+    """Precios especiales de un producto: por cantidad, por lista de precios o ambos. Se agregan y se quitan."""
+    from decimal import InvalidOperation
+
+    from core.bitacora import anotar
+
+    from .models import ListaPrecios, PrecioEspecial
+
+    p = get_object_or_404(Producto, pk=pk)
+    error = ""
+    if request.POST.get("accion") == "quitar":
+        pe = get_object_or_404(PrecioEspecial, pk=entero(request.POST.get("especial")), producto=p)
+        anotar("producto.precio", f"{p}: se quitó el precio especial {_texto_especial(pe)}", objeto=p, usuario=request.user)
+        pe.delete()
+    else:
+        lista = ListaPrecios.objects.filter(pk=entero(request.POST.get("lista")), activa=True).first() if request.POST.get("lista") else None
+        try:
+            desde = Decimal(str(request.POST.get("desde") or "1").replace(",", ".")).quantize(Decimal("0.001"))
+            precio = Decimal(str(request.POST.get("precio") or "").replace(",", ".")).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            desde = precio = None
+        if desde is None or precio is None or desde <= 0 or precio < 0:
+            error = "Escribe desde qué cantidad y el precio."
+        elif not p.fraccionable and desde != desde.to_integral_value():
+            error = f"{p.nombre} se vende por unidades enteras."
+        elif lista is None and desde <= 1:
+            error = "Para todos los clientes, el precio especial es por cantidad: pon desde cuántas unidades (2 o más)."
+        elif precio >= p.precio:
+            error = f"El precio especial tiene que ser menor que el normal (S/ {p.precio:.2f})."
+        else:
+            pe, nuevo = PrecioEspecial.objects.update_or_create(producto=p, lista=lista, desde=desde, defaults={"precio": precio})
+            anotar("producto.precio", f"{p}: precio especial {_texto_especial(pe)}{'' if nuevo else ' (cambiado)'}", objeto=p,
+                   usuario=request.user)
+    contexto = {"p": p, "error_precios": error, **_datos_precios(p)}
+    if request.htmx:
+        return render(request, "productos/partials/precios.html", contexto)
+    if error:
+        messages.error(request, error)
+    return redirect("productos:detalle", pk=pk)
+
+
+def _texto_especial(pe):
+    from core.templatetags.sis import cantidad
+
+    para = pe.lista.nombre if pe.lista else "todos"
+    return f"{para}, desde {cantidad(pe.desde)}: S/ {pe.precio:.2f}"
+
+
+@permiso_requerido("productos.editar")
+def listas_precios(request):
+    from .models import ListaPrecios
+
+    form = ListaPreciosForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        lista = form.save()
+        messages.success(request, f"Lista «{lista.nombre}» creada. Ahora márcala en los clientes que la usan.")
+        return redirect("productos:listas_precios")
+    listas = ListaPrecios.objects.annotate(n_clientes=Count("clientes", distinct=True), n_productos=Count("precios", distinct=True))
+    return render(request, "productos/listas_precios.html", {"form": form, "listas": listas})
+
+
+@permiso_requerido("productos.editar")
+def lista_precios_editar(request, pk):
+    from core.bitacora import anotar, cambios_form
+
+    from .models import ListaPrecios
+
+    lista = get_object_or_404(ListaPrecios, pk=pk)
+    form = ListaPreciosForm(request.POST or None, instance=lista)
+    if request.method == "POST" and form.is_valid():
+        cambios = cambios_form(form)
+        form.save()
+        if cambios:
+            anotar("producto.precio", f"Lista de precios «{lista.nombre}»: " + ", ".join(f"{c} {a} → {d}" for c, (a, d) in cambios.items()),
+                   objeto=lista, usuario=request.user)
+        messages.success(request, f"Lista «{lista.nombre}» guardada.")
+        return redirect("productos:listas_precios")
+    return render(request, "core/form.html", {
+        "form": form, "titulo": f"Editar lista «{lista.nombre}»", "cancelar": reverse("productos:listas_precios"),
+        "breadcrumb": [("Productos", reverse("productos:lista")), ("Listas de precios", reverse("productos:listas_precios"))],
+        "ayuda": "Desactivarla no borra nada: sus clientes vuelven a pagar el precio normal hasta que la actives otra vez."})
+
+
+# --- Promociones (función «Promociones») ------------------------------------------------------
+
+@permiso_requerido("productos.editar")
+def promociones(request):
+    from .models import Promocion
+    from .promociones import resumen
+
+    hoy = timezone.localdate()
+    mes = {f["id"]: f for f in resumen(hoy.replace(day=1), hoy)}
+    lista = list(Promocion.objects.prefetch_related("productos", "categorias"))
+    for p in lista:
+        p.mes = mes.get(p.pk)
+        p.ahora = p.vigente()
+    return render(request, "productos/promociones.html", {"promociones": lista})
+
+
+@permiso_requerido("productos.editar")
+def promocion_form(request, pk=None):
+    from core.bitacora import anotar
+
+    from .models import Promocion
+
+    promo = get_object_or_404(Promocion, pk=pk) if pk else None
+    form = PromocionForm(request.POST or None, instance=promo)
+    if request.method == "POST" and form.is_valid():
+        p = form.save()
+        anotar("promocion.cambio", f"Promoción «{p.nombre}» ({p.etiqueta}) {'cambiada' if promo else 'creada'}"
+               f"{'' if p.activa else ' — desactivada'}", objeto=p, usuario=request.user)
+        messages.success(request, f"Promoción «{p.nombre}» guardada.")
+        return redirect("productos:promociones")
+    return render(request, "productos/promocion_form.html", {"form": form, "promo": promo})

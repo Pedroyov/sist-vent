@@ -17,6 +17,7 @@ urlpatterns = [
     path("cuenta/<int:pk>/pedir-cuenta/", views.pedir_cuenta, name="pedir_cuenta"),
     path("cuenta/<int:pk>/cambiar/", views.cambiar_mesa, name="cambiar"),
     path("cuenta/<int:pk>/cobrar/", views.cobrar_vista, name="cobrar"),
+    path("cuenta/<int:pk>/cotizar/", views.cotizar_vista, name="cotizar"),
     path("cuenta/<int:pk>/anular/", views.anular, name="anular"),
     path("item/<int:pk>/", views.item, name="item"),
     path("cuenta/<int:pk>/liberar/", views.liberar, name="liberar"),

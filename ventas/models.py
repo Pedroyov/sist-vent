@@ -32,6 +32,7 @@ class MetodoPago(models.TextChoices):
     TARJETA = "TAR", "Tarjeta"
     TRANSFERENCIA = "TRA", "Transferencia"
     CREDITO = "CRE", "Fiado"
+    SALDO = "SAL", "Saldo a favor"  # dinero que el cliente ya dejó antes (clientes.saldo): no entra a la caja ni al banco
 
 
 class Venta(models.Model):
@@ -107,6 +108,10 @@ class VentaItem(models.Model):
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
     precio_lista = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio del catálogo en ese momento.")
+    precio_regla = models.CharField(max_length=60, blank=True, help_text="Por qué tuvo ese precio: «Precio por cantidad», «Precio Mayorista».")
+    promo = models.ForeignKey("productos.Promocion", on_delete=models.PROTECT, null=True, blank=True, related_name="items_vendidos")
+    promo_descuento = models.DecimalField("rebaja de la promoción", max_digits=12, decimal_places=2, default=Decimal("0"),
+                                          help_text="Ya está restada del subtotal de la línea.")
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
     opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, adicionales…) como estaban al vender.")
@@ -121,6 +126,11 @@ class VentaItem(models.Model):
 
     def __str__(self):
         return f"{self.cantidad} × {self.descripcion}"
+
+    @property
+    def importe_bruto(self):
+        """Antes de la promoción (para el ticket: la línea y debajo la rebaja)."""
+        return self.subtotal + self.promo_descuento
 
     @property
     def precio_cambiado(self):
@@ -185,3 +195,51 @@ class NoLlego(models.Model):
         verbose_name = "cobro que no llegó"
         verbose_name_plural = "cobros que no llegaron"
         constraints = [models.UniqueConstraint(fields=["tipo", "objeto_id"], name="no_llego_una_vez")]
+
+
+class Devolucion(models.Model):
+    """Productos que el cliente devuelve de una venta (una parte o todo lo que queda). La venta no se toca: lo devuelto
+    vuelve al stock (o sale como merma), el dinero se devuelve y, si hubo boleta o factura, se emite nota de crédito
+    parcial. La lógica está en ventas/devoluciones.py."""
+    class Reembolso(models.TextChoices):
+        CAJA = "CAJ", "Efectivo de mi caja"
+        FUERA = "FUE", "Yape o transferencia (fuera de caja)"
+        DEUDA = "DEU", "Se descuenta de su deuda (fiado)"
+        SALDO = "SAL", "Queda como saldo a favor del cliente"
+
+    venta = models.ForeignKey(Venta, on_delete=models.PROTECT, related_name="devoluciones")
+    fecha = models.DateTimeField(default=timezone.now, db_index=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+", verbose_name="devolvió")
+    autorizo = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    motivo = models.CharField(max_length=200)
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+    reembolso = models.CharField("cómo se devolvió el dinero", max_length=3, choices=Reembolso.choices)
+    movimiento = models.ForeignKey("caja.MovimientoCaja", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    abono = models.ForeignKey("clientes.Abono", on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    nota_credito = models.ForeignKey("facturacion.Comprobante", on_delete=models.PROTECT, null=True, blank=True, related_name="devoluciones")
+
+    class Meta:
+        verbose_name = "devolución"
+        verbose_name_plural = "devoluciones"
+        ordering = ["-fecha", "-id"]
+
+    def __str__(self):
+        return f"Devolución {self.numero} de la venta {self.venta.numero_str}"
+
+    @property
+    def numero(self):
+        return f"D-{self.pk:06d}"
+
+
+class DevolucionItem(models.Model):
+    devolucion = models.ForeignKey(Devolucion, on_delete=models.CASCADE, related_name="items")
+    item = models.ForeignKey(VentaItem, on_delete=models.PROTECT, related_name="devoluciones")
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+    importe = models.DecimalField(max_digits=12, decimal_places=2, help_text="Lo que se devuelve por esta línea (con su parte del descuento).")
+    costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    al_stock = models.BooleanField("vuelve al stock", default=True, help_text="Desmarcado: llegó dañado y sale como merma.")
+
+    class Meta:
+        verbose_name = "producto devuelto"
+        verbose_name_plural = "productos devueltos"
+        ordering = ["id"]

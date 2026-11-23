@@ -188,6 +188,33 @@ def crear(venta, sol, usuario):
         proveedor=config.proveedor, usuario=usuario, **_totales(detalle, config.afectacion))
 
 
+def nota_credito_parcial(original, lineas_devueltas, motivo, usuario):
+    """Nota de crédito por lo devuelto de una venta (motivo SUNAT 07: devolución por ítem).
+    `lineas_devueltas` = [(VentaItem, cantidad, importe)]; el importe ya trae su parte del descuento."""
+    config = Config.cargar()
+    serie = serie_para(original.venta, "serie_nc_factura" if original.tipo == Comprobante.Tipo.FACTURA else "serie_nc_boleta", config)
+    tasa = original.igv_pct / Decimal("100") if config.afectacion == Config.Afectacion.GRAVADO else Decimal("0")
+    detalle = []
+    for i, cantidad, importe in lineas_devueltas:
+        if importe <= 0:
+            continue
+        t = _r(importe)
+        precio = (t / cantidad).quantize(Decimal("0.0000000001"))
+        sub = _r(t / (1 + tasa))
+        unidad = "ZZ" if i.variante.producto.es_servicio else UNIDADES.get(i.variante.producto.unidad, "NIU")
+        detalle.append({"descripcion": i.descripcion[:250], "codigo": i.variante.codigo or "", "unidad": unidad,
+                        "cantidad": f"{cantidad.normalize():f}", "precio_unitario": f"{precio:f}",
+                        "valor_unitario": f"{(precio / (1 + tasa)).quantize(Decimal('0.0000000001')):f}",
+                        "subtotal": f"{sub:.2f}", "igv": f"{t - sub:.2f}", "total": f"{t:.2f}", "afectacion": config.afectacion})
+    if not detalle:
+        return None
+    campos = {k: getattr(original, k) for k in ("cliente_tipo_doc", "cliente_doc", "cliente_nombre", "cliente_direccion", "igv_pct")}
+    return Comprobante.objects.create(venta=original.venta, tipo=Comprobante.Tipo.NOTA_CREDITO, serie=serie, numero=_numerar(serie),
+                                      fecha=timezone.localdate(), modifica=original, motivo=(motivo or "Devolución por ítem")[:200],
+                                      tipo_nota=7, detalle=detalle, proveedor=config.proveedor, usuario=usuario,
+                                      **campos, **_totales(detalle, config.afectacion))
+
+
 def plan_cuotas(monto, primera, n=1, cada_dias=30):
     """Reparte lo que se fió en n cuotas iguales (la última cuadra los céntimos), una cada `cada_dias` desde `primera`."""
     base = (monto / n).quantize(Decimal("0.01"), rounding="ROUND_DOWN")

@@ -24,6 +24,13 @@ def _filtrar(request):
         clientes = clientes.filter(Q(nombre__icontains=palabra) | Q(numero_documento__icontains=palabra) | Q(telefono__icontains=palabra))
     if filtro == "deben":
         clientes = clientes.filter(saldo_calc__gt=0).order_by("-saldo_calc")
+    elif request.GET.get("lista", "").isdigit():
+        clientes = clientes.filter(lista_id=int(request.GET["lista"]), activo=True)
+        filtro = "lista"
+    elif filtro == "vencido":
+        from .servicios import vencidos
+
+        clientes = clientes.filter(pk__in=list(vencidos())).order_by("-saldo_calc")
     elif filtro == "inactivos":
         clientes = clientes.filter(activo=False)
     else:
@@ -70,12 +77,24 @@ def _excel(clientes):
 @permiso_requerido("clientes.editar")
 def form(request, pk=None):
     cliente = get_object_or_404(Cliente, pk=pk) if pk else None
-    f = ClienteForm(request.POST or None, instance=cliente, puede_limite=puede(request.user, "clientes.limite"))
+    f = ClienteForm(request.POST or None, instance=cliente, puede_limite=puede(request.user, "clientes.limite"),
+                    puede_precio=puede(request.user, "ventas.precio"))
     if request.method == "POST" and f.is_valid():
         from core.bitacora import anotar, cambios_form
 
         limite = cambios_form(f, ["limite_credito"]) if cliente else {}
+        plazo_ = cambios_form(f, ["dias_credito"]) if cliente else {}
+        lista_ = cambios_form(f, ["lista"])
         c = f.save()
+        if lista_ and (cliente or c.lista_id):
+            antes, despues = lista_["lista"]
+            anotar("cliente.lista", f"Lista de precios de {c}: {antes or 'precio normal'} → {despues or 'precio normal'}", objeto=c,
+                   antes={"lista": str(antes or "")}, despues={"lista": str(despues or "")})
+        if plazo_:
+            antes, despues = plazo_["dias_credito"]
+            nombre = lambda v: "el general" if v in (None, "", "None") else f"{v} días"
+            anotar("cliente.plazo", f"Plazo del fiado de {c}: {nombre(antes)} → {nombre(despues)}", objeto=c,
+                   antes={"dias": antes}, despues={"dias": despues})
         if limite:
             anotar("cliente.limite", f"Límite de fiado de {c}: S/ {limite['limite_credito'][0]} → S/ {limite['limite_credito'][1]}",
                    objeto=c, antes={"limite": limite["limite_credito"][0]}, despues={"limite": limite["limite_credito"][1]})
@@ -96,13 +115,16 @@ def detalle(request, pk):
 
     negocio = Ajustes.cargar()
     pendientes = [d for d in deudas(c) if d["pendiente"] > 0]
-    con_factura = [d for d in pendientes if d["comprobante"]]
     vencido = sum((d["vencido"] for d in pendientes), 0)
     texto = (f"Hola {c.nombre.split()[0].title()}, te saludamos de {negocio.nombre_mostrar}. "
-             f"Te recordamos que tienes un saldo pendiente de S/ {saldo:.2f}.")
-    if con_factura:
-        texto += " Facturas: " + "; ".join(f"{d['comprobante'].numero_str} S/ {d['pendiente']:.2f}"
-                                           + (f" (vence {d['vence']:%d/%m})" if d["vence"] else "") for d in con_factura) + "."
+             f"Te recordamos que tienes un saldo pendiente de S/ {saldo:.2f}")
+    texto += f", de los cuales S/ {vencido:.2f} ya venció." if vencido else "."
+    if any(d["vence"] for d in pendientes):
+        def linea(d):
+            doc = d["comprobante"].numero_str if d["comprobante"] else f"compra del {timezone.localtime(d['venta'].fecha):%d/%m}"
+            cuando = f" (venció el {d['vence']:%d/%m})" if d["vencido"] else f" (vence el {d['vence']:%d/%m})" if d["vence"] else ""
+            return f"{doc} S/ {d['pendiente']:.2f}{cuando}"
+        texto += " Detalle: " + "; ".join(linea(d) for d in pendientes[:6]) + ("; …" if len(pendientes) > 6 else "") + "."
     texto += " ¡Gracias!"
     return render(request, "clientes/detalle.html", {
         "c": c, "saldo": saldo, "movimientos": estado_de_cuenta(c, 100),
@@ -110,11 +132,34 @@ def detalle(request, pk):
         "form_abono": AbonoForm(initial={"monto": saldo if saldo > 0 else None, "metodo": "EFE"}),
         "wa": enlace_whatsapp(c.telefono, texto),
         "anulados": c.abonos.filter(anulado=True)[:10],
-        "pendientes": pendientes, "con_factura": bool(con_factura), "vencido": vencido,
+        "pendientes": pendientes, "con_plazo": any(d["vence"] for d in pendientes), "vencido": vencido,
         **_cobranzas(request.user, c),
         "h": _historial(c),
+        **_saldo_a_favor(c),
         "historial": _bitacora(request.user, c), "historial_tipo": "cliente", "historial_id": c.pk,
     })
+
+
+def _saldo_a_favor(c):
+    from .saldo import por_vencer, saldo_a_favor
+
+    movimientos = list(c.saldo_movimientos.select_related("usuario", "venta")[:15])
+    return {"favor": saldo_a_favor(c) if movimientos else 0, "mov_saldo": movimientos, "hoy": timezone.localdate(),
+            "vence_pronto": por_vencer(c) if movimientos else None}
+
+
+@permiso_requerido("ventas.devolver")
+@require_POST
+def devolver_saldo(request, pk):
+    from .saldo import SaldoError, reintegrar
+
+    c = get_object_or_404(Cliente, pk=pk)
+    try:
+        m = reintegrar(c, request.POST.get("monto"), request.user, request.POST.get("motivo"))
+        messages.success(request, f"Se devolvieron S/ {m.monto:.2f} en efectivo a {c.nombre}.")
+    except SaldoError as e:
+        messages.error(request, str(e))
+    return redirect("clientes:detalle", pk=pk)
 
 
 def _bitacora(usuario, c):
@@ -208,10 +253,19 @@ def buscar(request):
     qs = Cliente.objects.filter(activo=True)
     for palabra in q.split():
         qs = qs.filter(Q(nombre__icontains=palabra) | Q(numero_documento__startswith=palabra))
-    clientes = con_saldo(qs).order_by("nombre")[:10]
+    from .saldo import saldo_a_favor
+    from .servicios import vencidos
+
+    clientes = list(con_saldo(qs).select_related("lista").order_by("nombre")[:10])
+    from productos.precios import activa as con_listas
+
+    listas = con_listas()
+    atrasos = vencidos([c for c in clientes if c.fiado > c.abonado])
     return JsonResponse({"resultados": [
         {"id": c.pk, "n": c.nombre, "doc": c.documento, "num": c.numero_documento, "dir": c.direccion,
-         "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}"}
+         "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}", "favor": f"{saldo_a_favor(c):.2f}",
+         "vencido": f"{atrasos[c.pk]['monto']:.2f}" if c.pk in atrasos else "0.00",
+         "lista": c.lista_id if listas and c.lista and c.lista.activa else None}
         for c in clientes]})
 
 

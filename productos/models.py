@@ -325,6 +325,108 @@ class Variante(models.Model):
         return self.producto.maneja_stock and self.stock <= self.producto.stock_minimo
 
 
+class ListaPrecios(models.Model):
+    """Tipo de cliente con sus propios precios (Mayorista, Revendedor…): un % menos sobre el precio normal y, si hace falta,
+    un precio fijo por producto (PrecioEspecial). Se le asigna al cliente. La lógica está en productos/precios.py."""
+    nombre = models.CharField(max_length=40, unique=True, help_text="Ej.: Mayorista, Revendedor, Colegio.")
+    porcentaje = models.DecimalField("% menos sobre el precio normal", max_digits=5, decimal_places=2, default=CERO,
+                                     validators=[MinValueValidator(CERO)],
+                                     help_text="Se aplica a todos los productos. 0 = solo los precios fijos que pongas en cada producto.")
+    activa = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "lista de precios"
+        verbose_name_plural = "listas de precios"
+        ordering = ["nombre"]
+        constraints = [models.CheckConstraint(condition=Q(porcentaje__lt=100), name="lista_porcentaje_menor_100")]
+
+    def __str__(self):
+        return self.nombre
+
+
+class PrecioEspecial(models.Model):
+    """Un precio distinto del normal para un producto: por cantidad («desde 6 unidades, S/ 2.30»), para una lista de
+    precios, o las dos cosas (mayorista desde 12). Vale para las variantes que usan el precio del producto."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="precios_especiales")
+    lista = models.ForeignKey(ListaPrecios, on_delete=models.CASCADE, null=True, blank=True, related_name="precios",
+                              help_text="Vacío = para todos los clientes.")
+    desde = models.DecimalField("desde (cantidad)", max_digits=10, decimal_places=3, default=Decimal("1"),
+                                validators=[MinValueValidator(Decimal("0.001"))])
+    precio = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(CERO)])
+
+    class Meta:
+        verbose_name = "precio especial"
+        verbose_name_plural = "precios especiales"
+        ordering = ["producto", "lista__nombre", "desde"]
+        constraints = [models.UniqueConstraint(fields=["producto", "lista", "desde"], name="precio_especial_unico")]
+
+    def __str__(self):
+        return f"{self.producto} desde {self.desde}: S/ {self.precio}"
+
+
+class Promocion(models.Model):
+    """2×1, 3×2, % de descuento o precio especial en productos o categorías, con fechas y, si se quiere, días y horario.
+    Se aplica sola al vender (productos/promociones.py). No se borra: se desactiva (las ventas la recuerdan)."""
+    class Tipo(models.TextChoices):
+        NXM = "NXM", "Lleva N, paga M (2×1, 3×2)"
+        PORCENTAJE = "POR", "% de descuento"
+        PRECIO = "PRE", "Precio especial"
+
+    DIAS = [(0, "Lun"), (1, "Mar"), (2, "Mié"), (3, "Jue"), (4, "Vie"), (5, "Sáb"), (6, "Dom")]
+
+    nombre = models.CharField(max_length=60, help_text="Ej.: 2×1 en chicha, Happy hour, Vuelta al cole.")
+    tipo = models.CharField(max_length=3, choices=Tipo.choices, default=Tipo.NXM)
+    lleva = models.PositiveSmallIntegerField("lleva", null=True, blank=True, help_text="Para 2×1: lleva 2.")
+    paga = models.PositiveSmallIntegerField("paga", null=True, blank=True, help_text="Para 2×1: paga 1.")
+    porcentaje = models.DecimalField("% de descuento", max_digits=5, decimal_places=2, null=True, blank=True)
+    precio = models.DecimalField("precio especial", max_digits=10, decimal_places=2, null=True, blank=True,
+                                 help_text="Precio por unidad durante la promoción.")
+    productos = models.ManyToManyField(Producto, blank=True, related_name="promociones")
+    categorias = models.ManyToManyField(Categoria, blank=True, related_name="promociones", verbose_name="categorías")
+    desde = models.DateField("desde el", default=timezone.localdate)
+    hasta = models.DateField("hasta el", null=True, blank=True, help_text="Vacío = hasta que la desactives.")
+    dias = models.JSONField("días", default=list, blank=True, help_text="Vacío = todos los días.")
+    hora_desde = models.TimeField("de", null=True, blank=True)
+    hora_hasta = models.TimeField("a", null=True, blank=True, help_text="Vacío = todo el día.")
+    activa = models.BooleanField(default=True)
+    creada = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "promoción"
+        verbose_name_plural = "promociones"
+        ordering = ["-activa", "-desde", "nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+    @property
+    def etiqueta(self):
+        if self.tipo == self.Tipo.NXM:
+            return f"{self.lleva}×{self.paga}"
+        if self.tipo == self.Tipo.PORCENTAJE:
+            return f"{self.porcentaje.normalize():f} %"
+        return f"S/ {self.precio:.2f}"
+
+    @property
+    def dias_texto(self):
+        nombres = dict(self.DIAS)
+        return ", ".join(nombres[d] for d in sorted(self.dias or []) if d in nombres)
+
+    def vigente(self, momento=None):
+        """¿Vale en ese momento (fecha, día y horario)?"""
+        momento = timezone.localtime(momento or timezone.now())
+        dia, hora = momento.date(), momento.time()
+        if not self.activa or dia < self.desde or (self.hasta and dia > self.hasta):
+            return False
+        if self.dias and momento.weekday() not in self.dias:
+            return False
+        if self.hora_desde and self.hora_hasta:
+            if self.hora_desde <= self.hora_hasta:
+                return self.hora_desde <= hora < self.hora_hasta
+            return hora >= self.hora_desde or hora < self.hora_hasta  # cruza la medianoche (10 pm a 2 am)
+        return True
+
+
 class MovimientoStock(models.Model):
     """Kardex: cada entrada o salida de mercadería, con el saldo que quedó."""
 
