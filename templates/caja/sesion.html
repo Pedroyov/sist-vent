@@ -48,7 +48,9 @@
         <tr class="total"><td>Debe haber</td><td class="text-end">{{ r.esperado|soles }}</td></tr>
         {% endif %}
         {% if not s.abierta %}
-        <tr><td>Se contó</td><td class="text-end fw-semibold">{{ s.contado|soles }}</td></tr>
+        {% if s.primer_conteo is not None %}<tr><td class="small text-body-secondary">Primer conteo (no cuadraba, volvió a contar)</td><td class="text-end small text-body-secondary">{{ s.primer_conteo|soles }}</td></tr>{% endif %}
+        {% if s.contado_original is not None %}<tr><td class="small text-body-secondary">Contado al cerrar</td><td class="text-end small text-body-secondary"><s>{{ s.contado_original|soles }}</s></td></tr>{% endif %}
+        <tr><td>Se contó{% if s.contado_original is not None %} <span class="badge text-bg-warning">corregido</span>{% endif %}</td><td class="text-end fw-semibold">{{ s.contado|soles }}</td></tr>
         <tr class="{% if s.diferencia < 0 %}table-danger{% elif s.diferencia > 0 %}table-warning{% else %}table-success{% endif %}">
           <td>{% if s.diferencia < 0 %}Faltante{% elif s.diferencia > 0 %}Sobrante{% else %}Diferencia{% endif %}</td>
           <td class="text-end fw-bold">{% if s.diferencia == 0 %}Cuadró exacto{% else %}{{ s.diferencia|soles }}{% endif %}</td></tr>
@@ -59,7 +61,41 @@
       {% if not s.abierta %}
       <div class="card-footer small text-body-secondary">Cerrada el {{ s.cerrada_en|date:"d/m/Y H:i" }}{% if s.cerrada_por_id != s.usuario_id %} por {{ s.cerrada_por|nombre }}{% endif %}.
         {% if s.nota_cierre %}<br>Nota: {{ s.nota_cierre }}{% endif %}
-        {% if conteo %}<br>Conteo: {% for d, n in conteo %}{{ n }}×{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</div>
+        {% if conteo %}<br>Conteo: {% for d, n in conteo %}{{ n }}×{{ d }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% if s.corregido_en %}<br>Corregido el {{ s.corregido_en|date:"d/m/Y H:i" }} por {{ s.corregido_por|nombre }}: {{ s.motivo_correccion }}{% endif %}
+        {% if P.acceso_total %}
+        <div class="border rounded bg-body p-2 mt-2 text-body">
+          <div class="fw-semibold mb-1"><i class="bi bi-tools me-1"></i>¿Algo no está bien en esta caja?</div>
+          <a href="{% url 'caja:salida_olvidada' s.pk %}" class="d-block py-1"><i class="bi bi-box-arrow-up me-1"></i>Faltó registrar una salida</a>
+          <div class="small text-body-secondary mb-1">Pago a proveedor, gasto o adelanto que salió del cajón y no se anotó. Se agrega a este turno sin reabrirlo.</div>
+          <details class="py-1">
+            <summary class="text-primary">Se contó mal el efectivo</summary>
+            <form method="post" action="{% url 'caja:corregir' s.pk %}" class="mt-2" novalidate>{% csrf_token %}
+              <p class="small mb-2">Escribe lo que realmente había (un sobre que faltó contar, un billete pegado). El conteo original queda guardado y en la bitácora.</p>
+              <label class="form-label small" for="c-contado">Lo que realmente se contó</label>
+              <div class="input-group mb-2"><span class="input-group-text">S/</span><input type="number" step="0.01" min="0" inputmode="decimal" name="contado" id="c-contado" class="form-control" value="{{ s.contado|stringformat:'.2f' }}" required></div>
+              <label class="form-label small" for="c-motivo">Motivo</label>
+              <input type="text" name="motivo" id="c-motivo" class="form-control mb-2" maxlength="200" required placeholder="Ej.: faltó contar el sobre de vueltos">
+              <button class="btn btn-sm btn-warning"><i class="bi bi-pencil-square me-1"></i>Corregir el conteo</button>
+            </form>
+          </details>
+          <details class="py-1">
+            <summary class="text-primary">Se cerró por error y hay que seguir vendiendo</summary>
+            {% if no_reabrir %}<p class="small mt-2 mb-0">{{ no_reabrir }}</p>{% else %}
+            <form method="post" action="{% url 'caja:reabrir' s.pk %}" class="mt-2" novalidate>{% csrf_token %}
+              <p class="small mb-2">Vuelve a quedar abierta para {{ s.usuario|nombre }}; el cierre de ahora queda guardado y en la bitácora.{% if s.retirado %} Los {{ s.retirado|soles }} que se retiraron se anotan como retiro.{% endif %}</p>
+              <label class="form-label small" for="r-motivo">Motivo</label>
+              <input type="text" name="motivo" id="r-motivo" class="form-control mb-2" maxlength="200" required placeholder="Ej.: la cerré sin querer">
+              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-unlock me-1"></i>Reabrir la caja</button>
+            </form>{% endif %}
+          </details>
+        </div>
+        {% endif %}</div>
+      {% endif %}
+      {% if s.reaperturas %}
+      <div class="card-footer small text-body-secondary border-top">
+        {% for x in s.reaperturas %}<div><i class="bi bi-unlock me-1"></i>Reabierta por {{ x.reabierta_por }}: {{ x.motivo }}. Antes había cerrado contando S/ {{ x.contado }} (diferencia S/ {{ x.diferencia }}).</div>{% endfor %}
+      </div>
       {% endif %}
     </div>
 
@@ -89,7 +125,7 @@
             {% for m in movimientos %}
             <tr>
               <td class="ps-3 small text-nowrap">{{ m.fecha|date:"d/m H:i" }}</td>
-              <td>{{ m.concepto }}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}<div class="small text-body-secondary">{{ m.motivo }}{% if m.usuario_id != s.usuario_id %} · {{ m.usuario|nombre }}{% endif %}{% if m.automatico %} · automático{% endif %}</div></td>
+              <td>{{ m.concepto }}{% if m.persona %} <span class="badge text-bg-light border">{{ m.persona }}</span>{% endif %}<div class="small text-body-secondary">{{ m.motivo }}{% if m.usuario_id != s.usuario_id %} · {{ m.usuario|nombre }}{% endif %}{% if m.automatico %} · automático{% endif %}{% if m.despues_del_cierre %} · <span class="text-warning-emphasis">agregada después del cierre</span>{% endif %}</div></td>
               <td class="text-end pe-3 fw-semibold text-nowrap {% if m.tipo == 'ING' %}text-success{% else %}text-danger{% endif %}">{% if m.tipo == 'ING' %}+{% else %}−{% endif %}{{ m.monto|soles }}</td>
             </tr>
             {% endfor %}

@@ -165,7 +165,7 @@ class DatosNegocioForm(forms.ModelForm):
         model = Ajustes
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
-                  "vender_sin_caja", "propina_activa", "descuentos_activos", "cortesias_activas",
+                  "vender_sin_caja", "cierre_ciego", "propina_activa", "exigir_operacion", "descuentos_activos", "cortesias_activas",
                   "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo"]
         widgets = {
             "nivel_pedido": forms.RadioSelect,

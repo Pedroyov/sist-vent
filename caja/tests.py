@@ -12,7 +12,7 @@ from ventas.models import Venta
 from ventas.servicios import VentaInvalida, anular_venta, registrar_venta
 
 from .models import MovimientoCaja, SesionCaja
-from .servicios import CajaError, abrir, calcular, cerrar, movimiento, total_conteo
+from .servicios import CajaError, abrir, calcular, cerrar, movimiento, no_cuadra, total_conteo
 
 D = Decimal
 
@@ -208,6 +208,12 @@ class CierreCiegoTests(TestCase):
         self.client.force_login(self.cajero)
         r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "128", "queda": "200"})
         self.assertContains(r, "No puedes dejar más")
+        # no cuadra por más de S/ 1: pide volver a contar sin decir cuánto falta
+        r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "128", "queda": "100"})
+        self.assertContains(r, "no cuadra con lo que registró")
+        self.assertNotContains(r, "130.00")
+        s.refresh_from_db()
+        self.assertTrue(s.abierta)
         r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "128", "queda": "100"}, follow=True)
         self.assertContains(r, "Contaste S/ 128.00")
         self.assertNotContains(r, "faltante de")
@@ -224,6 +230,137 @@ class CierreCiegoTests(TestCase):
 
         hoy = timezone.localdate()
         self.assertEqual(gastos(hoy, hoy)["retiros"], D("28"))
+
+    def test_reconteo_y_correccion(self):
+        from core.models import Bitacora
+
+        self.client.force_login(self.cajero)
+        self.client.post(reverse("caja:mi_caja"), {"monto_inicial": "100"})
+        s = SesionCaja.abierta_de(self.cajero)
+        registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "3"}], [{"metodo": "EFE", "monto": "30"}])
+        # dentro de la tolerancia (S/ 1) cierra sin pedir otro conteo
+        self.assertFalse(no_cuadra(s, D("129.50")))
+        self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "110"})
+        r = self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "129.50"}, follow=True)
+        s.refresh_from_db()
+        self.assertEqual((s.estado, s.contado, s.primer_conteo, s.diferencia), ("CER", D("129.50"), D("110"), D("-0.50")))
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Primer conteo")
+        self.assertIn("volvió a contar", Bitacora.objects.filter(accion="caja.diferencia").first().descripcion)
+        # el cajero no corrige
+        self.assertNotContains(r, "Corregir el conteo")
+        self.client.post(reverse("caja:corregir", args=[s.pk]), {"contado": "130", "motivo": "x"})
+        s.refresh_from_db()
+        self.assertEqual(s.contado, D("129.50"))
+        # Administración sí, con motivo; se guarda el original
+        self.client.force_login(self.jefe)
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Corregir el conteo")
+        self.client.post(reverse("caja:corregir", args=[s.pk]), {"contado": "130", "motivo": ""})
+        s.refresh_from_db()
+        self.assertIsNone(s.contado_original)
+        self.client.post(reverse("caja:corregir", args=[s.pk]), {"contado": "50", "motivo": "error"})  # menos de lo que quedó
+        s.refresh_from_db()
+        self.assertIsNone(s.contado_original)
+        self.client.post(reverse("caja:corregir", args=[s.pk]), {"contado": "130", "motivo": "Faltaba el sobre de monedas"})
+        s.refresh_from_db()
+        self.assertEqual((s.contado, s.contado_original, s.diferencia, s.corregido_por), (D("130"), D("129.50"), D("0"), self.jefe))
+        self.assertTrue(Bitacora.objects.filter(accion="caja.correccion").exists())
+        r = self.client.get(reverse("caja:sesion", args=[s.pk]))
+        self.assertContains(r, "corregido")
+        self.assertContains(r, "Faltaba el sobre de monedas")
+
+    def test_reabrir_con_condiciones(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from core.models import Bitacora
+
+        from .models import MovimientoCaja
+
+        self.client.force_login(self.cajero)
+        self.client.post(reverse("caja:mi_caja"), {"monto_inicial": "100"})
+        s = SesionCaja.abierta_de(self.cajero)
+        registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "3"}], [{"metodo": "EFE", "monto": "30"}])
+        cerrar(s, D("128"), self.cajero, queda=D("100"))
+        # el cajero no puede reabrir
+        self.client.post(reverse("caja:reabrir", args=[s.pk]), {"motivo": "me equivoqué"})
+        s.refresh_from_db()
+        self.assertFalse(s.abierta)
+        self.client.force_login(self.jefe)
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Reabrir la caja")
+        self.client.post(reverse("caja:reabrir", args=[s.pk]), {"motivo": ""})
+        s.refresh_from_db()
+        self.assertFalse(s.abierta)
+        self.client.post(reverse("caja:reabrir", args=[s.pk]), {"motivo": "Faltó anotar el pago al proveedor"})
+        s.refresh_from_db()
+        self.assertTrue(s.abierta)
+        self.assertEqual((len(s.reaperturas), s.reaperturas[0]["contado"], s.contado), (1, "128.00", None))
+        retiro = MovimientoCaja.objects.get(sesion=s, categoria="RET")
+        self.assertEqual((retiro.monto, retiro.automatico), (D("28.00"), True))
+        self.assertEqual(calcular(s)["esperado"], D("102.00"))  # lo retirado ya no está en el cajón
+        self.assertTrue(Bitacora.objects.filter(accion="caja.reabierta").exists())
+        cerrar(s, D("102"), self.cajero)
+        s.refresh_from_db()
+        self.assertEqual(s.diferencia, D("0"))
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Reabierta por")
+        # de otro día, o si ya se abrió otra caja después, no
+        SesionCaja.objects.filter(pk=s.pk).update(cerrada_en=timezone.now() - timedelta(days=1))
+        r = self.client.post(reverse("caja:reabrir", args=[s.pk]), {"motivo": "x"}, follow=True)
+        self.assertContains(r, "mismo día")
+        SesionCaja.objects.filter(pk=s.pk).update(cerrada_en=timezone.now())
+        abrir(self.cajero, D("102"))
+        r = self.client.post(reverse("caja:reabrir", args=[s.pk]), {"motivo": "x"}, follow=True)
+        self.assertContains(r, "ya se abrió otra")
+
+    def test_salida_olvidada_y_otro_cajero_en_el_mismo_cajon(self):
+        from core.models import Bitacora
+
+        from .models import MovimientoCaja
+
+        s = abrir(self.cajero, D("100"))
+        registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "3"}], [{"metodo": "EFE", "monto": "30"}])
+        cerrar(s, D("80"), self.cajero, queda=D("80"))  # pagó S/ 50 al proveedor y no lo anotó
+        s.refresh_from_db()
+        self.assertEqual(s.diferencia, D("-50"))
+        otro = User.objects.create_user("cajera2", password="x-clave-123")
+        otro.groups.add(Group.objects.get(name="Cajero"))
+        abrir(otro, D("80"))  # el siguiente turno ya tomó el cajón
+        self.client.force_login(self.cajero)
+        self.assertEqual(self.client.get(reverse("caja:salida_olvidada", args=[s.pk])).status_code, 403)
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("caja:sesion", args=[s.pk]))
+        self.assertContains(r, "¿Algo no está bien en esta caja?")
+        self.assertContains(r, "mismo cajón")  # no se puede reabrir
+        r = self.client.post(reverse("caja:salida_olvidada", args=[s.pk]), {"categoria": "PRO", "monto": "50", "concepto": "Pago a Distribuidora Lima"},
+                             follow=True)
+        self.assertContains(r, "Ahora cuadra exacto")
+        s.refresh_from_db()
+        self.assertEqual((s.esperado, s.diferencia, s.contado, s.abierta), (D("80.00"), D("0"), D("80"), False))
+        m = MovimientoCaja.objects.get(sesion=s, despues_del_cierre=True)
+        self.assertEqual((m.monto, m.categoria, m.fecha), (D("50.00"), "PRO", s.cerrada_en))
+        self.assertContains(r, "agregada después del cierre")
+        self.assertTrue(Bitacora.objects.filter(accion="caja.salida_olvidada").exists())
+        from .servicios import gastos
+
+        from django.utils import timezone
+
+        hoy = timezone.localtime(s.cerrada_en).date()
+        self.assertEqual(gastos(hoy, hoy)["proveedores"], D("50.00"))
+
+    def test_cierre_ciego_se_puede_apagar(self):
+        from core.models import Ajustes
+
+        Ajustes.cargar()
+        Ajustes.objects.filter(pk=1).update(cierre_ciego=False)
+        self.client.force_login(self.cajero)
+        self.client.post(reverse("caja:mi_caja"), {"monto_inicial": "100"})
+        s = SesionCaja.abierta_de(self.cajero)
+        registrar_venta(self.cajero, [{"variante": self.v.pk, "cantidad": "3"}], [{"metodo": "EFE", "monto": "30"}])
+        self.assertContains(self.client.get(reverse("caja:sesion", args=[s.pk])), "Debe haber")
+        self.assertNotContains(self.client.get(reverse("caja:cerrar", args=[s.pk])), "ESPERADO = null")
+        self.client.post(reverse("caja:cerrar", args=[s.pk]), {"contado": "120", "queda": "100"})  # ve la diferencia: no se le pide recontar
+        s.refresh_from_db()
+        self.assertFalse(s.abierta)
 
     def test_cobro_en_una_caja_que_se_acaba_de_cerrar(self):
         s = abrir(self.cajero, D("0"))

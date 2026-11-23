@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
@@ -6,12 +8,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from core.permisos import permiso_requerido, puede
+from core.permisos import acceso_total_requerido, permiso_requerido, puede
 from core.utils import dias, entero, url_segura
 
 from .forms import AbrirForm, CerrarForm, GastoForm, MovimientoForm, PuntoCajaForm
 from .models import DENOMINACIONES, MovimientoCaja, PuntoCaja, SesionCaja
-from .servicios import (CajaError, abrir, anular_gasto, calcular, cerrar, gasto_fuera_de_caja, gastos, movimiento, resumen_guardado, sencillo_anterior,
+from .servicios import (CajaError, abrir, anular_gasto, calcular, cerrar, corregir_conteo, no_cuadra, por_que_no_reabrir, reabrir, salida_olvidada, gasto_fuera_de_caja, gastos, movimiento, resumen_guardado, sencillo_anterior,
                         total_conteo)
 
 User = get_user_model()
@@ -23,8 +25,13 @@ def _puede_ver(user, sesion):
 
 def _ciego(user, sesion):
     """Cierre ciego: mientras la caja está abierta, el cajero no ve cuánto efectivo debería haber (ni lo que suma lo vendido
-    en efectivo); cuenta sin saberlo y la diferencia la calcula el sistema al cerrar. Quien supervisa (caja.ver) sí lo ve."""
-    return sesion.abierta and not puede(user, "caja.ver")
+    en efectivo); cuenta sin saberlo y la diferencia la calcula el sistema al cerrar. Quien supervisa (caja.ver) sí lo ve.
+    Se apaga en Datos del negocio («cierre ciego para cajeros»): entonces el cajero ve la diferencia mientras cuenta."""
+    if not sesion.abierta or puede(user, "caja.ver"):
+        return False
+    from core.models import Ajustes
+
+    return Ajustes.cargar().cierre_ciego
 
 
 @permiso_requerido("caja.usar", "caja.ver")
@@ -65,6 +72,7 @@ def sesion(request, pk):
         "es_mia": s.usuario_id == request.user.pk,
         "puede_operar": s.abierta and (s.usuario_id == request.user.pk or puede(request.user, "caja.ver")),
         "conteo": [(d, s.conteo.get(d)) for d in DENOMINACIONES if s.conteo.get(d)], "ciego": _ciego(request.user, s),
+        "no_reabrir": por_que_no_reabrir(s) if not s.abierta else "",
     })
 
 
@@ -115,8 +123,17 @@ def cerrar_caja(request, pk):
         contado = form.cleaned_data["contado"]
         if conteo and total != contado:
             contado = total  # manda el conteo por billetes
+        clave = f"reconteo_{s.pk}"
+        if ciego and clave not in request.session and no_cuadra(s, contado):
+            # cierre ciego: se pide volver a contar una vez, sin decir cuánto falta o sobra
+            request.session[clave] = str(contado)
+            return render(request, "caja/cerrar.html", {"s": s, "r": r, "form": CerrarForm(initial={"queda": form.cleaned_data["queda"],
+                          "nota": form.cleaned_data["nota"]}), "denominaciones": DENOMINACIONES, "ciego": ciego, "reconteo": True})
+        primer = request.session.get(clave)
         try:
-            s = cerrar(s, contado, request.user, conteo, form.cleaned_data["nota"], form.cleaned_data["queda"])
+            s = cerrar(s, contado, request.user, conteo, form.cleaned_data["nota"], form.cleaned_data["queda"],
+                       primer_conteo=Decimal(primer) if primer else None)
+            request.session.pop(clave, None)
         except CajaError as e:
             messages.error(request, str(e))
             return redirect("caja:cerrar", pk=pk)
@@ -248,4 +265,54 @@ def punto_editar(request, pk):
         "form": form, "titulo": f"Caja {p.nombre}", "cancelar": reverse("caja:puntos"),
         "breadcrumb": [("Caja", reverse("caja:historial")), ("Cajas y series", reverse("caja:puntos"))],
         "ayuda": "Las series vacías usan las generales de Facturación. Las series nuevas también hay que registrarlas en tu proveedor (Nubefact).",
+    })
+
+
+@acceso_total_requerido
+def corregir(request, pk):
+    s = get_object_or_404(SesionCaja, pk=pk)
+    if request.method == "POST":
+        try:
+            contado = Decimal(request.POST.get("contado", "").replace(",", ".")).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError):
+            contado = None
+        try:
+            s = corregir_conteo(s, contado, request.user, request.POST.get("motivo"))
+            messages.success(request, f"Conteo corregido. {'Cuadra exacto.' if s.diferencia == 0 else ('Sobrante' if s.diferencia > 0 else 'Faltante') + f' de S/ {abs(s.diferencia):.2f}.'}")
+        except CajaError as e:
+            messages.error(request, str(e))
+    return redirect("caja:sesion", pk=pk)
+
+
+@acceso_total_requerido
+def reabrir_caja(request, pk):
+    s = get_object_or_404(SesionCaja, pk=pk)
+    if request.method == "POST":
+        try:
+            reabrir(s, request.user, request.POST.get("motivo"))
+            messages.success(request, f"Caja {s.numero} reabierta. Cuando esté lista, ciérrala de nuevo.")
+        except CajaError as e:
+            messages.error(request, str(e))
+    return redirect("caja:sesion", pk=pk)
+
+
+@acceso_total_requerido
+def agregar_salida(request, pk):
+    s = get_object_or_404(SesionCaja, pk=pk, estado=SesionCaja.Estado.CERRADA)
+    url = reverse("caja:sesion", args=[s.pk])
+    form = MovimientoForm(request.POST or None, tipo=MovimientoCaja.Tipo.EGRESO)
+    if request.method == "POST" and form.is_valid():
+        d = form.cleaned_data
+        try:
+            s = salida_olvidada(s, d["monto"], d["concepto"], request.user, d["categoria"], d.get("persona"))
+            messages.success(request, f"Salida agregada a la caja {s.numero}. " + ("Ahora cuadra exacto." if s.diferencia == 0 else
+                             f"{'Sobrante' if s.diferencia > 0 else 'Faltante'} de S/ {abs(s.diferencia):.2f}."))
+            return redirect(url)
+        except CajaError as e:
+            messages.error(request, str(e))
+    return render(request, "core/form.html", {
+        "form": form, "titulo": "Salida olvidada", "cancelar": url, "breadcrumb": [("Caja", url)],
+        "subtitulo": f"Caja {s.numero}",
+        "ayuda": f"Turno de {s.usuario.get_full_name() or s.usuario.username}, cerrado el {timezone.localtime(s.cerrada_en):%d/%m/%Y %H:%M}. "
+                 "La salida queda en ese turno: lo que debía haber y la diferencia se recalculan. Lo contado no cambia y queda en la bitácora.",
     })

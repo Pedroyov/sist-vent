@@ -66,10 +66,12 @@
               {% for c in form.metodos %}{{ c.tag }}<label class="btn btn-sm btn-outline-success" for="{{ c.id_for_label }}">{{ c.choice_label }}</label>{% endfor %}
             </div>
             <div class="form-text">{{ form.metodos.help_text }}{% if P.mod_clientes %} «Fiado» además necesita el permiso de fiar.{% endif %}</div></div>
+          {{ form.exigir_operacion|as_crispy_field }}
           {{ form.propina_activa|as_crispy_field }}
           {{ form.descuentos_activos|as_crispy_field }}
           {% if P.mod_mesas %}{{ form.cortesias_activas|as_crispy_field }}{% endif %}
           {{ form.vender_sin_caja|as_crispy_field }}
+          {% if P.mod_caja %}{{ form.cierre_ciego|as_crispy_field }}{% endif %}
         </div>
       </div>
 

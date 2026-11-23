@@ -97,6 +97,7 @@ PERMISOS = [
     ("ventas.ver", "ventas", "Ver todas las ventas y los totales del día", [CAJERO]),
     ("ventas.precio", "ventas", "Cambiar precios y dar descuentos (o autorizarlos con su clave)", []),
     ("ventas.anular", "ventas", "Anular ventas (devuelve el stock)", []),
+    ("ventas.conciliar", "ventas", "Conciliar Yape, Plin, tarjeta y transferencias con el banco", []),
 
     ("productos.ver", "productos", "Ver productos, precios y stock", [CAJERO, VENDEDOR, MOZO]),
     ("productos.editar", "productos", "Crear y editar productos, variantes, precios y categorías; importar Excel", []),

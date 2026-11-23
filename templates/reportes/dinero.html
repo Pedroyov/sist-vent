@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Dinero del día{% endblock %}
+{% block page_title %}Dinero del día <small class="text-body-secondary fs-6">{{ desde|date:"d/m/Y" }}{% if desde != hasta %} al {{ hasta|date:"d/m/Y" }}{% endif %}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'reportes:inicio' %}">Reportes</a></li><li class="breadcrumb-item active">Dinero del día</li>{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3 no-print">
+  <div class="btn-group btn-group-sm flex-wrap" role="group">
+    {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
+  </div>
+  <form class="d-flex gap-1 align-items-end" method="get">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
+    <button class="btn btn-sm btn-primary">Ver</button>
+  </form>
+  <a href="?{{ query.urlencode }}&excel=1" class="btn btn-sm btn-outline-success ms-auto"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+</div>
+
+{# Totales del periodo #}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-lg-3"><div class="card h-100 mb-0"><div class="card-body py-2"><div class="small text-body-secondary">Entró</div><div class="fs-4 fw-semibold text-success">{{ total.entro|soles }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card h-100 mb-0"><div class="card-body py-2"><div class="small text-body-secondary">Salió (pagos y gastos)</div><div class="fs-4 fw-semibold text-danger">{{ total.salio|soles }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card h-100 mb-0"><div class="card-body py-2"><div class="small text-body-secondary">Neto</div><div class="fs-4 fw-semibold">{{ total.neto|soles }}</div></div></div></div>
+  <div class="col-6 col-lg-3"><div class="card h-100 mb-0"><div class="card-body py-2"><div class="small text-body-secondary">Se llevó el dueño</div><div class="fs-4 fw-semibold">{{ total.retirado|soles }}</div></div></div></div>
+</div>
+<div class="card mb-3">
+  <ul class="list-group list-group-flush small">
+    <li class="list-group-item d-flex"><span>Efectivo</span><span class="ms-auto">{{ total.efectivo|soles }}</span></li>
+    {% for m in total.metodos %}<li class="list-group-item d-flex"><span>{{ m.nombre }}</span><span class="ms-auto">{{ m.total|soles }}</span></li>{% endfor %}
+    {% if total.ingresos %}<li class="list-group-item d-flex"><span>Otros ingresos y aportes a caja</span><span class="ms-auto">{{ total.ingresos|soles }}</span></li>{% endif %}
+    <li class="list-group-item d-flex"><span>Salió de las cajas</span><span class="ms-auto text-danger">{{ total.salio_cajas|soles }}</span></li>
+    <li class="list-group-item d-flex"><span>Salió fuera de caja <span class="text-body-secondary">(transferencias, Yape, dinero del dueño)</span></span><span class="ms-auto text-danger">{{ total.salio_fuera|soles }}</span></li>
+    {% if total.dif_caja %}<li class="list-group-item d-flex"><span>Diferencias de caja</span><span class="ms-auto {% if total.dif_caja < 0 %}text-danger{% endif %}">{{ total.dif_caja|soles }}</span></li>{% endif %}
+    {% if total.dif_conciliacion %}<li class="list-group-item d-flex"><span>Diferencias con el banco</span><span class="ms-auto {% if total.dif_conciliacion < 0 %}text-danger{% endif %}">{{ total.dif_conciliacion|soles }}</span></li>{% endif %}
+    {% if total.fiado %}<li class="list-group-item d-flex text-body-secondary"><span>Vendido al fiado (todavía no es dinero)</span><span class="ms-auto">{{ total.fiado|soles }}</span></li>{% endif %}
+  </ul>
+</div>
+
+{# Día por día #}
+{% for f in filas %}
+<details class="card mb-2" {% if forloop.first %}open{% endif %}>
+  <summary class="card-header d-flex align-items-center gap-2 py-2" style="cursor: pointer; list-style: none">
+    <span class="fw-semibold">{{ f.dia|date:"D d/m"|capfirst }}</span>
+    {% if f.dif_caja < 0 or f.dif_conciliacion < 0 %}<i class="bi bi-exclamation-circle text-danger" title="Hubo faltante" aria-label="Hubo faltante"></i>{% endif %}
+    {% if f.sin_conciliar %}<i class="bi bi-bank text-warning" title="Sin conciliar: {{ f.sin_conciliar|join:', ' }}" aria-label="Sin conciliar"></i>{% endif %}
+    <span class="ms-auto small"><span class="text-success">+{{ f.entro|soles }}</span> · <span class="text-danger">−{{ f.salio|soles }}</span></span>
+  </summary>
+  <ul class="list-group list-group-flush small">
+    <li class="list-group-item d-flex"><span>Efectivo</span><span class="ms-auto">{{ f.efectivo|soles }}</span></li>
+    {% for m in f.metodos %}{% if m.total %}<li class="list-group-item d-flex"><span>{{ m.nombre }}{% if m.conciliado %} <i class="bi bi-check2 text-success" title="Conciliado" aria-label="Conciliado"></i>{% else %} <span class="badge text-bg-warning">sin conciliar</span>{% endif %}</span><span class="ms-auto">{{ m.total|soles }}</span></li>{% endif %}{% endfor %}
+    {% if f.ingresos %}<li class="list-group-item d-flex"><span>Otros ingresos y aportes</span><span class="ms-auto">{{ f.ingresos|soles }}</span></li>{% endif %}
+    {% if f.salio_cajas %}<li class="list-group-item d-flex"><span>Salió de las cajas</span><span class="ms-auto text-danger">−{{ f.salio_cajas|soles }}</span></li>{% endif %}
+    {% if f.salio_fuera %}<li class="list-group-item d-flex"><span>Salió fuera de caja</span><span class="ms-auto text-danger">−{{ f.salio_fuera|soles }}</span></li>{% endif %}
+    <li class="list-group-item d-flex fw-semibold"><span>Neto del día</span><span class="ms-auto">{{ f.neto|soles }}</span></li>
+    {% if f.retirado %}<li class="list-group-item d-flex"><span>Se llevó el dueño</span><span class="ms-auto">{{ f.retirado|soles }}</span></li>{% endif %}
+    {% if f.quedo is not None %}<li class="list-group-item d-flex"><span>Quedó en los cajones al cerrar</span><span class="ms-auto">{{ f.quedo|soles }}</span></li>{% endif %}
+    {% if f.dif_caja %}<li class="list-group-item d-flex {% if f.dif_caja < 0 %}text-danger{% endif %}"><span>{% if f.dif_caja < 0 %}Faltante{% else %}Sobrante{% endif %} de caja</span><span class="ms-auto">{{ f.dif_caja|soles|cut:"-" }}</span></li>{% endif %}
+    {% if f.dif_conciliacion %}<li class="list-group-item d-flex {% if f.dif_conciliacion < 0 %}text-danger{% endif %}"><span>{% if f.dif_conciliacion < 0 %}Faltó{% else %}Sobró{% endif %} en el banco</span><span class="ms-auto">{{ f.dif_conciliacion|soles|cut:"-" }}</span></li>{% endif %}
+    {% if f.fiado %}<li class="list-group-item d-flex text-body-secondary"><span>Vendido al fiado</span><span class="ms-auto">{{ f.fiado|soles }}</span></li>{% endif %}
+  </ul>
+</details>
+{% empty %}
+<div class="card"><div class="card-body text-body-secondary">No hubo movimiento de dinero en estos días.</div></div>
+{% endfor %}
+<p class="small text-body-secondary mt-3">Entró = efectivo + Yape, Plin, tarjeta y transferencias + otros ingresos de caja (ventas, pagos de fiado y cuotas). Salió = pagos a proveedores, gastos, sueldos y devoluciones, de las cajas y fuera de ellas. Lo que se llevó el dueño va aparte: no es un gasto del negocio.</p>
+{% endblock %}

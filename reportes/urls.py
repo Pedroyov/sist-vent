@@ -4,4 +4,4 @@ from . import views
 
 app_name = "reportes"
 
-urlpatterns = [path("", views.inicio, name="inicio")]
+urlpatterns = [path("", views.inicio, name="inicio"), path("dinero/", views.dinero, name="dinero")]

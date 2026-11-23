@@ -30,6 +30,17 @@ def dinero(d):
     return d.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
+def falta_operacion(metodo, referencia):
+    """Con «pedir el N° de operación» encendido, Yape y Plin no se registran sin él (venta, pago de fiado o de cuotas).
+    Devuelve el mensaje de error o "" si está bien."""
+    if metodo in (MetodoPago.YAPE, MetodoPago.PLIN) and not str(referencia or "").strip():
+        from core.models import Ajustes
+
+        if Ajustes.cargar().exigir_operacion:
+            return f"Escribe el N° de operación del {MetodoPago(metodo).label}."
+    return ""
+
+
 def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", cliente_documento="", nota="",
                     token=None, puede_cambiar_precio=False, puede_descontar=None, propina=0, atendio=None, despues=None,
                     desde_pedido=False, cliente_id=None, puede_fiar=False, puede_exceder_limite=False,
@@ -121,6 +132,9 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             m = por_metodo.setdefault(metodo, {"monto": CERO, "referencia": ""})
             m["monto"] += monto
             m["referencia"] = (m["referencia"] or str(p.get("referencia") or "").strip())[:60]
+    for metodo, m in por_metodo.items():
+        if error := falta_operacion(metodo, m["referencia"]):
+            raise VentaInvalida(error)
     pagado = sum((m["monto"] for m in por_metodo.values()), CERO)
     if pagado < a_cobrar:
         raise VentaInvalida(f"Falta cobrar S/ {a_cobrar - pagado:.2f}.")

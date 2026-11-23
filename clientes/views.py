@@ -168,7 +168,8 @@ def abonar(request, pk):
     f = AbonoForm(request.POST)
     if f.is_valid():
         try:
-            a = registrar_abono(c, f.cleaned_data["monto"], f.cleaned_data["metodo"], request.user, f.cleaned_data["nota"])
+            a = registrar_abono(c, f.cleaned_data["monto"], f.cleaned_data["metodo"], request.user, f.cleaned_data["nota"],
+                                f.cleaned_data["referencia"])
             messages.success(request, f"Pago de S/ {a.monto:.2f} registrado. Ahora debe S/ {c.saldo:.2f}.")
             return redirect(reverse("clientes:detalle", args=[pk]) + f"?imprimir={a.pk}")
         except ClienteError as e:

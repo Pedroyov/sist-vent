@@ -241,6 +241,10 @@ def cobrar(cliente, cuotas_ids, monto, metodo, usuario, nota="", referencia=""):
     monto = _monto(monto)
     if metodo == MetodoPago.CREDITO or metodo not in Ajustes.cargar().metodos_aceptados:
         raise CobranzaError("Método de pago no válido.")
+    from ventas.servicios import falta_operacion
+
+    if error := falta_operacion(metodo, referencia):
+        raise CobranzaError(error)
     ids = [int(i) for i in cuotas_ids if str(i).isdigit()]
     if not ids:
         raise CobranzaError("Marca qué cuotas paga.")

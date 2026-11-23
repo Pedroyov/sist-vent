@@ -63,7 +63,17 @@ class Tablero:
             self._facturacion()
         if puede(self.user, "compras.ver"):
             self._compras()
+        if puede(self.user, "ventas.conciliar"):
+            self._conciliacion()
         return self
+
+    def _conciliacion(self):
+        """Yape, Plin, tarjeta o transferencias con movimiento y sin conciliar hace más de 2 días."""
+        from ventas.conciliacion import pendientes
+
+        for p in pendientes(self.hoy):
+            self.pendientes.append(_pend(f"{p['nombre']} sin conciliar desde el {p['desde']:%d/%m}", reverse("ventas:conciliar"),
+                                         "bi-bank", "warning", f"{_plural(p['dias'], 'día')} con cobros sin comparar con el banco."))
 
     def _compras(self):
         """Pagos a proveedores vencidos o que vencen en los próximos 7 días."""

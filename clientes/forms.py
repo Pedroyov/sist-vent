@@ -41,6 +41,8 @@ class AbonoForm(forms.Form):
     monto = forms.DecimalField(label="Monto que paga", min_value=0.01, decimal_places=2,
                                widget=forms.NumberInput(attrs={"step": "0.10", "inputmode": "decimal", "class": "form-control-lg"}))
     metodo = forms.ChoiceField(label="Cómo paga")
+    referencia = forms.CharField(label="N° de operación", max_length=60, required=False,
+                                 help_text="De Yape, Plin, tarjeta o transferencia. Ayuda a conciliar con el banco.")
     nota = forms.CharField(label="Nota", max_length=200, required=False)
 
     def __init__(self, *args, **kwargs):

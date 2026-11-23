@@ -302,3 +302,55 @@ def anular(request, pk):
     except VentaInvalida as e:
         messages.error(request, str(e))
     return redirect("ventas:ticket", pk=pk)
+
+
+# --- Conciliación con el banco ----------------------------------------------------
+
+@permiso_requerido("ventas.conciliar")
+def conciliar(request):
+    from reportes.servicios import ATAJOS, periodo
+
+    from .conciliacion import pendientes, resumen
+
+    desde, hasta, atajo = periodo(request, defecto="7d")
+    return render(request, "ventas/conciliar.html", {"filas": resumen(desde, hasta), "desde": desde, "hasta": hasta, "atajo": atajo,
+                                                     "atajos": ATAJOS, "pendientes": pendientes()})
+
+
+@permiso_requerido("ventas.conciliar")
+def conciliar_dia(request, fecha, metodo):
+    from .conciliacion import ELECTRONICOS, ConciliacionError, conciliar as guardar, marcar_no_llego, operaciones, quitar_no_llego, totales
+    from .models import Conciliacion, NoLlego
+
+    try:
+        dia = date.fromisoformat(fecha)
+    except ValueError:
+        dia = None
+    if dia is None or metodo not in ELECTRONICOS:
+        return redirect("ventas:conciliar")
+    c = Conciliacion.objects.filter(fecha=dia, metodo=metodo).select_related("usuario").first()
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        try:
+            if accion == "guardar":
+                c = guardar(dia, metodo, request.POST.get("banco", ""), request.user, request.POST.get("nota", ""))
+                messages.success(request, "Conciliado: cuadra exacto." if c.diferencia == 0 else
+                                 f"Guardado con {'sobrante' if c.diferencia > 0 else 'faltante'} de S/ {abs(c.diferencia):.2f}. "
+                                 "Revisa abajo cuál cobro no aparece en el banco.")
+            elif accion in ("no_llego", "quitar") and c and request.POST.get("tipo") in NoLlego.Tipo.values:
+                tipo, oid = request.POST["tipo"], entero(request.POST.get("id"))
+                if accion == "no_llego":
+                    marcar_no_llego(c, tipo, oid, request.user)
+                else:
+                    quitar_no_llego(c, tipo, oid, request.user)
+        except ConciliacionError as e:
+            messages.error(request, str(e))
+        return redirect("ventas:conciliar_dia", fecha=fecha, metodo=metodo)
+    ops = operaciones(dia, metodo)
+    sistema = totales(dia, dia).get((dia, metodo), {}).get("total", 0)
+    no_llego = sum((o["monto"] for o in ops if o["no_llego"]), 0)
+    return render(request, "ventas/conciliar_dia.html", {
+        "dia": dia, "metodo": metodo, "nombre": MetodoPago(metodo).label, "c": c, "ops": ops, "sistema": sistema,
+        "no_llego": no_llego, "sin_explicar": (c.diferencia + no_llego) if c else None,
+        "cambio": bool(c and c.sistema != sistema),
+    })

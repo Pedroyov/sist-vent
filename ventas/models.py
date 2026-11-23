@@ -140,3 +140,48 @@ class Pago(models.Model):
 
     def __str__(self):
         return f"{self.get_metodo_display()} {self.monto}"
+
+
+class Conciliacion(models.Model):
+    """Lo que el sistema dice que entró por un método electrónico en un día, frente a lo que muestra el banco o la app.
+    La lógica está en ventas/conciliacion.py."""
+    fecha = models.DateField(db_index=True)
+    metodo = models.CharField("método", max_length=3, choices=MetodoPago.choices)
+    sistema = models.DecimalField("según el sistema", max_digits=12, decimal_places=2)
+    banco = models.DecimalField("según el banco", max_digits=12, decimal_places=2)
+    diferencia = models.DecimalField(max_digits=12, decimal_places=2)
+    nota = models.CharField(max_length=200, blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+", verbose_name="concilió")
+    creado = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "conciliación"
+        verbose_name_plural = "conciliaciones"
+        ordering = ["-fecha", "metodo"]
+        constraints = [models.UniqueConstraint(fields=["fecha", "metodo"], name="una_conciliacion_por_dia_y_metodo")]
+
+    def __str__(self):
+        return f"{self.get_metodo_display()} {self.fecha:%d/%m/%Y}"
+
+
+class NoLlego(models.Model):
+    """Un cobro electrónico registrado que no aparece en el banco (captura falsa, se canceló, error de monto).
+    Cuenta como faltante de quien lo cobró. No se borra la venta: se marca aquí."""
+    class Tipo(models.TextChoices):
+        VENTA = "venta", "Venta"
+        ABONO = "abono", "Pago de fiado"
+        CUOTA = "cuota", "Pago de cuotas"
+
+    conciliacion = models.ForeignKey(Conciliacion, on_delete=models.PROTECT, related_name="no_llegaron")
+    tipo = models.CharField(max_length=5, choices=Tipo.choices)
+    objeto_id = models.PositiveIntegerField(help_text="Id del pago (ventas.Pago, clientes.Abono o cobranzas.Pago).")
+    descripcion = models.CharField(max_length=120)
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    cobro = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, related_name="+", verbose_name="cobró")
+    marcado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    marcado_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "cobro que no llegó"
+        verbose_name_plural = "cobros que no llegaron"
+        constraints = [models.UniqueConstraint(fields=["tipo", "objeto_id"], name="no_llego_una_vez")]

@@ -62,6 +62,15 @@ class SesionCaja(models.Model):
     conteo = models.JSONField("conteo por billetes", default=dict, blank=True)
     resumen = models.JSONField(default=dict, blank=True)
     nota_cierre = models.CharField(max_length=300, blank=True)
+    # Cierre ciego: si el primer conteo no cuadraba, se pidió volver a contar y aquí queda el primero.
+    primer_conteo = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # Una caja cerrada no se reabre; Administración puede corregir lo contado con motivo. Se guarda el conteo original.
+    contado_original = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    corregido_en = models.DateTimeField(null=True, blank=True)
+    corregido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    motivo_correccion = models.CharField(max_length=200, blank=True)
+    # Cada vez que Administración reabre la caja, el cierre anterior se guarda aquí (con quién, cuándo y por qué).
+    reaperturas = models.JSONField(default=list, blank=True)
 
     class Meta:
         verbose_name = "caja"
@@ -124,6 +133,7 @@ class MovimientoCaja(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     automatico = models.BooleanField(default=False, help_text="Lo creó el sistema (por ejemplo, al anular una venta de otro turno).")
+    despues_del_cierre = models.BooleanField(default=False, help_text="Salida olvidada: Administración la agregó con la caja ya cerrada.")
     # Solo los gastos fuera de caja se anulan (los de una caja quedan en su cierre); no se borran: queda quién y por qué.
     anulado = models.BooleanField(default=False)
     anulado_en = models.DateTimeField(null=True, blank=True)

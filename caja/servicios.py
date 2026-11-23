@@ -1,4 +1,5 @@
 """Abrir, mover y cerrar la caja. El efectivo esperado se calcula siempre igual: aquí."""
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -143,12 +144,26 @@ def gastos(desde, hasta):
     for f in filas:
         f["pct"] = round(float(f["total"]) / float(maximo) * 100, 1)
     proveedores = datos.get(C.PROVEEDOR, {}).get("total") or CERO
-    retiros = (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=C.RETIRO, **dias("fecha", desde, hasta))
-               .aggregate(t=Sum("monto"))["t"] or CERO)
-    retiros += (SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, queda__isnull=False, **dias("cerrada_en", desde, hasta))
-                .aggregate(t=Sum(F("contado") - F("queda")))["t"] or CERO)
+    retiros = sum(retiros_por_dia(desde, hasta).values(), CERO)
     return {"filas": filas, "total": total, "proveedores": proveedores, "operativos": total - proveedores, "retiros": retiros,
             "fuera": qs.filter(sesion__isnull=True).aggregate(t=Sum("monto"))["t"] or CERO}
+
+
+def retiros_por_dia(desde, hasta):
+    """{día: monto} de lo que se llevó el dueño: egresos «Retiro» y lo retirado al cerrar cada caja (contado − lo que se dejó).
+    Única definición de «retiros» (Gastos y el flujo de caja la usan)."""
+    from django.db.models.functions import TruncDate
+
+    tz = timezone.get_current_timezone()
+    r = defaultdict(lambda: CERO)
+    for f in (MovimientoCaja.objects.filter(tipo=MovimientoCaja.Tipo.EGRESO, categoria=MovimientoCaja.Categoria.RETIRO, anulado=False,
+                                            **dias("fecha", desde, hasta))
+              .annotate(dia=TruncDate("fecha", tzinfo=tz)).values("dia").annotate(t=Sum("monto"))):
+        r[f["dia"]] += f["t"]
+    for f in (SesionCaja.objects.filter(estado=SesionCaja.Estado.CERRADA, queda__isnull=False, **dias("cerrada_en", desde, hasta))
+              .annotate(dia=TruncDate("cerrada_en", tzinfo=tz)).values("dia").annotate(t=Sum(F("contado") - F("queda")))):
+        r[f["dia"]] += f["t"] or CERO
+    return dict(r)
 
 
 COMPRAS_SIN_PRODUCTO = "CSP"  # no es un motivo de caja: son las líneas libres de las compras registradas
@@ -243,9 +258,18 @@ def total_conteo(conteo):
     return total, limpio
 
 
-def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None):
+TOLERANCIA_RECONTEO = Decimal("1.00")
+
+
+def no_cuadra(sesion, contado):
+    """Para el cierre ciego: True si lo contado se aleja de lo esperado más que la tolerancia (se pide volver a contar
+    sin decir cuánto falta ni sobra)."""
+    return abs(contado - calcular(sesion)["esperado"]) > TOLERANCIA_RECONTEO
+
+
+def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None, primer_conteo=None):
     """Cierra el turno. `queda` = el sencillo que se deja en el cajón para el siguiente turno (lo demás se retira);
-    sin indicarlo, se entiende que todo lo contado se queda."""
+    sin indicarlo, se entiende que todo lo contado se queda. `primer_conteo`: el que no cuadró, si se volvió a contar."""
     queda = contado if queda is None else queda
     if queda < 0 or queda > contado:
         raise CajaError(f"Lo que dejas en el cajón no puede ser más de lo contado (S/ {contado:.2f}).")
@@ -263,6 +287,7 @@ def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None):
         s.diferencia = contado - r["esperado"]
         s.conteo = conteo or {}
         s.nota_cierre = nota[:300]
+        s.primer_conteo = primer_conteo if primer_conteo is not None and primer_conteo != contado else None
         s.resumen = {k: (str(v) if isinstance(v, Decimal) else v) for k, v in r.items() if k != "metodos"}
         s.resumen["metodos"] = [{**m, "total": str(m["total"])} for m in r["metodos"]]
         s.save()
@@ -270,10 +295,129 @@ def cerrar(sesion, contado, usuario, conteo=None, nota="", queda=None):
 
         if s.diferencia:
             anotar("caja.diferencia", f"Caja {s.numero} de {s.usuario} cerrada con {'sobrante' if s.diferencia > 0 else 'faltante'} "
-                   f"de S/ {abs(s.diferencia):.2f}", objeto=s, usuario=usuario,
-                   despues={"esperado": s.esperado, "contado": s.contado, "diferencia": s.diferencia})
+                   f"de S/ {abs(s.diferencia):.2f}" + (f" (volvió a contar; la primera vez contó S/ {s.primer_conteo:.2f})" if s.primer_conteo is not None else ""),
+                   objeto=s, usuario=usuario,
+                   despues={"esperado": s.esperado, "contado": s.contado, "diferencia": s.diferencia, "primer_conteo": s.primer_conteo})
         if usuario.pk != s.usuario_id:
             anotar("caja.cierre_ajeno", f"Caja {s.numero} de {s.usuario} cerrada por {usuario}", objeto=s, usuario=usuario)
+    return s
+
+
+def corregir_conteo(sesion, contado, usuario, motivo):
+    """Una caja cerrada no se reabre (se podría vender en un día ya cerrado y cambiarían los reportes). Si se contó mal
+    (un sobre que no se contó, un billete pegado), Administración corrige lo contado con motivo: cambia la diferencia,
+    se guarda el conteo original y queda en la bitácora. Lo que se dejó en el cajón no cambia."""
+    motivo = " ".join(str(motivo or "").split())[:200]
+    if not motivo:
+        raise CajaError("Indica el motivo de la corrección.")
+    if contado is None or contado < 0:
+        raise CajaError("Indica cuánto se contó.")
+    with transaction.atomic():
+        s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
+        if s.abierta:
+            raise CajaError("La caja todavía está abierta: corrige el conteo al cerrarla.")
+        if contado < (s.queda or CERO):
+            raise CajaError(f"No puede ser menos de lo que se dejó en el cajón (S/ {s.queda:.2f}).")
+        if contado == s.contado:
+            raise CajaError("Es el mismo monto que ya estaba.")
+        antes = {"contado": s.contado, "diferencia": s.diferencia}
+        if s.contado_original is None:
+            s.contado_original = s.contado
+        s.contado = contado
+        s.diferencia = contado - s.esperado
+        s.corregido_en, s.corregido_por, s.motivo_correccion = timezone.now(), usuario, motivo
+        s.save(update_fields=["contado", "diferencia", "contado_original", "corregido_en", "corregido_por", "motivo_correccion"])
+        from core.bitacora import anotar
+
+        anotar("caja.correccion", f"Caja {s.numero} de {s.usuario}: contado S/ {antes['contado']:.2f} → S/ {contado:.2f}: {motivo}",
+               objeto=s, usuario=usuario, antes=antes, despues={"contado": s.contado, "diferencia": s.diferencia})
+    return s
+
+
+def por_que_no_reabrir(sesion):
+    """"" si Administración puede reabrir esta caja; si no, el motivo. Solo la última caja del cajero, sin otra abierta
+    después, y el mismo día que se cerró: así no se vende en un turno ya entregado ni cambian días ya revisados."""
+    if sesion.abierta:
+        return "La caja ya está abierta."
+    if timezone.localtime(sesion.cerrada_en).date() != timezone.localdate():
+        return "Solo se reabre el mismo día que se cerró. Para un día anterior, corrige el conteo."
+    if SesionCaja.objects.filter(usuario_id=sesion.usuario_id, pk__gt=sesion.pk).exists():
+        return "Después de esta caja ya se abrió otra: corrige el conteo o agrega la salida olvidada en lugar de reabrirla."
+    # un cajón, un turno abierto a la vez: si otra persona ya tomó el mismo cajón, no se reabre
+    mismo_cajon = SesionCaja.objects.filter(punto_id=sesion.punto_id).exclude(pk=sesion.pk)
+    if mismo_cajon.filter(pk__gt=sesion.pk).exists() or mismo_cajon.filter(estado=SesionCaja.Estado.ABIERTA).exists():
+        return ("Después de esta caja ya se abrió otra en el mismo cajón. Si faltó una salida, agrégala como salida olvidada; "
+                "para seguir vendiendo, abre una caja nueva cuando el cajón esté libre.")
+    return ""
+
+
+def salida_olvidada(sesion, monto, concepto, usuario, categoria, persona=None):
+    """Una salida de dinero que pasó en el turno pero no se anotó (pago a proveedor, gasto, adelanto). Se agrega a la caja ya
+    cerrada sin reabrirla: lo que debía haber baja y la diferencia se recalcula. Lo contado no cambia. Va a la bitácora."""
+    concepto = " ".join(str(concepto or "").split())[:150]
+    if not concepto:
+        raise CajaError("Describe la salida.")
+    if not monto or monto <= 0:
+        raise CajaError("El monto debe ser mayor que cero.")
+    with transaction.atomic():
+        s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
+        if s.abierta:
+            raise CajaError("La caja está abierta: registra la salida normalmente.")
+        m = MovimientoCaja.objects.create(sesion=s, tipo=MovimientoCaja.Tipo.EGRESO, monto=monto, concepto=concepto, categoria=categoria,
+                                          usuario=usuario, persona=_persona(categoria, persona), fecha=s.cerrada_en, despues_del_cierre=True)
+        antes = {"esperado": s.esperado, "diferencia": s.diferencia}
+        s.esperado -= monto
+        s.diferencia = s.contado - s.esperado
+        r = dict(s.resumen or {})
+        for k, signo in (("egresos", 1), ("esperado", -1)):
+            if k in r:
+                r[k] = str(Decimal(r[k]) + signo * monto)
+        s.resumen = r
+        s.save(update_fields=["esperado", "diferencia", "resumen"])
+        from core.bitacora import anotar
+
+        anotar("caja.salida_olvidada", f"Caja {s.numero} de {s.usuario}: salida olvidada de S/ {monto:.2f} ({m.motivo}: {concepto}). "
+               f"{'Ahora cuadra' if s.diferencia == 0 else ('Sobrante' if s.diferencia > 0 else 'Faltante') + f' de S/ {abs(s.diferencia):.2f}'}",
+               objeto=s, usuario=usuario, antes=antes, despues={"esperado": s.esperado, "diferencia": s.diferencia, "monto": monto})
+    return s
+
+
+def reabrir(sesion, usuario, motivo):
+    """Vuelve a abrir una caja cerrada por error (o porque faltó anotar un gasto). El cierre anterior queda en `reaperturas`
+    y en la bitácora. Lo que se retiró al cerrar ya salió del cajón: se anota como retiro para que el nuevo cierre cuadre."""
+    motivo = " ".join(str(motivo or "").split())[:200]
+    if not motivo:
+        raise CajaError("Indica por qué se reabre la caja.")
+    with transaction.atomic():
+        s = SesionCaja.objects.select_for_update().get(pk=sesion.pk)
+        if error := por_que_no_reabrir(s):
+            raise CajaError(error)
+        anterior = {
+            "cerrada_en": s.cerrada_en.isoformat(), "cerrada_por": str(s.cerrada_por) if s.cerrada_por else "",
+            "esperado": str(s.esperado), "contado": str(s.contado), "diferencia": str(s.diferencia), "queda": str(s.queda),
+            "primer_conteo": str(s.primer_conteo) if s.primer_conteo is not None else None,
+            "contado_original": str(s.contado_original) if s.contado_original is not None else None,
+            "nota_cierre": s.nota_cierre, "reabierta_en": timezone.now().isoformat(), "reabierta_por": str(usuario), "motivo": motivo,
+        }
+        retirado = s.retirado or CERO
+        if retirado > 0:
+            MovimientoCaja.objects.create(sesion=s, tipo=MovimientoCaja.Tipo.EGRESO, monto=retirado, categoria=MovimientoCaja.Categoria.RETIRO,
+                                          concepto="Retirado al cerrar (antes de reabrir)", usuario=usuario, automatico=True,
+                                          fecha=s.cerrada_en)
+        s.reaperturas = [*(s.reaperturas or []), anterior]
+        s.estado = SesionCaja.Estado.ABIERTA
+        s.cerrada_en = s.cerrada_por = s.esperado = s.contado = s.diferencia = s.queda = None
+        s.primer_conteo = s.contado_original = s.corregido_en = s.corregido_por = None
+        s.conteo, s.resumen, s.nota_cierre, s.motivo_correccion = {}, {}, "", ""
+        try:
+            with transaction.atomic():
+                s.save()
+        except IntegrityError:
+            raise CajaError(f"{s.usuario} ya tiene otra caja abierta.")
+        from core.bitacora import anotar
+
+        anotar("caja.reabierta", f"Caja {s.numero} de {s.usuario} reabierta: {motivo}", objeto=s, usuario=usuario,
+               antes={k: anterior[k] for k in ("esperado", "contado", "diferencia", "queda")}, despues={"retiro_anotado": retirado})
     return s
 
 

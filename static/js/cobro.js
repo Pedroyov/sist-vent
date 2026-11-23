@@ -9,6 +9,8 @@ window.Cobro = (function () {
   if (!modal) return null;
   var METODOS = JSON.parse(modal.dataset.metodos);
   var CON_PROPINA = modal.dataset.propina === "1";
+  var EXIGIR_OPERACION = modal.dataset.operacion === "1";
+  var ELECTRONICOS = ["YAP", "PLI", "TAR", "TRA"];  // los que se concilian con el banco: llevan N° de operación
   var BILLETES = [10, 20, 50, 100, 200];
   var cent = function (t) { var n = parseFloat(String(t).replace(",", ".")); return isFinite(n) && n > 0 ? Math.round(n * 100) : 0; };
   var soles = function (c) { return "S/ " + (c / 100).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
@@ -216,6 +218,13 @@ window.Cobro = (function () {
     var fiado = ps.filter(function (p) { return p.metodo === "CRE"; }).reduce(function (a, p) { return a + p.c; }, 0);
     var fc = faltaComp(neto(), fiado > 0);
     if (fc) { e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-receipt"></i> ' + esc(fc); $("c-confirmar").disabled = true; return false; }
+    var conElectronico = ps.some(function (p) { return p.c > 0 && ELECTRONICOS.indexOf(p.metodo) >= 0; });
+    var exige = EXIGIR_OPERACION && ps.some(function (p) { return p.c > 0 && (p.metodo === "YAP" || p.metodo === "PLI"); });
+    $("c-oper-fila").classList.toggle("d-none", !conElectronico);
+    $("c-oper").placeholder = exige ? "N° de operación (obligatorio)" : "N° de operación (opcional)";
+    if (exige && !$("c-oper").value.trim()) {
+      e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-123"></i> Escribe el N° de operación del Yape o Plin.'; $("c-confirmar").disabled = true; return false;
+    }
     var ok = false;
     if (fiado && !cliente && !$("c-nombre").value.trim()) { e.className = "alert alert-warning py-1 text-center mb-2"; e.innerHTML = '<i class="bi bi-person-exclamation"></i> Para fiar, elige o escribe el cliente.'; $("c-confirmar").disabled = true; return false; }
     if (fiado && cliente && parseFloat(cliente.limite) > 0 && (parseFloat(cliente.saldo) * 100 + fiado) > parseFloat(cliente.limite) * 100) {
@@ -254,6 +263,7 @@ window.Cobro = (function () {
     bootstrap.Collapse.getOrCreateInstance($("c-cliente"), {toggle: false}).hide();
     $("c-desc").value = ""; $("c-desc-motivo").value = ""; $("c-sup-usuario").value = ""; $("c-sup-clave").value = "";
     $("c-propina").value = "";
+    $("c-oper").value = "";
     $("c-nota").value = opciones.nota || "";
     $("c-nombre").value = ""; $("c-doc").value = "";
     cliente = opciones.cliente || null;
@@ -321,7 +331,9 @@ window.Cobro = (function () {
     if (ps.every(function (p) { return p.c === 0; })) ps = [{metodo: "EFE", c: aCobrar()}];
     boton(true);
     actual.onConfirmar({
-      pagos: ps.filter(function (p) { return p.c > 0; }).map(function (p) { return {metodo: p.metodo, monto: (p.c / 100).toFixed(2)}; }),
+      pagos: ps.filter(function (p) { return p.c > 0; }).map(function (p) {
+        return {metodo: p.metodo, monto: (p.c / 100).toFixed(2), referencia: ELECTRONICOS.indexOf(p.metodo) >= 0 ? $("c-oper").value.trim() : ""};
+      }),
       propina: (propina() / 100).toFixed(2),
       descuento: (descuento() / 100).toFixed(2), descuento_motivo: $("c-desc-motivo").value,
       sup_usuario: $("c-sup-usuario").value, sup_clave: $("c-sup-clave").value,
@@ -338,6 +350,7 @@ window.Cobro = (function () {
 
   modal.addEventListener("shown.bs.modal", function () { var i = modal.querySelector('[data-metodo="EFE"]'); if (i) i.focus(); });
   $("c-metodos").addEventListener("input", estado);
+  $("c-oper").addEventListener("input", estado);
   if (COMP) {
     COMP.addEventListener("change", function () { pintarComp(); estado(); });
     COMP.addEventListener("input", estado);

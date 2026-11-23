@@ -4,7 +4,7 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
 {% endcomment %}{% load fe %}{% config_fe as FE %}
 <div class="modal fade" id="m-cobro" tabindex="-1" aria-hidden="true"
      data-metodos='[{% for k, v in METODOS_PAGO %}{"id": "{{ k }}", "n": "{{ v }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
-     data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}">
+     data-propina="{{ NEGOCIO.propina_activa|yesno:'1,0' }}" data-operacion="{{ NEGOCIO.exigir_operacion|yesno:'1,0' }}">
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <form class="modal-content" id="f-cobro" novalidate>
       <div class="modal-header py-2">
@@ -50,6 +50,9 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
         <div class="d-flex flex-wrap gap-1 mb-2" id="c-chips" role="group" aria-label="Paga con"></div>
         <div id="c-metodos"></div>
         <div class="d-flex flex-wrap gap-1 mb-2" id="c-billetes"></div>
+        <div class="mb-2 d-none" id="c-oper-fila">
+          <input type="text" class="form-control" id="c-oper" maxlength="60" autocomplete="off" placeholder="N° de operación (opcional)" aria-label="N° de operación">
+        </div>
         <div class="alert py-2 text-center fs-5 mb-2" id="c-estado"></div>
         <div class="d-flex flex-wrap gap-1 mb-2" id="c-extras">
           <button type="button" class="btn btn-sm btn-outline-secondary py-0 d-none" id="c-mas-desc"><i class="bi bi-tag"></i> Descuento</button>

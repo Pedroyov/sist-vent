@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}{{ nombre }} del {{ dia|date:"d/m/Y" }}{% endblock %}
+{% block page_title %}{{ nombre }} <small class="text-body-secondary fs-6">{{ dia|date:"l d/m/Y" }}</small>{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'ventas:conciliar' %}">Conciliar</a></li><li class="breadcrumb-item active">{{ dia|date:"d/m" }}</li>{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card card-outline {% if not c %}card-warning{% elif c.diferencia == 0 %}card-success{% else %}card-danger{% endif %} mb-3">
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex"><span>Según el sistema <span class="small text-body-secondary">({{ ops|length }} cobro{{ ops|length|pluralize }})</span></span><strong class="ms-auto">{{ sistema|soles }}</strong></li>
+        {% if c %}
+        <li class="list-group-item d-flex"><span>Según el banco</span><strong class="ms-auto">{{ c.banco|soles }}</strong></li>
+        <li class="list-group-item d-flex {% if c.diferencia < 0 %}list-group-item-danger{% elif c.diferencia > 0 %}list-group-item-warning{% else %}list-group-item-success{% endif %}">
+          <span>{% if c.diferencia < 0 %}Falta en el banco{% elif c.diferencia > 0 %}Sobra en el banco{% else %}Cuadra exacto{% endif %}</span><strong class="ms-auto">{% if c.diferencia %}{{ c.diferencia|soles|cut:"-" }}{% else %}<i class="bi bi-check-lg"></i>{% endif %}</strong></li>
+        {% if no_llego %}<li class="list-group-item d-flex small"><span>Marcado «no llegó»</span><span class="ms-auto">{{ no_llego|soles }}</span></li>
+        <li class="list-group-item d-flex small {% if sin_explicar %}text-danger{% else %}text-success{% endif %}"><span>Sin explicar</span><span class="ms-auto">{{ sin_explicar|soles }}</span></li>{% endif %}
+        {% endif %}
+      </ul>
+      {% if cambio %}<div class="card-body py-2 small text-warning-emphasis border-top"><i class="bi bi-exclamation-circle me-1"></i>Las ventas de ese día cambiaron después de conciliar (sistema era {{ c.sistema|soles }}). Vuelve a guardar el monto del banco.</div>{% endif %}
+      <form method="post" class="card-body border-top" novalidate>
+        {% csrf_token %}<input type="hidden" name="accion" value="guardar">
+        <label class="form-label" for="banco">{% if c %}Corregir lo que muestra el banco{% else %}¿Cuánto muestra la app del banco por {{ nombre }} ese día?{% endif %}</label>
+        <div class="input-group input-group-lg mb-2"><span class="input-group-text">S/</span>
+          <input type="number" name="banco" id="banco" class="form-control" step="0.01" min="0" inputmode="decimal" required value="{% if c %}{{ c.banco|stringformat:'.2f' }}{% endif %}"></div>
+        <input type="text" name="nota" class="form-control form-control-sm mb-2" maxlength="200" placeholder="Nota (opcional)" value="{{ c.nota|default:'' }}" aria-label="Nota">
+        <button class="btn btn-primary w-100"><i class="bi bi-check-lg me-1"></i>{% if c %}Guardar corrección{% else %}Conciliar{% endif %}</button>
+        {% if c %}<div class="small text-body-secondary mt-2">Concilió {{ c.usuario|nombre }} el {{ c.creado|date:"d/m/Y H:i" }}.</div>{% endif %}
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-list-ul me-1"></i> Cobros con {{ nombre }}</h3></div>
+      {% if c and c.diferencia < 0 %}<div class="card-body py-2 small text-body-secondary border-bottom">Busca en la app del banco cada cobro por su hora, monto y N° de operación. El que no aparezca, márcalo con <strong>No llegó</strong>: queda como faltante de quien lo cobró.</div>{% endif %}
+      <div class="list-group list-group-flush">
+        {% for o in ops %}
+        <div class="list-group-item {% if o.no_llego %}list-group-item-danger{% endif %}">
+          <div class="d-flex align-items-start gap-2">
+            <div class="flex-grow-1">
+              <div><strong>{{ o.monto|soles }}</strong> <span class="small text-body-secondary">{{ o.fecha|date:"H:i" }}</span>{% if o.referencia %} <span class="badge text-bg-light border font-monospace">{{ o.referencia }}</span>{% endif %}</div>
+              <div class="small"><a href="{{ o.url }}">{{ o.descripcion }}</a> · cobró {{ o.usuario|nombre }}</div>
+              {% if o.no_llego %}<div class="small text-danger"><i class="bi bi-x-circle me-1"></i>No llegó · marcó {{ o.no_llego.marcado_por|nombre }}</div>{% endif %}
+            </div>
+            {% if c %}
+            <form method="post" class="flex-shrink-0">{% csrf_token %}<input type="hidden" name="tipo" value="{{ o.tipo }}"><input type="hidden" name="id" value="{{ o.id }}">
+              {% if o.no_llego %}<button name="accion" value="quitar" class="btn btn-sm btn-outline-secondary">Sí llegó</button>
+              {% else %}<button name="accion" value="no_llego" class="btn btn-sm btn-outline-danger">No llegó</button>{% endif %}
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="list-group-item text-body-secondary">No hubo cobros con {{ nombre }} ese día.</div>
+        {% endfor %}
+      </div>
+      {% if not c and ops %}<div class="card-footer small text-body-secondary">Primero escribe el monto del banco; si no cuadra, aquí marcas cuál no llegó.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

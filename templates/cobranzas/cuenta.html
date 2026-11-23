@@ -51,7 +51,8 @@
             {% for k, v in metodos %}<input type="radio" class="btn-check" name="metodo" id="m-{{ k }}" value="{{ k }}" {% if forloop.first %}checked{% endif %}>
             <label class="btn btn-sm btn-outline-primary" for="m-{{ k }}">{{ v }}</label>{% endfor %}
           </div>
-          <input type="text" name="nota" class="form-control form-control-sm mb-2" maxlength="200" placeholder="Nota u operación (opcional)">
+          <input type="text" name="referencia" class="form-control form-control-sm mb-2" maxlength="60" autocomplete="off" placeholder="N° de operación (Yape, Plin, tarjeta){% if NEGOCIO.exigir_operacion %}: obligatorio en Yape y Plin{% endif %}" aria-label="N° de operación">
+          <input type="text" name="nota" class="form-control form-control-sm mb-2" maxlength="200" placeholder="Nota (opcional)">
           <button class="btn btn-success w-100 btn-lg" id="c-boton"><i class="bi bi-check-lg me-1"></i>Cobrar <span id="c-total"></span></button>
           <div class="small text-body-secondary mt-1 text-center">El efectivo entra a tu caja abierta. Se imprime el recibo.</div>
         </div>

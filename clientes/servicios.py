@@ -161,6 +161,10 @@ def registrar_abono(cliente, monto, metodo, usuario, nota="", referencia=""):
         raise ClienteError("El monto debe ser mayor que cero.")
     if metodo not in MetodoPago.values or metodo == MetodoPago.CREDITO:
         raise ClienteError("Método de pago no válido.")
+    from ventas.servicios import falta_operacion
+
+    if error := falta_operacion(metodo, referencia):
+        raise ClienteError(error)
     try:
         sesion = sesion_para_vender(usuario)
     except CajaError as e:

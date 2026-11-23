@@ -27,6 +27,9 @@ def _datos(request):
     from personal.reportes import de_negocio
 
     d["personal"] = de_negocio(desde, hasta)
+    from ventas.conciliacion import para_reportes
+
+    d["conciliacion"] = para_reportes(desde, hasta)
     d["con_caja"] = modulo_activo(request.user, "caja")
     if d["con_caja"]:
         from caja.servicios import gastos
@@ -195,6 +198,11 @@ def _excel(d):
              [[f["cliente"].nombre, f["cliente"].documento, f["saldo"], f["dias"], f["cliente"].telefono] for f in d["deudores"]["filas"]])
     hoja("Cajas", ["Cajero", "Cajas cerradas", "Con diferencia", "Faltante", "Sobrante"],
          [[f["etiqueta"], f["cajas"], f["con_diferencia"], f["faltante"], f["sobrante"]] for f in d["cajas"]["filas"]])
+    if d["conciliacion"]["hay"]:
+        hoja("Conciliación", ["Método", "Días conciliados", "Según el sistema", "Según el banco", "Diferencia"],
+             [[f["nombre"], f["n"], f["sistema"], f["banco"], f["dif"]] for f in d["conciliacion"]["por_metodo"]])
+        if d["conciliacion"]["por_cajero"]:
+            hoja("No llegaron", ["Cobró", "Cobros", "Monto"], [[f["etiqueta"], f["n"], f["total"]] for f in d["conciliacion"]["por_cajero"]])
     hoja("Anuladas", ["N°", "Fecha", "Total", "Motivo", "Vendió", "Anuló"],
          [[v.numero_str, timezone.localtime(v.fecha).strftime("%d/%m/%Y %H:%M"), v.total, v.motivo_anulacion,
            v.usuario.get_full_name(), v.anulada_por.get_full_name() if v.anulada_por else ""] for v in d["anuladas"]])
@@ -210,3 +218,44 @@ def _excel(d):
     resp = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = content_disposition_header(True, f"reporte_{d['desde']:%Y%m%d}_{d['hasta']:%Y%m%d}.xlsx")
     return resp
+
+
+@permiso_requerido("reportes.ver")
+def dinero(request):
+    """Flujo de caja día por día: lo que entró, lo que salió y dónde quedó."""
+    from .flujo import por_dia
+
+    desde, hasta, atajo = s.periodo(request)
+    d = por_dia(desde, hasta)
+    if request.GET.get("excel"):
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        from core.excel import a_bytes
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Dinero del día"
+        ws.append(["Día", "Efectivo", *d["metodos"], "Otros ingresos", "Total entró", "Salió de cajas", "Salió fuera de caja",
+                   "Total salió", "Neto", "Retirado (dueño)", "Quedó en cajones", "Diferencia de caja", "Diferencia con el banco",
+                   "Fiado vendido (no es dinero)"])
+        for c in ws[1]:
+            c.font = Font(bold=True)
+
+        def fila(etiqueta, f, metodos, quedo):
+            return [etiqueta, f["efectivo"], *[m["total"] for m in metodos], f["ingresos"], f["entro"], f["salio_cajas"], f["salio_fuera"],
+                    f["salio"], f["neto"], f["retirado"], quedo, f["dif_caja"], f["dif_conciliacion"], f["fiado"]]
+
+        for f in reversed(d["filas"]):
+            ws.append([float(x) if hasattr(x, "quantize") else x for x in fila(f["dia"].strftime("%d/%m/%Y"), f, f["metodos"], f["quedo"])])
+        ws.append([float(x) if hasattr(x, "quantize") else x for x in fila("Total", d["total"], d["total"]["metodos"], None)])
+        for c in ws[ws.max_row]:
+            c.font = Font(bold=True)
+        ws.freeze_panes = "B2"
+        resp = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = content_disposition_header(True, f"dinero_{desde:%Y%m%d}_{hasta:%Y%m%d}.xlsx")
+        return resp
+    query = request.GET.copy()
+    query.pop("excel", None)
+    return render(request, "reportes/dinero.html", {**d, "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": s.ATAJOS,
+                                                    "query": query, "con_caja": modulo_activo(request.user, "caja")})

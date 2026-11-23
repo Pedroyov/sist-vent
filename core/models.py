@@ -58,10 +58,17 @@ class Ajustes(models.Model):
     vender_sin_caja = models.BooleanField(
         "permitir vender sin caja abierta", default=False,
         help_text="Si está desmarcado (recomendado), cada venta queda en la caja abierta de quien cobra y así cuadra al cierre.")
+    cierre_ciego = models.BooleanField(
+        "cierre ciego para cajeros", default=True,
+        help_text="El cajero cuenta sin ver cuánto debería haber y el sistema calcula la diferencia al cerrar (recomendado con empleados). "
+                  "Desmárcalo si quien cobra es de total confianza: verá «Faltan S/ …» mientras cuenta. Administración siempre lo ve.")
     propina_activa = models.BooleanField(
         "pedir propina al cobrar", default=False, help_text="Muestra un campo de propina al cobrar (útil en restaurantes).")
     metodos_pago = models.JSONField("métodos de pago que acepta", default=list, blank=True,
                                     help_text="Vacío = todos. El efectivo siempre está.")
+    exigir_operacion = models.BooleanField(
+        "pedir el N° de operación en Yape y Plin", default=False,
+        help_text="Al cobrar con Yape o Plin no se confirma sin el número de operación. Ayuda a conciliar y a detectar capturas falsas; en hora punta frena un poco la caja.")
     descuentos_activos = models.BooleanField("permitir descuentos al cobrar", default=True,
                                              help_text="Si lo desmarcas, nadie ve el campo de descuento.")
     cortesias_activas = models.BooleanField("permitir cortesías en mesas", default=True,

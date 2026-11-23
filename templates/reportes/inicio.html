@@ -43,6 +43,7 @@
 <nav class="indice bg-body-tertiary py-2 mb-3 no-print">
   <ul class="nav nav-pills flex-nowrap overflow-auto small">
     <li class="nav-item"><a class="nav-link" href="#resumen">Resumen</a></li>
+    <li class="nav-item"><a class="nav-link" href="{% url 'reportes:dinero' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"><i class="bi bi-cash-stack me-1"></i>Dinero del día</a></li>
     {% if con_caja %}<li class="nav-item"><a class="nav-link" href="#gastos">Gastos</a></li>{% endif %}
     {% if compras %}<li class="nav-item"><a class="nav-link" href="#compras">Compras</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link" href="#tiempo">Días y horas</a></li>
@@ -367,6 +368,18 @@
       <td class="small">{{ v.motivo_anulacion }}<div class="text-body-secondary">anuló {{ v.anulada_por|nombre }}</div></td><td class="text-end pe-3">{{ v.total|soles }}</td></tr>{% endfor %}</tbody></table></div>
     {% else %}<div class="card-body small text-body-secondary">Ninguna venta anulada.</div>{% endif %}
   </div></div>
+  {% if conciliacion.hay %}
+  <div class="col-12"><div class="card mb-0">
+    <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-bank me-1"></i> Yape, Plin, tarjeta y transferencias frente al banco
+      {% if conciliacion.diferencia %}<small class="text-danger">diferencia {{ conciliacion.diferencia|soles }}</small>{% else %}<small class="text-success">cuadra</small>{% endif %}</h3>
+      {% if P.ventas_conciliar %}<a href="{% url 'ventas:conciliar' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}" class="small ms-auto">Conciliar</a>{% endif %}</div>
+    <ul class="list-group list-group-flush">
+      {% for f in conciliacion.por_metodo %}<li class="list-group-item d-flex align-items-center gap-2"><span class="flex-grow-1">{{ f.nombre }} <span class="small text-body-secondary">{{ f.n }} día{{ f.n|pluralize }} · banco {{ f.banco|soles }}</span></span>
+        <span class="{% if f.dif < 0 %}text-danger fw-semibold{% elif f.dif > 0 %}text-warning-emphasis{% else %}text-success{% endif %}">{% if f.dif %}{{ f.dif|soles }}{% else %}<i class="bi bi-check-lg"></i>{% endif %}</span></li>{% endfor %}
+      {% for f in conciliacion.por_cajero %}<li class="list-group-item d-flex align-items-center gap-2 list-group-item-danger"><span class="flex-grow-1"><i class="bi bi-x-circle me-1"></i>No llegaron: cobró {{ f.etiqueta }} <span class="small">({{ f.n }})</span></span><strong>{{ f.total|soles }}</strong></li>{% endfor %}
+    </ul>
+  </div></div>
+  {% endif %}
   <div class="col-12"><div class="card mb-0">
     <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-gift me-1"></i> Cortesías y descuentos
       <small class="text-body-secondary">{{ rebajas.cortesias|length }} cortesía{{ rebajas.cortesias|length|pluralize }} · {{ rebajas.valor_cortesias|soles }} &nbsp;|&nbsp; {{ rebajas.descuentos|length }} descuento{{ rebajas.descuentos|length|pluralize }} · {{ rebajas.valor_descuentos|soles }}</small></h3></div>
