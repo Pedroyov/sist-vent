@@ -174,6 +174,7 @@ class ItemCuenta(models.Model):
     cantidad = models.DecimalField(max_digits=10, decimal_places=3)
     precio = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio al momento de pedirlo.")
     nota = models.CharField(max_length=120, blank=True, help_text='Ej.: "sin cebolla", "bien caliente".')
+    llevar = models.BooleanField("para llevar", default=False, help_text="En una mesa: este plato se empaca para llevar (se cobra en la misma cuenta).")
     opciones = models.JSONField(default=list, blank=True, help_text="Opciones elegidas (término, acompañamiento, adicionales).")
     agregado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
     creado = models.DateTimeField(default=timezone.now)

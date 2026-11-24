@@ -10,6 +10,7 @@ from caja.servicios import abrir
 from core.models import Ajustes
 from productos.models import Producto
 from productos.servicios import asegurar_variante_unica
+from ventas.models import Venta
 
 from .conectores import ErrorConexion, Nubefact, Resultado
 from .models import Comprobante, Config
@@ -148,8 +149,9 @@ class FacturacionTests(Base):
         Ajustes.objects.filter(pk=1).update(modulos_inactivos=["facturacion"])
         r = self._vender({"tipo": "B"})
         self.assertEqual(r.status_code, 200)
-        self.assertFalse(Comprobante.objects.exists())  # apagado: siempre nota de venta
-        self.assertNotContains(self.client.get(reverse("ventas:pos")), 'id="c-comp"')
+        self.assertFalse(Comprobante.objects.exists())  # apagado: siempre nota de venta; la boleta se hace aparte
+        self.assertEqual(Venta.objects.latest("id").pide_comprobante, "B")
+        self.assertContains(self.client.get(reverse("ventas:pos")), 'data-aparte="1"')
 
 
 class SeriePorCajaTests(TestCase):

@@ -71,6 +71,16 @@ class Venta(models.Model):
     anulada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name="+")
     motivo_anulacion = models.CharField("motivo", max_length=200, blank=True)
+    cliente_celular = models.CharField("celular del cliente", max_length=15, blank=True,
+                                       help_text="Para mandarle su boleta o factura por WhatsApp.")
+    # Boleta o factura que el negocio hace aparte (sin el módulo de facturación): la venta queda como nota de venta
+    # y aquí se anota lo que pidió el cliente, hasta que se hace y se le envía.
+    pide_comprobante = models.CharField("pidió", max_length=1, blank=True, choices=[("B", "Boleta"), ("F", "Factura")])
+    cliente_direccion = models.CharField("dirección fiscal", max_length=200, blank=True)
+    comprobante_aparte = models.CharField("N° del comprobante hecho aparte", max_length=30, blank=True)
+    comprobante_aparte_en = models.DateTimeField(null=True, blank=True)
+    comprobante_aparte_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                               related_name="+", verbose_name="lo hizo")
 
     class Meta:
         verbose_name = "venta"
@@ -83,6 +93,10 @@ class Venta(models.Model):
     @property
     def numero_str(self):
         return f"{self.numero:06d}"
+
+    @property
+    def comprobante_por_hacer(self):
+        return bool(self.pide_comprobante) and not self.comprobante_aparte_en and not self.anulada
 
     @property
     def anulada(self):

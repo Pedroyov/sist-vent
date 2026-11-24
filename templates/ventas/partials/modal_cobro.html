@@ -13,8 +13,9 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
       </div>
       <div class="modal-body">
         <div class="text-center mb-2"><div class="text-body-secondary small" id="c-detalle">Total a cobrar</div><div class="total-grande" id="c-total"></div></div>
-        {% if FE %}
-        <div class="mb-2" id="c-comp" data-defecto="{{ FE.por_defecto }}" data-credito="{% if FE.credito_activo and P.mod_clientes %}{{ FE.credito_dias }}{% endif %}">
+        {% comment %}Sin el módulo de facturación, «Boleta» y «Factura» anotan lo que pidió el cliente: el negocio la hace aparte
+        y la venta queda en «Boletas y facturas por hacer».{% endcomment %}
+        <div class="mb-2" id="c-comp" data-defecto="{% if FE %}{{ FE.por_defecto }}{% else %}N{% endif %}" data-aparte="{{ FE|yesno:'0,1' }}" data-credito="{% if FE.credito_activo and P.mod_clientes %}{{ FE.credito_dias }}{% endif %}">
           <div class="btn-group btn-group-sm w-100" role="group" aria-label="Comprobante">
             <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-N" value="N"><label class="btn btn-outline-secondary" for="c-comp-N">Nota de venta</label>
             <input type="radio" class="btn-check" name="c-comp-tipo" id="c-comp-B" value="B"><label class="btn btn-outline-primary" for="c-comp-B">Boleta</label>
@@ -24,7 +25,10 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
             <div class="col-5"><input type="text" class="form-control" id="c-comp-doc" inputmode="numeric" maxlength="11" autocomplete="off" aria-label="Documento"></div>
             <div class="col-7"><input type="text" class="form-control" id="c-comp-nombre" maxlength="150" aria-label="Nombre o razón social"></div>
             <div class="col-12 d-none" id="c-comp-dir-fila"><input type="text" class="form-control" id="c-comp-dir" maxlength="200" placeholder="Dirección fiscal" aria-label="Dirección fiscal"></div>
+            <div class="col-12"><div class="input-group"><span class="input-group-text"><i class="bi bi-whatsapp"></i></span><input type="tel" class="form-control" id="c-comp-cel" maxlength="15" inputmode="tel" autocomplete="off" placeholder="Celular para enviarle el comprobante (opcional)" aria-label="Celular"></div></div>
+            {% if not FE %}<div class="col-12 text-body-secondary" style="font-size: .75rem"><i class="bi bi-info-circle"></i> Se cobra como nota de venta. La boleta o factura la haces aparte: queda en <strong>Boletas y facturas por hacer</strong>.</div>{% endif %}
           </div>
+          {% if FE %}
           <div class="row g-2 mt-1 d-none align-items-center" id="c-comp-credito">
             <div class="col-12 small fw-semibold"><i class="bi bi-calendar-check me-1"></i>Factura al crédito</div>
             <div class="col-7"><div class="input-group input-group-sm"><span class="input-group-text">Paga el</span><input type="date" class="form-control" id="c-comp-vence" aria-label="Fecha de pago"></div></div>
@@ -32,8 +36,8 @@ Cuadro de cobro reutilizable (punto de venta, mesas). Se usa con static/js/cobro
               {% for n in "123456" %}<option value="{{ n }}">{% if n == "1" %}1 pago{% else %}{{ n }} cuotas{% endif %}</option>{% endfor %}</select></div>
           </div>
           {% if FE.proveedor == "PRU" %}<div class="text-warning-emphasis mt-1" style="font-size: .75rem"><i class="bi bi-exclamation-triangle"></i> Modo prueba: no se envía a SUNAT.</div>{% endif %}
+          {% endif %}
         </div>
-        {% endif %}
         <div class="border rounded px-2 pt-2 mb-3 d-none" id="c-partes">
           <div class="d-flex align-items-center gap-2 mb-1">
             <span class="fw-semibold">Entre</span>

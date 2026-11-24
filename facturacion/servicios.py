@@ -78,22 +78,51 @@ def tipo_documento(doc):
 
 
 def preparar(datos):
-    """Desde el JSON del cobro: (solicitud, al crédito). Revisa los datos antes de registrar la venta."""
-    sol = solicitud(datos.get("comprobante"))
+    """Desde el JSON del cobro: la solicitud del comprobante. Revisa los datos antes de registrar la venta.
+
+    - Con el módulo de facturación: boleta o factura electrónica (o None = nota de venta).
+    - Sin el módulo: si el cliente pide boleta o factura, el negocio la hace aparte. La venta queda como nota de venta
+      y se anota lo que pidió ({"aparte": True, ...}) para la lista «Boletas y facturas por hacer».
+    - En los dos casos se guarda el celular del cliente (para mandarle el comprobante por WhatsApp)."""
+    comp = datos.get("comprobante")
+    celular = _celular(comp)
+    sol = solicitud(comp)
+    if sol is None and not activo():
+        sol = _aparte(comp)
     credito = any(isinstance(p, dict) and p.get("metodo") == "CRE" for p in datos.get("pagos") or [])
-    revisar_antes(sol, credito)
+    if sol and sol.get("aparte"):
+        _revisar_cliente(sol)
+    else:
+        revisar_antes(sol, credito)
+    if celular:
+        sol = dict(sol or {"tipo": "N", "aparte": True}, celular=celular)
     return sol
 
 
-def revisar_antes(sol, credito=False):
-    """Lo que se puede revisar antes de vender (para no registrar una venta que no se podrá facturar)."""
-    if not sol:
-        return
-    from clientes.documentos import ruc_valido
-    from core.models import Ajustes
+def _celular(datos):
+    from core.utils import numero_whatsapp
 
-    if not Ajustes.cargar().ruc:
-        raise ComprobanteError("Falta el RUC del negocio (Datos del negocio) para emitir comprobantes.")
+    texto = str((datos or {}).get("celular") or "").strip() if isinstance(datos, dict) else ""
+    if not texto:
+        return ""
+    if len(numero_whatsapp(texto)) < 9:
+        raise ComprobanteError("El celular no es válido (9 dígitos, empieza con 9).")
+    return texto[:15]
+
+
+def _aparte(datos):
+    """Boleta o factura que el negocio hace por su cuenta (sin el módulo de facturación)."""
+    if not isinstance(datos, dict) or str(datos.get("tipo") or "").upper() not in ("B", "F"):
+        return None
+    doc = "".join(ch for ch in str(datos.get("doc") or "") if ch.isalnum()).upper()[:11]
+    return {"tipo": str(datos["tipo"]).upper(), "doc": doc, "nombre": " ".join(str(datos.get("nombre") or "").split())[:150],
+            "direccion": " ".join(str(datos.get("direccion") or "").split())[:200], "aparte": True}
+
+
+def _revisar_cliente(sol):
+    """Los datos que pide SUNAT para una factura o boleta (los mismos con o sin el módulo)."""
+    from clientes.documentos import ruc_valido
+
     if sol["tipo"] == "F":
         if not (sol["doc"].isdigit() and len(sol["doc"]) == 11 and ruc_valido(sol["doc"])):
             raise ComprobanteError("Para la factura escribe un RUC válido (11 dígitos).")
@@ -101,13 +130,44 @@ def revisar_antes(sol, credito=False):
             raise ComprobanteError("Para la factura escribe la razón social.")
         if not sol["direccion"]:
             raise ComprobanteError("Para la factura escribe la dirección fiscal del cliente.")
+    elif sol["doc"] and tipo_documento(sol["doc"]) == "1" and len(sol["doc"]) != 8:
+        raise ComprobanteError("El DNI tiene 8 dígitos.")
+    elif sol["doc"] and not sol["nombre"]:
+        raise ComprobanteError("Escribe el nombre del cliente junto con su documento.")
+
+
+def anotar_aparte(venta, sol):
+    """Guarda en la venta el celular y, sin el módulo de facturación, la boleta o factura que pidió el cliente."""
+    campos = []
+    if sol.get("celular"):
+        venta.cliente_celular = sol["celular"]
+        campos.append("cliente_celular")
+    if sol.get("aparte") and sol.get("tipo") in ("B", "F"):
+        venta.pide_comprobante = sol["tipo"]
+        venta.cliente_direccion = sol["direccion"]
+        campos += ["pide_comprobante", "cliente_direccion"]
+        if sol["doc"]:
+            venta.cliente_documento, venta.cliente_nombre = sol["doc"], sol["nombre"] or venta.cliente_nombre
+            campos += ["cliente_documento", "cliente_nombre"]
+    if campos:
+        venta.save(update_fields=campos)
+
+
+def revisar_antes(sol, credito=False):
+    """Lo que se puede revisar antes de vender (para no registrar una venta que no se podrá facturar)."""
+    if not sol or sol.get("tipo") == "N":  # nota de venta (a lo más trae el celular)
+        return
+    from core.models import Ajustes
+
+    if not Ajustes.cargar().ruc:
+        raise ComprobanteError("Falta el RUC del negocio (Datos del negocio) para emitir comprobantes.")
+    _revisar_cliente(sol)
+    if sol["tipo"] == "F":
         if credito:
             if not Config.cargar().credito_activo:
                 raise ComprobanteError("La factura al crédito no está activada (Configuración → Facturación). Emite boleta o cobra al contado.")
             if sol.get("vence") == "mal" or (sol.get("vence") and sol["vence"] <= timezone.localdate()):
                 raise ComprobanteError("La fecha de pago de la factura al crédito tiene que ser posterior a hoy.")
-    elif sol["doc"] and tipo_documento(sol["doc"]) == "1" and len(sol["doc"]) != 8:
-        raise ComprobanteError("El DNI tiene 8 dígitos.")
 
 
 # --- Armado ------------------------------------------------------------------------------
@@ -161,6 +221,9 @@ def _totales(detalle, afectacion):
 def crear(venta, sol, usuario):
     """Numera y arma el comprobante de una venta recién registrada (dentro de su transacción)."""
     if not sol:
+        return None
+    anotar_aparte(venta, sol)
+    if sol.get("aparte") or sol.get("tipo") == "N":
         return None
     ya = venta.comprobantes.exclude(tipo=Comprobante.Tipo.NOTA_CREDITO).exclude(estado=Comprobante.Estado.RECHAZADO).first()
     if ya:  # la misma venta enviada dos veces (se reintentó con el mismo token)

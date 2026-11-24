@@ -171,6 +171,7 @@ def agregar(cuenta, items, usuario):
             if not v.producto.fraccionable and cantidad != cantidad.to_integral_value():
                 raise MesaError(f"{v.nombre_completo} se pide por unidades enteras.")
             nota = " ".join(str(it.get("nota") or "").split())[:120]
+            llevar = bool(it.get("llevar")) and cuenta.mesa_id is not None
             if v.producto.agotado:
                 raise MesaError(f"{v.producto.nombre} está agotado hoy.")
             try:
@@ -181,7 +182,7 @@ def agregar(cuenta, items, usuario):
                 tomar_porciones(v.producto_id, cantidad)  # porciones del día: «quedan 3»
             except PorcionesError as e:
                 raise MesaError(str(e))
-            previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, enviado_en__isnull=True, anulado=False, venta__isnull=True, cortesia=False)
+            previo = next((p for p in cuenta.items.filter(variante=v, nota=nota, llevar=llevar, enviado_en__isnull=True, anulado=False, venta__isnull=True, cortesia=False)
                            if [o["id"] for o in p.opciones or []] == [o["id"] for o in foto]), None)
             if previo:  # mismo plato, misma nota, aún no enviado: se suma
                 previo.cantidad += cantidad
@@ -189,7 +190,7 @@ def agregar(cuenta, items, usuario):
                 creados.append(previo)
             else:
                 creados.append(ItemCuenta.objects.create(cuenta=cuenta, variante=v, descripcion=v.nombre_completo[:240], opciones=foto, area=v.producto.area_efectiva,
-                                                         cantidad=cantidad, precio=v.precio_venta + extra, nota=nota, agregado_por=usuario))
+                                                         cantidad=cantidad, precio=v.precio_venta + extra, nota=nota, llevar=llevar, agregado_por=usuario))
     return creados
 
 
@@ -274,17 +275,24 @@ def cortesia(item, autoriza, motivo, cantidad=None, quitar=False):
     if not cantidad.is_finite() or cantidad <= 0 or cantidad > item.cantidad:
         raise MesaError("Cantidad no válida.")
     with transaction.atomic():
-        if cantidad < item.cantidad:  # solo algunas unidades: se separan en otra línea
-            item.cantidad -= cantidad
-            item.save(update_fields=["cantidad"])
-            item.pk = None
-            item.cantidad = cantidad
+        item = _separar(item, cantidad)
         item.cortesia, item.cortesia_motivo, item.cortesia_por = True, motivo, autoriza
         item.save()
         from core.bitacora import anotar
 
         anotar("mesa.cortesia", f"Cortesía en {item.cuenta.titulo}: {item.cantidad.normalize():f} × {item.descripcion} "
                f"(S/ {item.subtotal:.2f}) · {motivo}", objeto=item.cuenta, despues={"autorizo": str(autoriza), "valor": item.subtotal})
+    return item
+
+
+def _separar(item, cantidad):
+    """Si se toman solo algunas unidades de una línea, esas unidades pasan a una línea nueva (sin guardar) y la original
+    se queda con el resto. Para cortesías y para cobrar por separado (4 gaseosas, cada uno paga la suya)."""
+    if cantidad < item.cantidad:
+        item.cantidad -= cantidad
+        item.save(update_fields=["cantidad"])
+        item.pk = None
+        item.cantidad = cantidad
     return item
 
 
@@ -412,11 +420,22 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
     - Lo cobrado que aún no se había enviado a cocina se envía en ese momento (nunca se cobra algo que cocina no sabe).
       La hora de ese envío queda en `venta.enviado_cocina` (para la comanda), o None.
     - Si ya no queda nada por cobrar y `liberar`, la cuenta se cierra y la mesa queda libre. Si no, la mesa queda
-      "pagada": los clientes siguen ahí (o esperan su comida) y se libera después con `liberar_mesa`."""
+      "pagada": los clientes siguen ahí (o esperan su comida) y se libera después con `liberar_mesa`.
+    - `item_ids`: [id, ...] o [{"id", "cantidad"}]: de una línea de 4 gaseosas se puede cobrar 1."""
+    _abierta(cuenta)
+    with transaction.atomic():  # si el cobro falla, las líneas separadas vuelven a quedar como estaban
+        pendientes = _pendientes(cuenta, item_ids)
+        for it in pendientes:
+            if it.pk is None:  # solo algunas unidades: se separan en otra línea, y esa es la que se cobra
+                it.save()
+        return _cobrar(cuenta, cajero, pendientes, pagos, propina, cliente_nombre, cliente_documento, nota, token, cliente_id,
+                       puede_fiar, puede_exceder_limite, descuento, descuento_motivo, descuento_por, liberar)
+
+
+def _cobrar(cuenta, cajero, pendientes, pagos, propina, cliente_nombre, cliente_documento, nota, token, cliente_id,
+            puede_fiar, puede_exceder_limite, descuento, descuento_motivo, descuento_por, liberar):
     from ventas.servicios import VentaInvalida, registrar_venta
 
-    _abierta(cuenta)
-    pendientes = _pendientes(cuenta, item_ids)
     ids = [i.pk for i in pendientes]
     enviado = {}
 
@@ -443,11 +462,36 @@ def cobrar(cuenta, cajero, pagos, item_ids=None, propina=0, cliente_nombre="", c
     return venta
 
 
+def elegidos(lista):
+    """Lo marcado al dividir: [id, ...] o [{"id": id, "cantidad": "1"}, ...] -> {id: cantidad o None (todo)}."""
+    res = {}
+    for x in lista or []:
+        if isinstance(x, dict):
+            pk, cant = x.get("id"), x.get("cantidad")
+        else:
+            pk, cant = x, None
+        try:
+            pk = int(pk)
+            cant = Decimal(str(cant)) if cant not in (None, "") else None
+        except (TypeError, ValueError, ArithmeticError):
+            raise MesaError("Datos no válidos.")
+        if cant is not None and (not cant.is_finite() or cant <= 0):
+            raise MesaError("Cantidad no válida.")
+        res[pk] = cant
+    return res
+
+
 def _pendientes(cuenta, item_ids=None):
+    """Lo que se va a cobrar. Si de una línea se marcan solo algunas unidades, esa línea se separa: la que se devuelve
+    es nueva (sin guardar) y la original queda con el resto (ya guardada; usar dentro de una transacción)."""
     pendientes = list(cuenta.por_cobrar())
-    if item_ids:
-        elegidos = {int(i) for i in item_ids}
-        pendientes = [i for i in pendientes if i.pk in elegidos]
+    elegido = elegidos(item_ids)
+    if elegido:
+        pendientes = [i for i in pendientes if i.pk in elegido]
+        for n, it in enumerate(pendientes):
+            cant = elegido[it.pk]
+            if cant is not None and cant < it.cantidad:
+                pendientes[n] = _separar(it, cant)
     if not pendientes:
         raise MesaError("No hay nada por cobrar.")
     return pendientes
@@ -465,7 +509,10 @@ def cotizar(cuenta, item_ids=None):
     from ventas.servicios import VentaInvalida, armar_lineas
 
     try:
-        return armar_lineas(_items_venta(_pendientes(cuenta, item_ids)), desde_pedido=True, puede_cambiar_precio=True)
+        with transaction.atomic():  # separar unidades guarda la línea original: aquí solo se calcula, se deshace
+            res = armar_lineas(_items_venta(_pendientes(cuenta, item_ids)), desde_pedido=True, puede_cambiar_precio=True)
+            transaction.set_rollback(True)
+        return res
     except VentaInvalida as e:
         raise MesaError(str(e))
 

@@ -206,6 +206,9 @@ def ticket(request, pk):
         lineas.append(f"Propina: S/ {venta.propina}")
     if negocio.nota_ticket:
         lineas += ["", negocio.nota_ticket]
+    comp = next((c for c in venta.comprobantes.all() if c.enlace_pdf and c.tipo != "07"), None)  # boleta/factura electrónica
+    if comp:
+        lineas += ["", f"Tu comprobante: {comp.enlace_pdf}"]
     texto = "\n".join(lineas)
     volver = request.GET.get("volver", "")
     from .devoluciones import por_que_no
@@ -215,7 +218,8 @@ def ticket(request, pk):
         "v": venta, "nueva": request.GET.get("nueva") == "1", "devoluciones": devoluciones,
         "se_puede_devolver": not venta.anulada and not por_que_no(venta),
         "volver": url_segura(request, volver, ""),
-        "wa_enlace": enlace_whatsapp(None, texto),  # elige a quién mandarlo
+        # con el celular que dio el cliente al cobrar, directo a su chat; si no, WhatsApp pregunta a quién mandarlo
+        "wa_enlace": enlace_whatsapp(venta.cliente_celular, texto) or enlace_whatsapp(None, texto),
         "ver_costos": puede(request.user, "productos.costos"),
         "monedero": _monedero(venta),
     })
@@ -381,6 +385,54 @@ def devolver(request, pk):
         "v": venta, "lineas": lineas, "opciones": opciones, "puede": puede(request.user, "ventas.devolver"),
         "caja_abierta": SesionCaja.abierta_de(request.user) is not None, "ya": dv.devuelto_total(venta),
         "queda": venta.total - dv.devuelto_total(venta),
+    })
+
+
+# --- Boletas y facturas hechas aparte (sin el módulo de facturación) ----------------
+
+def texto_comprobante(venta, numero=""):
+    """Mensaje de WhatsApp para mandarle al cliente su boleta o factura (el archivo se adjunta en WhatsApp)."""
+    from core.models import Ajustes
+
+    tipo = (venta.get_pide_comprobante_display() or "comprobante").lower()
+    nombre = (venta.cliente_nombre or "").split(" ")[0]
+    return (f"Hola{' ' + nombre if nombre else ''}, te enviamos tu {tipo}{' ' + numero if numero else ''} "
+            f"por S/ {venta.total} de *{Ajustes.cargar().nombre_mostrar}*. ¡Gracias por tu compra!")
+
+
+@permiso_requerido("ventas.vender", "ventas.ver")
+def por_hacer(request):
+    """Las ventas cobradas como nota de venta en las que el cliente pidió boleta o factura: se hacen aparte, se anota el
+    número y se le mandan por WhatsApp."""
+    if request.method == "POST":
+        v = get_object_or_404(Venta, pk=entero(request.POST.get("venta")), pide_comprobante__in=("B", "F"))
+        numero = " ".join(request.POST.get("numero", "").split()).upper()[:30]
+        if request.POST.get("accion") == "deshacer":
+            Venta.objects.filter(pk=v.pk).update(comprobante_aparte="", comprobante_aparte_en=None, comprobante_aparte_por=None)
+            messages.info(request, f"La venta {v.numero_str} volvió a «por hacer».")
+            return redirect(f"{reverse('ventas:por_hacer')}?ver=hechos")
+        if not numero:
+            messages.error(request, "Escribe el número de la boleta o factura que hiciste (ej.: B001-123).")
+            return redirect("ventas:por_hacer")
+        Venta.objects.filter(pk=v.pk).update(comprobante_aparte=numero, comprobante_aparte_en=timezone.now(), comprobante_aparte_por=request.user)
+        messages.success(request, f"{v.get_pide_comprobante_display()} {numero} anotada.")
+        return redirect(f"{reverse('ventas:por_hacer')}?ver=hechos&enviar={v.pk}")
+    hechos = request.GET.get("ver") == "hechos"
+    qs = Venta.objects.filter(pide_comprobante__in=("B", "F")).exclude(estado=Venta.Estado.ANULADA).select_related("comprobante_aparte_por")
+    qs = qs.filter(comprobante_aparte_en__isnull=not hechos).order_by("-comprobante_aparte_en" if hechos else "fecha")
+    if request.GET.get("excel"):
+        from core.excel import descargar
+
+        filas = [(timezone.localtime(v.fecha).strftime("%d/%m/%Y %H:%M"), v.numero_str, v.get_pide_comprobante_display(), v.cliente_documento,
+                  v.cliente_nombre, v.cliente_direccion, v.cliente_celular, v.total, v.comprobante_aparte) for v in qs[:2000]]
+        return descargar("comprobantes_por_hacer", [("Por hacer" if not hechos else "Hechos", ["Fecha", "Venta", "Pidió", "DNI / RUC", "Nombre",
+                         "Dirección", "Celular", "Total", "N° hecho"], filas)])
+    ventas = list(qs[:200])
+    for v in ventas:
+        v.wa = enlace_whatsapp(v.cliente_celular, texto_comprobante(v, v.comprobante_aparte)) if v.cliente_celular else ""
+    return render(request, "ventas/por_hacer.html", {
+        "ventas": ventas, "hechos": hechos, "enviar": entero(request.GET.get("enviar")),
+        "n_pendientes": Venta.objects.filter(pide_comprobante__in=("B", "F"), comprobante_aparte_en__isnull=True).exclude(estado=Venta.Estado.ANULADA).count(),
     })
 
 

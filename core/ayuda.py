@@ -97,6 +97,10 @@ AYUDA = {
     "ventas:devolver": ("Devolver productos", "Devuelve una parte de la venta (cambio de talla, producto fallado).", [
         "Marca cuántos de cada producto; si llegó dañado, sale como merma.",
         "Elige cómo se devuelve el dinero: caja, Yape, saldo a favor o descuento de su deuda."], "7.5"),
+    "ventas:por_hacer": ("Boletas y facturas por hacer", "Ventas cobradas como nota de venta en las que el cliente pidió boleta o factura.", [
+        "Hazla en tu sistema de siempre y escribe aquí su número («Ya la hice»).",
+        "Luego «Enviar» abre el WhatsApp del cliente: adjunta el PDF.",
+        "Solo aparece si no usas la facturación electrónica del sistema."], "13.9"),
     "ventas:conciliar": ("Conciliar Yape y bancos", "Compara lo cobrado con Yape, Plin, tarjeta y transferencia con lo que llegó al banco.", [
         "Cada día y método: escribe lo que dice el banco; el sistema calcula la diferencia.",
         "Si algo no llegó, márcalo: queda como faltante de quien cobró.",
@@ -127,10 +131,12 @@ AYUDA = {
     "mesas:cuenta": ("Cuenta de la mesa", "Lo pedido en la mesa: por enviar, en cocina y por cobrar.", [
         "Agregar pide platos; «Enviar» los manda a preparar.",
         "Cada plato dice quién lo pidió si no fue el mozo de la mesa; toca el nombre del mozo (⇆) para pasar la mesa.",
-        "Cobrar (cajero): todo junto, por platos o dividido entre personas."], "8.2"),
+        "Cobrar (cajero): todo junto, por platos o dividido entre personas.",
+        "Al dividir, de 4 gaseosas eliges cuántas paga cada uno."], "9.1"),
     "mesas:agregar": ("Tomar pedido", "Elige los platos y bebidas de la mesa.", [
         "Toca para agregar; las opciones (término, acompañamiento) se eligen al tocar.",
-        "«Quedan 3» en amarillo o rojo: se están acabando las porciones de hoy."], "8.2"),
+        "«Quedan 3» en amarillo o rojo: se están acabando las porciones de hoy.",
+        "«Llevar» en un plato: cocina lo empaca para llevar y se cobra en la misma mesa."], "8.2"),
     "mesas:configurar": ("Zonas y mesas", "Arma el mapa del local: zonas (Salón, Terraza) y sus mesas.", [
         "Cambia nombres y personas de varias mesas y guarda una vez."], "3.8"),
     "mesas:cocina": ("Pantalla de cocina", "Los pedidos por preparar, en orden de llegada.", [

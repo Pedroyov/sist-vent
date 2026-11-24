@@ -15,6 +15,8 @@
   .app-content { padding-bottom: 5.5rem; }
   .chk-dividir { display: none; }
   .dividiendo .chk-dividir { display: inline-block; }
+  .sel-dividir { display: none; width: auto; }
+  .dividiendo .sel-dividir { display: inline-block; }
 </style>
 {% endblock %}
 
@@ -115,7 +117,7 @@
     {% if codigo != "MOZ" %}<a href="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}&area={{ codigo }}" data-imprimir="{% url 'mesas:comanda' c.pk %}?enviado={{ recien_ts|urlencode }}&area={{ codigo }}" class="btn btn-sm btn-outline-primary ms-auto py-0"><i class="bi bi-printer me-1"></i>Comanda</a>{% endif %}
   </div>
   <ul class="list-unstyled mb-0 dictar small">
-    {% for i in lista %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.opciones %} <span class="fw-semibold">({{ i.texto_opciones }})</span>{% endif %}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
+    {% for i in lista %}<li><strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}{% if i.llevar %} <strong>(PARA LLEVAR)</strong>{% endif %}{% if i.opciones %} <span class="fw-semibold">({{ i.texto_opciones }})</span>{% endif %}{% if i.nota %} <span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}</li>{% endfor %}
   </ul>
   {% endfor %}
 </div>
@@ -136,14 +138,14 @@
   </div>
   <ul class="list-group list-group-flush items">
     {% for i in por_enviar %}
-    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
+    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}" data-cant="{{ i.cantidad|cantidad }}">
       <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
       <form method="post" action="{% url 'mesas:item' i.pk %}" class="d-flex align-items-center gap-1">{% csrf_token %}
         <button name="accion" value="menos" class="btn btn-sm btn-outline-secondary" aria-label="Menos"><i class="bi bi-dash"></i></button>
         <span class="cant">{{ i.cantidad|cantidad }}</span>
         <button name="accion" value="mas" class="btn btn-sm btn-outline-secondary" aria-label="Más"><i class="bi bi-plus"></i></button>
       </form>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{% if i.llevar %}<span class="badge text-bg-dark me-1"><i class="bi bi-bag"></i> llevar</span>{% endif %}{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}{% if i.nota %}<span class="badge text-bg-warning">{{ i.nota }}</span>{% endif %}{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
       {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
       {% if not i.es_envio and P.mod_mesas and c.abierta and NEGOCIO.cortesias_activas or not i.es_envio and P.mod_mesas and c.abierta and i.cortesia %}<button type="button" class="btn btn-sm btn-link px-1 {% if i.cortesia %}text-success{% else %}text-body-secondary{% endif %}" data-bs-toggle="modal" data-bs-target="#m-cortesia"
                 data-url="{% url 'mesas:cortesia' i.pk %}" data-nombre="{{ i.cantidad|cantidad }} × {{ i.descripcion }}" data-cant="{{ i.cantidad|cantidad }}" data-es="{{ i.cortesia|yesno:'1,0' }}"
@@ -161,10 +163,10 @@
     {% if hay_listos %}<form method="post" action="{% url 'mesas:servido' c.pk %}" class="ms-auto">{% csrf_token %}<button class="btn btn-sm btn-success"><i class="bi bi-bell me-1"></i>Ya serví lo listo</button></form>{% endif %}</div>
   <ul class="list-group list-group-flush items">
     {% for i in enviados %}
-    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}">
+    <li class="list-group-item d-flex align-items-center gap-2" data-item="{{ i.pk }}" data-cent="{% widthratio i.subtotal 1 100 %}" data-cant="{{ i.cantidad|cantidad }}">
       <input type="checkbox" class="form-check-input chk-dividir" value="{{ i.pk }}" checked>
       <span class="cant">{{ i.cantidad|cantidad }}</span>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{% if i.llevar %}<span class="badge text-bg-dark me-1"><i class="bi bi-bag"></i> llevar</span>{% endif %}{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}{{ i.enviado_en|date:"H:i" }}
           {% if i.servido_en %}<span class="ms-1"><i class="bi bi-check2-all"></i> servido</span>{% elif i.listo_en %}<span class="badge text-bg-success ms-1"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<span class="ms-1"><i class="bi bi-hourglass-split"></i> en {% if i.area == "BAR" %}barra{% else %}cocina{% endif %}</span>{% endif %}</div>{% if i.cortesia %}<div class="small text-success"><i class="bi bi-gift"></i> {{ i.cortesia_motivo }}{% if i.cortesia_por %} · autorizó {{ i.cortesia_por|nombre }}{% endif %}</div>{% endif %}</div>
       {% if i.cortesia %}<span class="text-nowrap text-success small fw-semibold">CORTESÍA<br><s class="text-body-secondary fw-normal">{{ i.valor|soles }}</s></span>{% else %}<span class="text-nowrap">{{ i.subtotal|soles }}</span>{% endif %}
@@ -191,7 +193,7 @@
     {% for i in pagados %}
     <li class="list-group-item d-flex align-items-center gap-2">
       <span class="cant">{{ i.cantidad|cantidad }}</span>
-      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
+      <div class="flex-grow-1 min-w-0"><div class="text-truncate">{% if i.llevar %}<span class="badge text-bg-dark me-1"><i class="bi bi-bag"></i> llevar</span>{% endif %}{{ i.descripcion }}</div>{% if i.agregado_por_id != c.mozo_id %}<div class="small text-body-secondary"><i class="bi bi-person"></i> pidió {{ i.agregado_por|nombre }}</div>{% endif %}{% if i.opciones %}<div class="small text-primary-emphasis">{{ i.texto_opciones }}</div>{% endif %}
         <div class="small text-body-secondary">{% if i.nota %}<span class="badge text-bg-warning me-1">{{ i.nota }}</span>{% endif %}
           {% if i.servido_en %}<i class="bi bi-check2-all"></i> servido{% elif i.listo_en %}<span class="badge text-bg-success"><i class="bi bi-bell"></i> ¡Listo!</span>{% elif NEGOCIO.cocina_pantalla %}<i class="bi bi-hourglass-split"></i> en {% if i.area == "BAR" %}barra{% else %}cocina{% endif %}{% endif %}</div></div>
       <span class="text-nowrap text-body-secondary small">{% if i.cortesia %}cortesía{% else %}{{ i.subtotal|soles }}{% endif %}</span>
@@ -321,7 +323,29 @@
       return !dividiendo || li.querySelector(".chk-dividir").checked;
     });
   }
-  function total() { return elegidos().reduce(function (a, li) { return a + parseInt(li.dataset.cent, 10); }, 0); }
+  // Al dividir, de una línea con varias unidades (4 gaseosas) se elige cuántas paga esta persona.
+  function cuantas(li) {
+    var s = lista.classList.contains("dividiendo") && li.querySelector(".sel-dividir");
+    return s ? parseInt(s.value, 10) : null;
+  }
+  function centimos(li) {
+    var c = parseInt(li.dataset.cent, 10), n = cuantas(li);
+    return n ? Math.round(c * n / parseFloat(li.dataset.cant)) : c;
+  }
+  function marcados(items) {
+    return items.map(function (li) { var n = cuantas(li); return n && n < parseFloat(li.dataset.cant) ? {id: li.dataset.item, cantidad: n} : li.dataset.item; });
+  }
+  Array.prototype.forEach.call(lista.querySelectorAll("[data-item]"), function (li) {
+    var n = parseFloat(li.dataset.cant);
+    if (!(n > 1 && n === Math.floor(n) && n <= 50)) return;
+    var sel = document.createElement("select"), html = "";
+    sel.className = "form-select form-select-sm sel-dividir";
+    sel.setAttribute("aria-label", "Cuántas paga");
+    for (var k = 1; k <= n; k++) html += '<option value="' + k + '"' + (k === n ? " selected" : "") + ">" + k + (k === n ? " (todas)" : " de " + n) + "</option>";
+    sel.innerHTML = html;
+    li.querySelector(".chk-dividir").insertAdjacentElement("afterend", sel);
+  });
+  function total() { return elegidos().reduce(function (a, li) { return a + centimos(li); }, 0); }
   function refrescar() { var t = document.getElementById("total-mesa"); if (t) t.textContent = soles(total()); }
   lista.addEventListener("change", refrescar);
   var div = document.getElementById("btn-dividir");
@@ -334,9 +358,10 @@
   if (cobrar) cobrar.addEventListener("click", function () {
     var items = elegidos();
     if (!items.length) { alert("Marca lo que se va a cobrar."); return; }
-    var parcial = lista.classList.contains("dividiendo") && items.length < lista.querySelectorAll("[data-item]").length;
+    var parcial = lista.classList.contains("dividiendo") && (items.length < lista.querySelectorAll("[data-item]").length ||
+      items.some(function (li) { var n = cuantas(li); return n && n < parseFloat(li.dataset.cant); }));
     {% if NEGOCIO.usa_promociones %}  // promociones: el total lo calcula el servidor (lo mismo que se cobrará)
-    Cobro.enviar("{% url 'mesas:cotizar' c.pk %}", {items: items.map(function (li) { return li.dataset.item; })}).then(function (d) {
+    Cobro.enviar("{% url 'mesas:cotizar' c.pk %}", {items: marcados(items)}).then(function (d) {
       if (d.error) { alert(d.error); return; }
       var rebaja = Math.round(parseFloat(d.rebaja) * 100);
       abrirCobro(items, parcial, Math.round(parseFloat(d.total) * 100), rebaja ? d.promos.join(", ") + " −" + soles(rebaja) : "");
@@ -353,7 +378,7 @@
         no: "{% if c.mesa %}La mesa queda como «Pagada» (siguen comiendo o esperan su plato). La liberas cuando se vayan.{% else %}Queda como «Pagado» hasta que lo entregues.{% endif %}"},
       onConfirmar: function (datos, terminar) {
         datos.token = token;
-        datos.items = items.map(function (li) { return li.dataset.item; });
+        datos.items = marcados(items);
         Cobro.enviar("{% url 'mesas:cobrar' c.pk %}", datos).then(function (d) {
           if (d.ok) location.href = d.url; else terminar(d.error || "No se pudo cobrar.");
         });

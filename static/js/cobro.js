@@ -177,7 +177,8 @@ window.Cobro = (function () {
   }
   function datosComp() {
     if (!COMP || tipoComp() === "N") return null;
-    var d = {tipo: tipoComp(), doc: $("c-comp-doc").value.trim(), nombre: $("c-comp-nombre").value.trim(), direccion: $("c-comp-dir").value.trim()};
+    var d = {tipo: tipoComp(), doc: $("c-comp-doc").value.trim(), nombre: $("c-comp-nombre").value.trim(), direccion: $("c-comp-dir").value.trim(),
+             celular: $("c-comp-cel").value.trim()};
     if (alCredito()) { d.vence = $("c-comp-vence").value; d.cuotas = $("c-comp-cuotas").value; }
     return d;
   }
@@ -195,12 +196,13 @@ window.Cobro = (function () {
       if (!rucValido(d.doc)) return "Para la factura escribe un RUC válido (11 dígitos).";
       if (!d.nombre) return "Escribe la razón social.";
       if (!d.direccion) return "Escribe la dirección fiscal.";
-      if (hayFiado && !DIAS_CREDITO) return "La factura al crédito no está activada: elige boleta o cobra al contado.";
-      if (hayFiado && !(d.vence > hoyMas(0))) return "Pon la fecha de pago de la factura al crédito (después de hoy).";
+      if (hayFiado && !DIAS_CREDITO && COMP.dataset.aparte !== "1") return "La factura al crédito no está activada: elige boleta o cobra al contado.";
+      if (hayFiado && DIAS_CREDITO && !(d.vence > hoyMas(0))) return "Pon la fecha de pago de la factura al crédito (después de hoy).";
     } else {
       if (totalCent > 70000 && !d.doc) return "Boleta de más de S/ 700: escribe el DNI del cliente.";
       if (d.doc && !d.nombre) return "Escribe el nombre del cliente.";
     }
+    if (d.celular && d.celular.replace(/\D/g, "").length < 9) return "El celular tiene 9 dígitos.";
     return "";
   }
   function compDesdeCliente(c) {
@@ -208,6 +210,7 @@ window.Cobro = (function () {
     if (c.num && !$("c-comp-doc").value) $("c-comp-doc").value = c.num;
     if (c.n && !$("c-comp-nombre").value) $("c-comp-nombre").value = c.n;
     if (c.dir && !$("c-comp-dir").value) $("c-comp-dir").value = c.dir;
+    if (c.tel && !$("c-comp-cel").value) $("c-comp-cel").value = c.tel;
     if (c.num && rucValido(c.num)) { $("c-comp-F").checked = true; pintarComp(); }
   }
 
@@ -317,7 +320,7 @@ window.Cobro = (function () {
     if (COMP) {
       var def = $("c-comp-" + (opciones.comprobante || COMP.dataset.defecto || "N"));
       if (def) def.checked = true;
-      $("c-comp-doc").value = ""; $("c-comp-nombre").value = ""; $("c-comp-dir").value = "";
+      $("c-comp-doc").value = ""; $("c-comp-nombre").value = ""; $("c-comp-dir").value = ""; $("c-comp-cel").value = "";
       if ($("c-comp-vence")) { $("c-comp-vence").value = ""; $("c-comp-cuotas").value = "1"; }
       pintarComp();
       if (cliente) compDesdeCliente(cliente);

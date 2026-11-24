@@ -20,7 +20,7 @@
             <strong>{{ i.cantidad|cantidad }}</strong> × {{ i.descripcion }}
             {% if i.anulado %}<span class="badge text-bg-danger">QUITADO</span>{% endif %}
             {% for o in i.opciones %}<span class="d-block fw-bold ps-3">› {{ o.n }}</span>{% endfor %}
-            {% if i.nota %}<span class="nota">» {{ i.nota }}</span>{% endif %}
+            {% if i.llevar %}<span class="nota"><i class="bi bi-bag"></i> PARA LLEVAR</span>{% endif %}{% if i.nota %}<span class="nota">» {{ i.nota }}</span>{% endif %}
           </li>
           {% endfor %}
         </ul>

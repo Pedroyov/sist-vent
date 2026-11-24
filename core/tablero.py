@@ -63,11 +63,22 @@ class Tablero:
             self._porciones()
         if puede(self.user, "facturacion.ver"):
             self._facturacion()
+        elif puede(self.user, "ventas.vender", "ventas.ver"):
+            self._por_hacer()
         if puede(self.user, "compras.ver"):
             self._compras()
         if puede(self.user, "ventas.conciliar"):
             self._conciliacion()
         return self
+
+    def _por_hacer(self):
+        """Sin el módulo de facturación: boletas o facturas que pidieron los clientes y aún no se hacen aparte."""
+        from ventas.models import Venta
+
+        n = Venta.objects.filter(pide_comprobante__in=("B", "F"), comprobante_aparte_en__isnull=True).exclude(estado=Venta.Estado.ANULADA).count()
+        if n:
+            self.pendientes.append(_pend(f"{_plural(n, 'boleta o factura', 'boletas o facturas')} por hacer", reverse("ventas:por_hacer"),
+                                         "bi-receipt-cutoff", "warning", "La pidieron al cobrar: hazla aparte y mándala por WhatsApp."))
 
     def _conciliacion(self):
         """Yape, Plin, tarjeta o transferencias con movimiento y sin conciliar hace más de 2 días."""

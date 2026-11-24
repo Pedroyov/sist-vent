@@ -121,6 +121,14 @@
           </a>
         </li>
         {% endif %}
+        {% if not P.mod_facturacion and P.ventas_ver or not P.mod_facturacion and P.ventas_vender %}
+        <li class="nav-item">
+          <a href="{% url 'ventas:por_hacer' %}" class="nav-link {% if ns == 'ventas' and url == 'por_hacer' %}active{% endif %}">
+            <i class="nav-icon bi bi-receipt-cutoff"></i>
+            <p>Boletas por hacer</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.facturacion_ver %}
         <li class="nav-item">
           <a href="{% url 'facturacion:lista' %}" class="nav-link {% if ns == 'facturacion' and url != 'configurar' %}active{% endif %}">

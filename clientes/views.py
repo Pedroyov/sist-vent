@@ -262,7 +262,7 @@ def buscar(request):
     listas = con_listas()
     atrasos = vencidos([c for c in clientes if c.fiado > c.abonado])
     return JsonResponse({"resultados": [
-        {"id": c.pk, "n": c.nombre, "doc": c.documento, "num": c.numero_documento, "dir": c.direccion,
+        {"id": c.pk, "n": c.nombre, "doc": c.documento, "num": c.numero_documento, "dir": c.direccion, "tel": c.telefono,
          "saldo": f"{c.fiado - c.abonado:.2f}", "limite": f"{c.limite_credito:.2f}", "favor": f"{saldo_a_favor(c):.2f}",
          "vencido": f"{atrasos[c.pk]['monto']:.2f}" if c.pk in atrasos else "0.00",
          "lista": c.lista_id if listas and c.lista and c.lista.activa else None}

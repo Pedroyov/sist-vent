@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load sis %}
+
+{% block title %}Boletas y facturas por hacer{% endblock %}
+{% block page_title %}Boletas y facturas por hacer{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'ventas:lista' %}">Ventas</a></li><li class="breadcrumb-item active">Por hacer</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3 no-print">
+  <div class="btn-group btn-group-sm" role="group">
+    <a href="?" class="btn btn-outline-secondary {% if not hechos %}active{% endif %}">Por hacer{% if n_pendientes %} <span class="badge text-bg-warning">{{ n_pendientes }}</span>{% endif %}</a>
+    <a href="?ver=hechos" class="btn btn-outline-secondary {% if hechos %}active{% endif %}">Ya hechas</a>
+  </div>
+  {% include "partials/exportar.html" %}
+</div>
+
+{% if not hechos %}
+<p class="small text-body-secondary">Ventas cobradas como nota de venta en las que el cliente pidió boleta o factura. Hazla en tu sistema de siempre (SUNAT, tu facturador), escribe aquí su número y mándasela por WhatsApp.</p>
+{% endif %}
+
+{% for v in ventas %}
+<div class="card mb-2 {% if enviar == v.pk %}border-success{% endif %}">
+  <div class="card-body py-2">
+    <div class="d-flex align-items-start gap-2">
+      <span class="badge {% if v.pide_comprobante == 'F' %}text-bg-primary{% else %}text-bg-info{% endif %} mt-1">{{ v.get_pide_comprobante_display }}</span>
+      <div class="flex-grow-1 min-w-0">
+        <div class="fw-semibold text-break">{{ v.cliente_nombre|default:"Cliente sin nombre" }}</div>
+        <div class="small">{% if v.cliente_documento %}{% if v.pide_comprobante == 'F' %}RUC{% else %}DNI{% endif %} {{ v.cliente_documento }}{% else %}Sin documento{% endif %}{% if v.cliente_direccion %} · {{ v.cliente_direccion }}{% endif %}</div>
+        <div class="small text-body-secondary"><a href="{% url 'ventas:ticket' v.pk %}">Venta {{ v.numero_str }}</a> · {{ v.fecha|date:"d/m H:i" }}{% if v.cliente_celular %} · <i class="bi bi-whatsapp"></i> {{ v.cliente_celular }}{% endif %}</div>
+      </div>
+      <span class="fw-bold text-nowrap">{{ v.total|soles }}</span>
+    </div>
+    {% if hechos %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+      <span class="small"><i class="bi bi-check2-circle text-success"></i> <strong>{{ v.comprobante_aparte }}</strong> · {{ v.comprobante_aparte_por|nombre }}, {{ v.comprobante_aparte_en|date:"d/m H:i" }}</span>
+      <span class="ms-auto d-flex gap-1 no-print">
+        {% if v.wa %}<a href="{{ v.wa }}" target="_blank" rel="noopener" class="btn btn-sm {% if enviar == v.pk %}btn-success{% else %}btn-outline-success{% endif %}"><i class="bi bi-whatsapp me-1"></i>Enviar</a>{% endif %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="venta" value="{{ v.pk }}"><button name="accion" value="deshacer" class="btn btn-sm btn-link text-body-secondary">Deshacer</button></form>
+      </span>
+    </div>
+    {% if enviar == v.pk and v.wa %}<div class="small text-success mt-1">Toca «Enviar» y adjunta el PDF de la {{ v.get_pide_comprobante_display|lower }} en el chat.</div>{% endif %}
+    {% else %}
+    <form method="post" class="d-flex gap-2 mt-2 no-print">{% csrf_token %}
+      <input type="hidden" name="venta" value="{{ v.pk }}">
+      <input type="text" name="numero" class="form-control form-control-sm" maxlength="30" required placeholder="N° que hiciste: {% if v.pide_comprobante == 'F' %}F001-45{% else %}B001-123{% endif %}" aria-label="Número del comprobante">
+      <button class="btn btn-sm btn-success text-nowrap"><i class="bi bi-check-lg"></i> Ya la hice</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+<div class="text-center text-body-secondary py-5"><i class="bi bi-check2-all fs-1 d-block"></i>{% if hechos %}Todavía no hay boletas ni facturas hechas aparte.{% else %}No hay boletas ni facturas por hacer.{% endif %}</div>
+{% endfor %}
+{% endblock %}

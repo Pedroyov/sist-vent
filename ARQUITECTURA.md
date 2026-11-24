@@ -272,6 +272,17 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - `core/ayuda.py`: diccionario `AYUDA` con clave `"namespace:nombre_de_url"` → `(título, para qué sirve, [lo más usado], sección del manual)`. El context processor pone `AYUDA` según `request.resolver_match`; `templates/base.html` muestra el botón **?** junto al título y el panel (offcanvas `#ayuda-pantalla`).
 - **Toda pantalla nueva de lista o tablero agrega su entrada** (los formularios no la necesitan). `core/tests_exportar.py` comprueba que cada clave exista como ruta.
 
+## Boletas y facturas hechas aparte (sin el módulo de facturación)
+
+- Con el módulo apagado, el cuadro de cobro igual muestra Nota de venta / Boleta / Factura (`data-aparte="1"`). `facturacion.servicios.preparar` devuelve `{"aparte": True, ...}` y `crear` llama a `anotar_aparte`: la venta queda como nota de venta con `Venta.pide_comprobante` (B/F), `cliente_direccion` y `cliente_celular`. No se crea `Comprobante`.
+- Pantalla `ventas:por_hacer` (Gestión → Boletas por hacer, solo sin el módulo): se anota el número hecho aparte (`comprobante_aparte`, `_en`, `_por`) y «Enviar» arma el WhatsApp con `texto_comprobante`. Pendiente en el Inicio (`tablero._por_hacer`).
+- `cliente_celular` se guarda también con boleta/factura electrónica: el ticket manda el WhatsApp directo a ese número con el enlace al PDF.
+
+## Mesas: unidades por separado y «para llevar»
+
+- Separar unidades de una línea solo con `mesas.servicios._separar` (cortesía parcial y cobrar 1 de 4 gaseosas). `cobrar`/`cotizar` aceptan `items` como `[id, …]` o `[{"id", "cantidad"}]`; `cotizar` deshace la separación (solo calcula).
+- `ItemCuenta.llevar`: plato de una mesa que se empaca; solo con mesa; no se junta con la misma línea sin «llevar». Se ve en la cuenta, la comanda y la pantalla de cocina.
+
 ## Pantalla de cocina
 
 - `mesas:cocina`, con el permiso `mesas.cocina` (rol base **Cocina**; quien solo tiene ese rol entra directo ahí). Muestra las comandas pendientes, se actualiza cada 5 segundos, suena al llegar una nueva (tras tocar "Activar sonido") y puede imprimir cada comanda nueva en la impresora de ese equipo.

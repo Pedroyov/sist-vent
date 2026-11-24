@@ -93,7 +93,9 @@
         '<span class="ms-1 min-w-0 flex-grow-1"><span class="d-block text-truncate">' + esc(x.p.n) + (x.v.n ? " · " + esc(x.v.n) : "") + "</span>" +
         (l.txt ? '<span class="d-block small text-primary-emphasis text-truncate">' + esc(l.txt) + "</span>" : "") + "</span>" +
         '<span class="text-nowrap ps-1">' + soles(sub) + "</span></div>" +
-        '<input type="text" class="form-control form-control-sm mt-1" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="{% if sin_cocina %}Nota (talla, color, marca…){% else %}Nota para cocina (sin cebolla, bien caliente…){% endif %}"></li>';
+        '<div class="d-flex gap-1 mt-1"><input type="text" class="form-control form-control-sm" data-nota="' + i + '" value="' + esc(l.nota) + '" maxlength="120" placeholder="{% if sin_cocina %}Nota (talla, color, marca…){% else %}Nota para cocina (sin cebolla, bien caliente…){% endif %}">' +
+        {% if c.mesa %}'<button type="button" class="btn btn-sm text-nowrap ' + (l.llevar ? "btn-dark" : "btn-outline-secondary") + '" data-llevar="' + i + '" aria-pressed="' + (l.llevar ? "true" : "false") + '" title="Se empaca para llevar; se cobra en esta mesa"><i class="bi bi-bag"></i> Llevar</button>' +{% endif %}
+        "</div></li>";
     }).join("");
     var n = lineas.reduce(function (a, l) { return a + l.cant; }, 0);
     $("n").textContent = n;
@@ -105,7 +107,7 @@
   }
   function sumar(sel) {
     var k = sel.ops.join(",");
-    var l = lineas.find(function (l) { return l.vid === sel.vid && !l.nota && l.ops.join(",") === k; });
+    var l = lineas.find(function (l) { return l.vid === sel.vid && !l.nota && !l.llevar && l.ops.join(",") === k; });
     if (l) l.cant += 1; else lineas.push({vid: sel.vid, cant: 1, nota: "", ops: sel.ops, txt: sel.txt, extra: sel.extra});
     pintar();
   }
@@ -115,7 +117,7 @@
     $("error").classList.add("d-none");
     fetch("{% url 'mesas:agregar' c.pk %}", {method: "POST", credentials: "same-origin",
       headers: {"Content-Type": "application/json", "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value},
-      body: JSON.stringify({enviar: enviar, items: lineas.map(function (l) { return {variante: l.vid, cantidad: l.cant, nota: l.nota, opciones: l.ops}; })})})
+      body: JSON.stringify({enviar: enviar, items: lineas.map(function (l) { return {variante: l.vid, cantidad: l.cant, nota: l.nota, opciones: l.ops, llevar: !!l.llevar}; })})})
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || "No se pudo guardar.");
@@ -141,6 +143,7 @@
   $("lineas").addEventListener("click", function (e) {
     var b;
     if ((b = e.target.closest("[data-mas]"))) { lineas[b.dataset.mas].cant += 1; pintar(); }
+    else if ((b = e.target.closest("[data-llevar]"))) { lineas[b.dataset.llevar].llevar = !lineas[b.dataset.llevar].llevar; pintar(); }
     else if ((b = e.target.closest("[data-menos]"))) { var l = lineas[b.dataset.menos]; l.cant -= 1; if (l.cant <= 0) lineas.splice(b.dataset.menos, 1); pintar(); }
   });
   $("lineas").addEventListener("change", function (e) {
