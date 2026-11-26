@@ -33,6 +33,10 @@ body {
 
 /* Tickets impresos desde la pantalla (window.imprimir): solo se imprime el ticket */
 #zona-impresion { display: none; }
+/* Reportes y listas («Imprimir / PDF»): siempre en hoja A4, aunque la impresora predeterminada sea la ticketera.
+   Los tickets no usan este archivo (templates/impresion/base.html) y window.imprimir pone su propio tamaño de rollo después. */
+@page { size: A4; margin: 12mm 10mm; }
+
 @media print {
   body.imprimiendo > *:not(#zona-impresion) { display: none !important; }
   body.imprimiendo { margin: 0 !important; padding: 0 !important; min-height: 0 !important; background: #fff !important; }

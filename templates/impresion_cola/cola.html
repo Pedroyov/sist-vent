@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Cola de impresión{% endblock %}
+{% block page_title %}Cola de impresión{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Cola de impresión</li>{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  {% if estado.estacion %}<span class="badge text-bg-success fs-6"><i class="bi bi-printer me-1"></i>Estación conectada</span>
+  {% else %}<span class="badge text-bg-danger fs-6"><i class="bi bi-printer me-1"></i>La estación de impresión no responde</span>{% endif %}
+  {% if estado.pendientes %}<span class="badge text-bg-warning">{{ estado.pendientes }} en cola</span>{% endif %}
+  {% if estado.errores %}<span class="badge text-bg-danger">{{ estado.errores }} no salieron</span>{% endif %}
+  <a href="{% url 'impresion:estacion' %}" class="btn btn-sm btn-outline-primary ms-auto"><i class="bi bi-display me-1"></i>Abrir la estación en esta PC</a>
+</div>
+{% if not activa %}<div class="alert alert-info py-2 small">La impresión automática está apagada (Datos del negocio → Impresión). Aquí solo se ve lo que se mandó con «Ticketera de caja».</div>{% endif %}
+{% if not estado.estacion %}<div class="alert alert-warning py-2 small">Prende la PC de caja y abre la <strong>Estación de impresión</strong>: lo que está en cola saldrá solo, en orden.</div>{% endif %}
+
+<div class="card">
+  <ul class="list-group list-group-flush">
+    {% for t in trabajos %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+      <span class="badge {% if t.estado == 'IMP' %}text-bg-success{% elif t.estado == 'ERR' %}text-bg-danger{% elif t.estado == 'TOM' %}text-bg-primary{% else %}text-bg-warning{% endif %}">{{ t.get_estado_display }}</span>
+      <div class="flex-grow-1 min-w-0">
+        <div class="fw-semibold text-truncate">{{ t.descripcion }}{% if t.copia %} <span class="badge text-bg-light border">copia</span>{% endif %}</div>
+        <div class="small text-body-secondary">{{ t.creado|date:"d/m H:i" }}{% if t.creado_por %} · {{ t.creado_por|nombre }}{% endif %}{% if t.impreso_en %} · impreso {{ t.impreso_en|date:"H:i" }}{% if t.estacion %} en {{ t.estacion }}{% endif %}{% endif %}{% if t.error %} · <span class="text-danger">{{ t.error }}</span>{% endif %}</div>
+      </div>
+      <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="trabajo" value="{{ t.pk }}">
+        {% if t.estado == 'PEN' or t.estado == 'TOM' %}<button name="accion" value="descartar" class="btn btn-sm btn-link text-body-secondary" title="Que ya no se imprima">No imprimir</button>{% endif %}
+        <button name="accion" value="reimprimir" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer"></i> Reimprimir</button>
+      </form>
+    </li>
+    {% empty %}
+    <li class="list-group-item text-center text-body-secondary py-4">Todavía no se mandó nada a imprimir.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

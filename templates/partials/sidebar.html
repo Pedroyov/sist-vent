@@ -87,6 +87,14 @@
           </a>
         </li>
         {% endif %}
+        {% if NEGOCIO.imprimir_auto and P.caja_usar or NEGOCIO.imprimir_auto and P.caja_ver %}
+        <li class="nav-item">
+          <a href="{% url 'impresion:cola' %}" class="nav-link {% if ns == 'impresion' %}active{% endif %}">
+            <i class="nav-icon bi bi-printer"></i>
+            <p>Impresión</p>
+          </a>
+        </li>
+        {% endif %}
 
         {# ---------- Hoy: lo que cambia cada día ---------- #}
         {% if P.productos_agotar and NEGOCIO.usa_agotados or P.productos_menu and NEGOCIO.usa_menu %}

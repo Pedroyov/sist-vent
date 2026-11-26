@@ -77,10 +77,23 @@ Todo se configura con variables de entorno (ver `.env.example`):
 **Empresa nueva:** después del primer despliegue (que corre `migrate`), en la consola de la app:
 
 ```
-python manage.py crear_empresa --nombre "Bodega Doña Rosa" --rubro TIE --usuario rosa --nombre-admin "Rosa Mamani" --ruc 10456789012
+python manage.py crear_empresa --nombre "Bodega Doña Rosa" --rubro TIE --usuario rosa --nombre-admin "Rosa Mamani" --ruc 10456789012 \
+    --segundo-paso correo --correo rosa@gmail.com
 ```
 
-Deja los datos del negocio, los módulos de su tipo de negocio y el administrador principal con una clave temporal (se muestra una sola vez). Solo funciona en una base vacía.
+Deja los datos del negocio, los módulos de su tipo de negocio y el administrador principal con una clave temporal (se muestra una sola vez). Solo funciona en una base vacía. `--segundo-paso` es obligatorio y se decide con el cliente: `no` (solo la contraseña), `correo` (código al correo desde un equipo nuevo; necesita `--correo` y `EMAIL_URL`) o `app` (Google o Microsoft Authenticator). Se cambia después en Datos del negocio.
+
+**Soporte** (en la consola de la app de esa empresa; queda en su bitácora):
+
+```
+python manage.py quitar_codigo --listar                 # quiénes tienen la app de códigos activa
+python manage.py quitar_codigo rosa --nota "verifiqué su DNI"   # perdió el celular y los códigos de respaldo
+python manage.py quitar_codigo --apagar                 # el negocio deja de pedir el segundo paso (p. ej., si falla el correo)
+python manage.py desbloquear rosa                       # se bloqueó por claves equivocadas (o --todos)
+python manage.py changepassword rosa                    # olvidó su contraseña
+```
+
+Antes de quitar un código o cambiar una clave, verifica que quien llama es la persona (llámala tú al número del contrato).
 
 ## Estructura
 

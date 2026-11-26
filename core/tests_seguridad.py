@@ -149,3 +149,150 @@ class ObligatorioTests(TestCase):
         f.refresh_from_db()
         self.assertFalse(f.activo)
         self.assertRedirects(self.client.get(reverse("core:inicio")), reverse("seguridad"), fetch_redirect_response=False)
+
+
+class SegundoPasoDelNegocioTests(TestCase):
+    """El segundo paso lo elige cada negocio: no pedir, código por correo o app. Y el aviso de equipo nuevo."""
+
+    def setUp(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"nombre": "Pollería Rosa"})
+        self.admin = User.objects.create_user("jefa", password="x-clave-123", first_name="Ana", email="ana@ejemplo.com")
+        self.admin.groups.add(Group.objects.get(name="Administración"))
+        self.cajero = User.objects.create_user("caja", password="x-clave-123", email="caja@ejemplo.com")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+
+    def modo(self, valor):
+        from core.models import Ajustes
+
+        Ajustes.objects.filter(pk=1).update(codigo_ingreso=valor)
+
+    def entrar(self, usuario="jefa"):
+        return self.client.post(reverse("login"), {"username": usuario, "password": "x-clave-123", "next": "/caja/"})
+
+    def test_codigo_por_correo(self):
+        from django.core import mail
+
+        self.modo("COR")
+        r = self.entrar()
+        self.assertRedirects(r, reverse("ingresar_codigo"), fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(len(mail.outbox), 1)
+        codigo = mail.outbox[0].subject[:6]
+        self.assertTrue(codigo.isdigit())
+        self.assertContains(self.client.get(reverse("ingresar_codigo")), "an•••@ejemplo.com")
+        self.assertContains(self.client.post(reverse("ingresar_codigo"), {"codigo": "000000" if codigo != "000000" else "111111"}), "no es correcto")
+        self.client.post(reverse("ingresar_codigo"), {"accion": "reenviar"})  # pide otro: el anterior ya no sirve
+        self.assertEqual(len(mail.outbox), 2)
+        r = self.client.post(reverse("ingresar_codigo"), {"codigo": mail.outbox[1].subject[:6], "recordar": "1"})
+        self.assertRedirects(r, "/caja/", fetch_redirect_response=False)
+        self.assertIn(df.COOKIE, r.cookies)
+        self.client.post(reverse("logout"))
+        self.assertRedirects(self.entrar(), "/caja/", fetch_redirect_response=False)  # equipo recordado: no pide código
+        self.assertEqual(len(mail.outbox), 2)
+        # el cajero nunca lo necesita
+        self.client.post(reverse("logout"))
+        self.assertRedirects(self.entrar("caja"), "/caja/", fetch_redirect_response=False)
+
+    def test_sin_correo_entra_con_aviso(self):
+        self.modo("COR")
+        User.objects.filter(pk=self.admin.pk).update(email="")
+        r = self.entrar()
+        self.assertRedirects(r, "/caja/", fetch_redirect_response=False)
+        self.assertTrue(Bitacora.objects.filter(accion="ingreso.sin_correo").exists())
+
+    def test_app_obligatoria_por_el_negocio(self):
+        self.modo("APP")
+        self.client.force_login(self.admin)
+        self.assertRedirects(self.client.get(reverse("core:inicio")), reverse("seguridad"), fetch_redirect_response=False)
+        self.client.force_login(self.cajero)
+        self.assertEqual(self.client.get(reverse("core:inicio")).status_code, 200)
+
+    def test_aviso_de_equipo_nuevo(self):
+        from django.core import mail
+
+        r = self.entrar()  # sin segundo paso: entra directo, pero le llega el aviso
+        self.assertRedirects(r, "/caja/", fetch_redirect_response=False)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("equipo nuevo", mail.outbox[0].subject)
+        self.client.post(reverse("logout"))
+        self.entrar()  # mismo equipo: ya no avisa
+        self.assertEqual(len(mail.outbox), 1)
+        self.client.post(reverse("logout"))
+        self.entrar("caja")  # el cajero no recibe avisos
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_clave_larga_para_administracion(self):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaisesMessage(ValidationError, "10 caracteres"):
+            validate_password("Pol-2026x", user=self.admin)
+        validate_password("Pol-2026x", user=self.cajero)  # 9 caracteres: al cajero le basta
+
+    def test_solo_administracion_cambia_el_segundo_paso(self):
+        from core.forms import DatosNegocioForm
+
+        self.assertTrue(DatosNegocioForm(puede_seguridad=False).fields["codigo_ingreso"].disabled)
+        self.assertFalse(DatosNegocioForm().fields["codigo_ingreso"].disabled)
+
+
+class BloqueoYSoporteTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("jefa", password="x-clave-123")
+        self.admin.groups.add(Group.objects.get(name="Administración"))
+        self.cajero = User.objects.create_user("caja", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+
+    def fallar(self, usuario, n):
+        for _ in range(n):
+            self.client.post(reverse("login"), {"username": usuario, "password": "mala"})
+
+    def test_desbloquear_desde_usuarios(self):
+        from core.forms import LoginForm
+
+        self.assertEqual(LoginForm.MAX_IP, 40)
+        self.fallar("caja", 5)
+        r = self.client.post(reverse("login"), {"username": "caja", "password": "x-clave-123"})
+        self.assertContains(r, "pide a Administración que te desbloquee")
+        self.client.force_login(self.admin)
+        lista = self.client.get(reverse("core:usuario_lista"))
+        self.assertContains(lista, "Bloqueado")
+        self.client.post(reverse("core:usuario_desbloquear", args=[self.cajero.pk]))
+        self.assertTrue(Bitacora.objects.filter(accion="ingreso.desbloqueado").exists())
+        self.client.post(reverse("logout"))
+        r = self.client.post(reverse("login"), {"username": "caja", "password": "x-clave-123"})
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.cajero.pk)
+
+    def test_quien_entra_bien_no_cuenta_para_la_conexion(self):
+        from core.forms import cache_seguridad, claves_ingreso
+
+        self.fallar("caja", 3)
+        self.client.post(reverse("login"), {"username": "caja", "password": "x-clave-123"})
+        k_ip = claves_ingreso(self.client.get("/").wsgi_request, "caja")[1]
+        self.assertEqual(cache_seguridad().get(k_ip, 0), 0)
+
+    def test_comandos_de_soporte(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from core.models import Ajustes
+
+        f, _ = activar(self.admin)
+        salida = StringIO()
+        call_command("quitar_codigo", "--listar", stdout=salida)
+        self.assertIn("jefa", salida.getvalue())
+        call_command("quitar_codigo", "jefa", nota="llamó, DNI verificado", stdout=StringIO())
+        f.refresh_from_db()
+        self.assertFalse(f.activo)
+        self.assertTrue(Bitacora.objects.filter(accion="ingreso.2fa_quitado", descripcion__contains="soporte").exists())
+        Ajustes.objects.update_or_create(pk=1, defaults={"codigo_ingreso": "COR"})
+        call_command("quitar_codigo", "--apagar", stdout=StringIO())
+        self.assertEqual(Ajustes.cargar().codigo_ingreso, "")
+        self.fallar("caja", 5)
+        call_command("desbloquear", "caja", stdout=StringIO())
+        self.client.post(reverse("login"), {"username": "caja", "password": "x-clave-123"})
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.cajero.pk)
+        call_command("desbloquear", "--todos", stdout=StringIO())

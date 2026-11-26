@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Código del celular{% endblock %}
+{% block title %}Código de ingreso{% endblock %}
 {% block body_class %}login-page bg-body-secondary{% endblock %}
 
 {% block layout %}
@@ -11,7 +11,8 @@
   </div>
   <div class="card card-outline card-primary">
     <div class="card-body login-card-body">
-      <p class="login-box-msg"><i class="bi bi-phone me-1"></i>Abre la app de códigos del celular y escribe el código de 6 dígitos.</p>
+      {% if correo %}<p class="login-box-msg"><i class="bi bi-envelope me-1"></i>Te enviamos un código de 6 dígitos a <strong>{{ a_donde }}</strong>. Escríbelo aquí (vence en 10 minutos).</p>
+      {% else %}<p class="login-box-msg"><i class="bi bi-phone me-1"></i>Abre la app de códigos del celular y escribe el código de 6 dígitos.</p>{% endif %}
       {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
       {% for m in messages %}<div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags }}{% endif %} py-2 small">{{ m }}</div>{% endfor %}
       <form method="post" novalidate>
@@ -28,11 +29,16 @@
         </div>
         <div class="d-grid"><button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-shield-check me-1"></i> Ingresar</button></div>
       </form>
+      {% if correo %}
+      <div class="small mt-3 text-body-secondary">¿No llegó? Revisa la carpeta de spam o promociones.
+        {% if reenviar %}<form method="post" class="d-inline">{% csrf_token %}<button name="accion" value="reenviar" class="btn btn-link btn-sm p-0 align-baseline">Enviar otro código</button></form>{% endif %}</div>
+      {% else %}
       <details class="small mt-3">
         <summary class="text-body-secondary">No tengo el celular</summary>
         <p class="mt-2 mb-1">Escribe uno de tus <strong>códigos de respaldo</strong> (como <code>ab3k-7mpq</code>) en lugar del código. Cada uno sirve una sola vez.</p>
-        <p class="mb-0">Si tampoco los tienes, pide a otra persona de Administración que te quite el código en <em>Usuarios</em>.</p>
+        <p class="mb-0">Si tampoco los tienes, pide a otra persona de Administración que te quite el código en <em>Usuarios</em>, o llama a soporte.</p>
       </details>
+      {% endif %}
       <div class="text-center mt-3"><a href="{% url 'login' %}" class="small">Volver</a></div>
     </div>
   </div>

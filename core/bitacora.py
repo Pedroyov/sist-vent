@@ -62,7 +62,9 @@ ACCIONES = {
     "ingreso.respaldo": ("Ingreso con código de respaldo", "Ingreso"),
     "ingreso.2fa_activado": ("Código del celular activado", "Ingreso"),
     "ingreso.2fa_desactivado": ("Código del celular quitado por su dueño", "Ingreso"),
-    "ingreso.2fa_quitado": ("Código del celular quitado por Administración", "Ingreso"),
+    "ingreso.desbloqueado": ("Ingreso desbloqueado (intentos fallidos)", "Ingreso"),
+    "ingreso.sin_correo": ("Entró sin código: su usuario no tiene correo", "Ingreso"),
+    "ingreso.2fa_quitado": ("Código del celular quitado (Administración o soporte)", "Ingreso"),
 }
 GRUPOS = list(dict.fromkeys(g for _, g in ACCIONES.values()))
 

@@ -293,6 +293,22 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - Proveedor opcional: `compras.servicios.registrar_compra` usa `proveedor_varios()` («Proveedor varios», se crea una vez); al crédito exige un proveedor real.
 - Menú del día: función `menu` (`Ajustes.usa_menu`) que además necesita `usa_opciones`. Cada tipo de menú es un producto de la categoría «Menú del día» con grupos diarios propios («Segundo (Menú ejecutivo)») o compartidos con otro tipo; Bebida y Postre son grupos diarios comunes (`EXTRAS_MENU`). Todo en `productos.servicios` (`menu_tipos`, `menu_nuevo_tipo`, `menu_extras`, `menu_texto`, `nombre_corto`).
 
+## Ingreso: segundo paso, bloqueo y soporte
+
+- **Segundo paso** (`core/dos_factor.py`): `Ajustes.codigo_ingreso` = «» (no), `COR` (código de 6 dígitos al correo desde un equipo nuevo: `enviar_codigo_correo`, `validar_correo`; vence en 10 min, hasta 3 envíos) o `APP` (`obligatorio()`: el middleware obliga a activar la app). Si el usuario activó la app, siempre se le pide (`pide_codigo`). Se elige en `crear_empresa --segundo-paso` y en Datos del negocio (solo con acceso total). Sin correo, entra con aviso (bitácora `ingreso.sin_correo`). `DOS_FACTOR_OBLIGATORIO` (por defecto False) solo obliga la app en todo el servidor.
+- **Aviso de equipo nuevo** (`avisar_equipo_nuevo`): a Administración le llega un correo la primera vez que entra desde un equipo (cookie firmada `equipo_conocido`), cuando no se le pidió código.
+- Clave de Administración ≥ 10 (`core/validadores.ClaveAdministracion`).
+- **Bloqueo** (`core/forms.py`): 5 fallos por usuario o 40 por conexión → 15 min. Entrar bien descuenta los fallos de su conexión (`limpiar_fallos`). Desbloquear: `core:usuario_desbloquear` (Usuarios) o `manage.py desbloquear`. Soporte: `manage.py quitar_codigo` (`--listar`, `--apagar`).
+
+## Impresión automática (app `impresion`)
+
+- **Decisión:** solo con una PC en caja. Los celulares y tablets nunca imprimen solos: el navegador no lo permite sin ventana. `Ajustes.imprimir_auto` enciende la cola.
+- `impresion.servicios.encolar(tipo, url, descripción)` deja un `Trabajo` (con `on_commit`) al vender (`ventas.servicios.registrar_venta`), al enviar a cocina (`mesas.servicios.encolar_comandas`, una por área; no si la cocina usa pantalla), al pedir la cuenta (precuenta) y al cerrar caja. Solo se encolan las páginas de impresión ya existentes (`IMPRIMIBLES`).
+- La **estación** (`/impresion/estacion/`, PC de caja con Chrome `--kiosk-printing`) pide el siguiente cada 2,5 s: `tomar()` con `select_for_update(skip_locked=True)` (cada trabajo, una sola estación; vuelve a la cola si no confirma en 60 s; ERR tras 4 intentos) e imprime con `window.imprimir(url, {estacion: true})`, que devuelve una promesa. `Estacion.ultimo_latido`: sin latido en 45 s, el Inicio avisa.
+- En otros equipos, con la cola encendida (`body[data-cola="1"]`), los `[data-imprimir]` pasan por `window.imprimirElegir`: «Ticketera de caja» (`impresion:enviar`, como copia) o «Elegir impresora en este equipo». En la estación (localStorage `estacion_impresion`) imprime directo.
+- Una sola ticketera por PC (la predeterminada). Varias ticketeras (cocina aparte) necesitarían un agente local que tome los mismos trabajos; queda para cuando un cliente lo pida.
+- Reportes y listas: `@page { size: A4 }` en `static/css/app.css`.
+
 ## Pantalla de cocina
 
 - `mesas:cocina`, con el permiso `mesas.cocina` (rol base **Cocina**; quien solo tiene ese rol entra directo ahí). Muestra las comandas pendientes, se actualiza cada 5 segundos, suena al llegar una nueva (tras tocar "Activar sonido") y puede imprimir cada comanda nueva en la impresora de ese equipo.

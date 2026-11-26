@@ -28,6 +28,7 @@ urlpatterns = [
     path("reservas/", include("reservas.urls")),
     path("citas/", include("citas.urls")),
     path("compras/", include("compras.urls")),
+    path("impresion/", include("impresion.urls")),
     path("", include("core.urls")),
 ]
 if settings.ADMIN_ACTIVO:

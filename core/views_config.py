@@ -38,7 +38,26 @@ def usuario_lista(request):
     roles = roles_disponibles()
     if rol in roles:
         usuarios = usuarios.filter(groups__name=rol)
+    from .forms import esta_bloqueado
+
+    usuarios = list(usuarios)
+    for u in usuarios:
+        u.bloqueado = esta_bloqueado(u.username)
     return render(request, "core/config/usuario_lista.html", {"usuarios": usuarios, "roles": roles, "rol": rol})
+
+
+@permiso_requerido("config.usuarios")
+@require_POST
+def usuario_desbloquear(request, pk):
+    """Quien se bloqueó por intentos fallidos (5 claves malas) vuelve a poder entrar sin esperar los 15 minutos."""
+    from .bitacora import anotar
+    from .forms import desbloquear
+
+    u = get_object_or_404(User, pk=pk)
+    desbloquear(u.username)
+    anotar("ingreso.desbloqueado", f"Se desbloqueó el ingreso de {u.get_full_name() or u.username}", objeto=u)
+    messages.success(request, f"{u.get_full_name() or u.username} ya puede volver a entrar.")
+    return redirect("core:usuario_lista")
 
 
 @permiso_requerido("config.usuarios")
@@ -220,7 +239,9 @@ def datos_negocio(request):
     ajustes = Ajustes.cargar()
     logo_antes = ajustes.logo.name if ajustes.logo else ""
     rubro_antes = ajustes.rubro
-    form = DatosNegocioForm(request.POST or None, request.FILES or None, instance=ajustes)
+    from .permisos import acceso_total
+
+    form = DatosNegocioForm(request.POST or None, request.FILES or None, instance=ajustes, puede_seguridad=acceso_total(request.user))
     if request.method == "POST" and form.is_valid():
         from .bitacora import anotar, cambios_form
 

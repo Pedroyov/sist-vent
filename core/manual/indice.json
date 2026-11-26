@@ -1,5 +1,5 @@
 {
-"fecha": "Actualizado: 25 de noviembre de 2026 (cámara, compras sin proveedor, menú por tipos, ayuda paso a paso)",
+"fecha": "Actualizado: 26 de noviembre de 2026 (segundo paso, bloqueo, impresión automática)",
 "indice": [
 {
 "id": "s-1",
@@ -54,7 +54,7 @@
 {
 "id": "s-2-4",
 "nivel": 2,
-"texto": "2.4 Código del celular (segundo paso al entrar)"
+"texto": "2.4 Segundo paso al entrar (código por correo o app)"
 },
 {
 "id": "s-3",

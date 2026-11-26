@@ -335,6 +335,12 @@ def pedir_cuenta(request, pk):
         c.pidio_cuenta = not c.pidio_cuenta
         c.save(update_fields=["pidio_cuenta"])
     if c.pidio_cuenta:
+        from impresion.servicios import activa, encolar
+
+        if activa():  # impresión automática: la precuenta sale en la ticketera de caja
+            encolar("PRE", reverse("mesas:precuenta", args=[pk]), f"Precuenta · {c.titulo}", request.user)
+            messages.success(request, "La precuenta se está imprimiendo en caja.")
+            return redirect("mesas:cuenta", pk=pk)
         return redirect(reverse("mesas:cuenta", args=[pk]) + "?precuenta=1")
     return redirect("mesas:cuenta", pk=pk)
 
@@ -359,9 +365,9 @@ def precuenta(request, pk):
                                                     "pagado": sum((i.subtotal for i in c.items.filter(anulado=False, venta__isnull=False)), total.__class__("0"))})
 
 
-@permiso_requerido(*ATENDER)
+@permiso_requerido(*ATENDER, *COBRAR)
 def comanda(request, pk):
-    c = _cuenta(pk, request.user, ("atender",))
+    c = _cuenta(pk, request.user)  # también la caja: la estación de impresión (PC de caja) imprime las comandas
     ts = parse_datetime(request.GET.get("enviado", "") or "")
     area = _area(request)
     items = c.items.filter(anulado=False, enviado_en__isnull=False, es_envio=False, area=area)

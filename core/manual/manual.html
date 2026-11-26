@@ -95,7 +95,7 @@
 <p>En las pantallas con listas o totales importantes hay dos botones, uno al lado del otro:</p>
 <ul>
 <li><strong>Excel</strong> (verde): baja lo que estás viendo, con los mismos filtros y fechas, en un archivo de Excel listo para el contador o para sacar cuentas.</li>
-<li><strong>Imprimir / PDF</strong>: abre la ventana de impresión con una versión limpia (sin menú ni botones). Para tener un <strong>PDF</strong>, en esa ventana elige como impresora <strong>“Guardar como PDF”</strong>.</li>
+<li><strong>Imprimir / PDF</strong>: abre la ventana de impresión con una versión limpia (sin menú ni botones), siempre en <strong>hoja A4</strong> aunque la impresora predeterminada sea la ticketera. Para tener un <strong>PDF</strong>, en esa ventana elige como impresora <strong>“Guardar como PDF”</strong>.</li>
 </ul>
 <p>En el celular los botones solo muestran el ícono.</p>
 <figure>
@@ -294,8 +294,8 @@
 </figure>
 <ol type="1">
 <li>Escribe tu <strong>usuario</strong> y tu <strong>contraseña</strong> y pulsa <strong>Ingresar</strong>.</li>
-<li>Si tu cuenta tiene el <strong>código del celular</strong> (2.4), el sistema te lo pide después de la contraseña.</li>
-<li>Si te equivocas 5 veces seguidas (contraseña o código), el sistema te hace esperar 15 minutos antes de dejarte intentar otra vez.</li>
+<li>Si el negocio pide el <strong>segundo paso</strong> (2.4), después de la contraseña escribes el código que te llegó al correo o el de tu app.</li>
+<li>Si te equivocas 5 veces seguidas (contraseña o código), ese usuario queda <strong>bloqueado 15 minutos</strong>. No hace falta esperar: Administración lo desbloquea en <strong>Usuarios → Desbloquear</strong> (3.6). Si desde un mismo local (el mismo Wi-Fi) hay 40 intentos fallidos en 15 minutos, se bloquea esa conexión; quien se equivoca y luego entra bien deja de contar.</li>
 <li>Para salir, toca tu nombre (arriba a la derecha) → <strong>Salir</strong>. Hazlo siempre si compartes el celular o la PC.</li>
 <li>Si nadie usa el sistema por un buen rato, la sesión se cierra sola y hay que volver a entrar.</li>
 </ol>
@@ -314,36 +314,56 @@
 <p><img src="/static/manual/capturas/77_pendientes_inicio.jpg" loading="lazy" alt="Pendientes del administrador: comprobantes, cajas abiertas, productos por reponer, proveedores y conciliación." /> - <strong>Tarjetas de números</strong>: mesas ocupadas, lo vendido hoy, por cobrar (fiado), productos activos, cobrado del mes en cuotas, etc. Tocar una tarjeta lleva a su detalle.</p>
 </section>
 <section id="s-2-4" class="level2">
-<h2>2.4 Código del celular (segundo paso al entrar)</h2>
-<p>Las cuentas de <strong>Administración</strong> pueden anular ventas, cambiar precios y dar permisos. Por eso, además de la contraseña, piden un <strong>código de 6 dígitos</strong> que cambia cada 30 segundos en una app del celular. Así, aunque alguien vea o adivine la contraseña, no puede entrar sin tu celular.</p>
-<ul>
-<li>En el sistema del negocio (en internet) es <strong>obligatorio</strong> para Administración: la primera vez que entres, el sistema te lleva a activarlo y no deja hacer nada más hasta terminar.</li>
-<li>Los demás usuarios (cajero, vendedor, mozo) pueden activarlo si quieren, desde el mismo lugar.</li>
-<li>En la demo no se usa.</li>
-</ul>
-<p><strong>Activarlo</strong> (toca tu nombre → <strong>Código del celular</strong>):</p>
+<h2>2.4 Segundo paso al entrar (código por correo o app)</h2>
+<p>Las cuentas de <strong>Administración</strong> pueden anular ventas, cambiar precios y dar permisos. Por eso cada negocio decide si, además de la contraseña, piden un <strong>segundo paso</strong>. Se elige al instalar el sistema y se cambia en <strong>Datos del negocio → Seguridad del ingreso</strong> (solo Administración):</p>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+<colgroup>
+<col />
+<col />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Opción</th>
+<th>Qué pasa al entrar a una cuenta de Administración</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>No pedir</strong></td>
+<td>Solo la contraseña</td>
+</tr>
+<tr class="even">
+<td><strong>Código por correo</strong></td>
+<td>Desde un equipo nuevo llega un código de 6 dígitos al correo del usuario; vence en 10 minutos. No hay que instalar nada</td>
+</tr>
+<tr class="odd">
+<td><strong>App de códigos</strong></td>
+<td>Se usa Google Authenticator o Microsoft Authenticator (gratis). La primera vez, el sistema lleva a activarla</td>
+</tr>
+</tbody>
+</table></div>
+<figure>
+<img src="/static/manual/capturas/117_segundo_paso.jpg" loading="lazy" alt="" /><figcaption>Datos del negocio → Seguridad del ingreso.</figcaption>
+</figure>
+<p><strong>Con cualquier opción</strong>, a Administración le llega un <strong>aviso al correo</strong> cuando alguien entra a su cuenta desde un equipo nuevo: si no fuiste tú, cambia tu contraseña. Por eso cada usuario de Administración debe tener su <strong>correo</strong> en Usuarios (3.6). Sus contraseñas necesitan <strong>10 caracteres o más</strong>.</p>
+<p><strong>Código por correo.</strong> Después de la contraseña escribes el código que te llegó (revisa también spam o promociones; si no llegó, <strong>Enviar otro código</strong>). Marca <strong>Recordar este dispositivo</strong> en la PC o el celular del negocio: allí no te lo pide por 30 días.</p>
+<figure>
+<img src="/static/manual/capturas/118_codigo_correo.jpg" loading="lazy" alt="" /><figcaption>El código que llegó al correo.</figcaption>
+</figure>
+<p><strong>App de códigos.</strong> Cualquier usuario puede activarla (toca tu nombre → <strong>Código del celular</strong>), aunque el negocio no la pida:</p>
 <figure>
 <img src="/static/manual/capturas/74_activar_codigo.jpg" loading="lazy" alt="" /><figcaption>Activar el código: instalar la app, escanear el QR y escribir el código.</figcaption>
 </figure>
 <ol type="1">
-<li>Instala en tu celular <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> (gratis).</li>
+<li>Instala en tu celular <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> (gratis). Conviene activar su copia en la nube (en Google Authenticator, entrando con tu cuenta de Google): así, si cambias de celular, tus códigos pasan solos.</li>
 <li>En la app toca <strong>+</strong> → <strong>Escanear un código QR</strong> y apunta al QR de la pantalla. Si estás en el mismo celular, elige «Ingresar clave de configuración» y escribe la clave que aparece debajo del QR.</li>
 <li>Escribe el código de 6 dígitos que muestra la app y pulsa <strong>Activar</strong>.</li>
-<li>El sistema muestra <strong>8 códigos de respaldo</strong>. Anótalos en papel o imprímelos y guárdalos fuera del celular: sirven si pierdes el celular, y no se vuelven a mostrar.</li>
+<li>El sistema muestra <strong>8 códigos de respaldo</strong>. Anótalos en papel y guárdalos fuera del celular: sirven si pierdes el celular, y no se vuelven a mostrar.</li>
 </ol>
 <figure>
 <img src="/static/manual/capturas/75_codigos_respaldo.jpg" loading="lazy" alt="" /><figcaption>Códigos de respaldo: cada uno sirve una sola vez.</figcaption>
 </figure>
-<p><strong>Al entrar</strong> escribes la contraseña y luego el código que muestra la app en ese momento.</p>
-<figure>
-<img src="/static/manual/capturas/73_ingreso_codigo.jpg" loading="lazy" alt="" /><figcaption>Segundo paso al entrar: el código del celular.</figcaption>
-</figure>
-<ul>
-<li>Marca <strong>Recordar este dispositivo por 30 días</strong> en la PC o el celular del negocio: durante ese tiempo no te lo vuelve a pedir allí. No lo marques en un equipo prestado.</li>
-<li>Si no tienes el celular a mano, abre <strong>No tengo el celular</strong> y escribe uno de tus códigos de respaldo.</li>
-<li>Si perdiste el celular y también los códigos, otra persona de Administración te lo quita en <strong>Usuarios → Quitar código</strong> (3.6) y lo vuelves a activar con el celular nuevo.</li>
-</ul>
-<p>En <strong>Código del celular</strong> también puedes generar códigos de respaldo nuevos, hacer que todos los equipos recordados vuelvan a pedir el código, o cambiar de celular. Para cualquiera de estas acciones se pide el código que se ve en ese momento.</p>
+<p>Al entrar escribes la contraseña y luego el código que muestra la app. Si no tienes el celular, abre <strong>No tengo el celular</strong> y escribe un código de respaldo. Si perdiste el celular y también los códigos, otra persona de Administración te lo quita en <strong>Usuarios → Quitar código</strong> (3.6); si eres el único administrador, llama a soporte.</p>
 </section>
 </section>
 <section id="s-3" class="level1">
@@ -508,8 +528,37 @@
 <li>Instala la ticketera en Windows con su controlador y, en sus preferencias, elige el mismo ancho de papel.</li>
 <li>En Datos del negocio → Impresión, elige ese ancho.</li>
 <li>Al imprimir por primera vez, en la ventana de Chrome elige la ticketera (no la impresora común) y quita <strong>“Encabezados y pies de página”</strong>.</li>
-<li>Si quieres que el ticket salga sin preguntar, marca “Imprimir el ticket al terminar cada venta” y abre Chrome con la opción de impresión silenciosa (<code>--kiosk-printing</code>).</li>
+<li>Para que los tickets y comandas salgan solos, sin ventana de impresión, usa la <strong>Impresión automática</strong> (abajo).</li>
 </ol>
+<section id="impresión-automática-con-una-pc-en-caja" class="level3">
+<h3>Impresión automática (con una PC en caja)</h3>
+<p>Desde un celular o una tablet, el navegador no puede imprimir solo: siempre aparece la ventana de impresión. Por eso, para que los tickets <strong>salgan solos</strong> se usa <strong>una PC en caja</strong> como <strong>estación de impresión</strong>:</p>
+<ol type="1">
+<li>En <strong>Datos del negocio → Impresión</strong> marca <strong>Impresión automática</strong>.</li>
+<li>En la PC de caja instala la ticketera en Windows y déjala como <strong>impresora predeterminada</strong>.</li>
+<li>Crea un acceso directo de Chrome y, en «Destino», agrega al final <code>--kiosk-printing</code>. Ábrelo y entra con un usuario de caja.</li>
+<li>Abre <strong>Atención → Impresión → Abrir la estación en esta PC</strong> y déjala abierta todo el turno (puedes poner el acceso directo en el inicio de Windows para que se abra sola).</li>
+</ol>
+<figure>
+<img src="/static/manual/capturas/120_estacion_impresion.jpg" loading="lazy" alt="" /><figcaption>La estación de impresión en la PC de caja.</figcaption>
+</figure>
+<p>Desde ahí, <strong>sin tocar nada</strong>, salen en esa ticketera, <strong>una sola vez</strong>, aunque haya muchos celulares y tablets trabajando:</p>
+<ul>
+<li>el <strong>ticket</strong> de cada venta o cobro, venga del equipo que venga;</li>
+<li>las <strong>comandas</strong> al enviar a cocina, una por área (no se imprimen si la cocina usa la pantalla de cocina);</li>
+<li>la <strong>precuenta</strong> cuando el mozo marca «Pidió la cuenta»;</li>
+<li>el <strong>cierre de caja</strong>.</li>
+</ul>
+<p><strong>En los demás equipos</strong>, el botón <strong>Imprimir</strong> pregunta: <strong>Ticketera de caja</strong> (sale en la PC; si está apagada, queda en cola) o <strong>Elegir impresora en este equipo</strong> (como siempre, por ejemplo una ticketera bluetooth). <strong>Enviar por WhatsApp</strong> funciona igual que siempre.</p>
+<figure>
+<img src="/static/manual/capturas/121_imprimir_elegir.jpg" loading="lazy" alt="" /><figcaption>En el celular, Imprimir pregunta a dónde.</figcaption>
+</figure>
+<p><strong>Cola de impresión</strong> (Atención → Impresión) muestra lo que espera, lo que salió y lo que no se pudo imprimir, con <strong>Reimprimir</strong> (sale como copia). Si la PC se apaga, lo que se pida queda en cola y sale al volver a abrir la estación; mientras tanto el Inicio avisa «La estación de impresión no responde».</p>
+<figure>
+<img src="/static/manual/capturas/122_cola_impresion.jpg" loading="lazy" alt="" /><figcaption>Cola de impresión: en cola, impreso y lo que no salió.</figcaption>
+</figure>
+<p>Con una PC, todo sale por <strong>una sola ticketera</strong> (la predeterminada). Para tener la comanda en otra ticketera en cocina hace falta un agente de impresión: pídelo a soporte.</p>
+</section>
 </section>
 <section id="s-3-4" class="level2">
 <h2>3.4 Módulos (solo el administrador principal)</h2>
@@ -702,7 +751,12 @@
 <li>Guarda. Entrégale su usuario y pídele que cambie la contraseña al entrar (2.2).</li>
 </ol>
 <p>Para quien deja de trabajar, <strong>Editar</strong> → desmarca <strong>Activo</strong>: ya no puede entrar, pero su historial se conserva. Los botones de arriba (Todos, Administración, Cajero…) filtran la lista por rol.</p>
-<p>Quien entra con el <strong>código del celular</strong> (2.4) tiene un escudo verde junto a su nombre. Si perdió el celular y sus códigos de respaldo, otra persona de Administración pulsa <strong>Quitar código</strong> en su fila: al volver a entrar, lo activa con el celular nuevo. Queda en la bitácora.</p>
+<p>Cada usuario de <strong>Administración</strong> debe tener su <strong>correo</strong>: ahí le llegan el código del segundo paso y los avisos de ingreso desde un equipo nuevo (2.4).</p>
+<p>Quien se equivocó de contraseña 5 veces aparece con un candado rojo <strong>Bloqueado</strong>: pulsa <strong>Desbloquear</strong> para que pueda entrar sin esperar los 15 minutos. Queda en la bitácora.</p>
+<figure>
+<img src="/static/manual/capturas/119_usuario_bloqueado.jpg" loading="lazy" alt="" /><figcaption>Usuario bloqueado por intentos fallidos, con el botón Desbloquear.</figcaption>
+</figure>
+<p>Quien entra con la <strong>app de códigos</strong> (2.4) tiene un escudo verde junto a su nombre. Si perdió el celular y sus códigos de respaldo, otra persona de Administración pulsa <strong>Quitar código</strong> en su fila: al volver a entrar, lo activa con el celular nuevo. Queda en la bitácora.</p>
 </section>
 <section id="s-3-7" class="level2">
 <h2>3.7 Roles y permisos</h2>
@@ -740,7 +794,7 @@
 <ol type="1">
 <li><strong>Nombre</strong> como lo conocen los clientes y su <strong>celular</strong>.</li>
 <li><strong>Usuario</strong> (opcional): si entra al sistema, elige su usuario (se crea antes en 3.6). Una persona <strong>no necesita usuario</strong>: un repartidor o un ayudante puede estar en la lista sin entrar al sistema.</li>
-<li><strong>Color</strong>: con el que sale en la agenda y en los reportes.</li>
+<li><strong>Color</strong>: con el que sale en la agenda y en los reportes. <strong>Orden en las listas</strong>: en qué lugar sale en la agenda de citas, en «¿Quién atendió?» y en los pagos (el número menor primero; con todos en 0, por nombre).</li>
 <li>Lo demás aparece <strong>solo si el negocio lo usa</strong>:
 <ul>
 <li><strong>Comisión (%)</strong>: si está encendida la función Comisiones (3.5).</li>

@@ -33,6 +33,15 @@ def funciones_inactivas_iniciales():
 class Ajustes(models.Model):
     """Ajustes generales del sistema y datos del negocio (una sola fila)."""
 
+    class SegundoPaso(models.TextChoices):
+        NO = "", "No pedir (solo la contraseña)"
+        CORREO = "COR", "Código por correo (desde un equipo nuevo)"
+        APP = "APP", "App de códigos (Google o Microsoft Authenticator)"
+
+    codigo_ingreso = models.CharField(
+        "segundo paso para entrar a Administración", max_length=3, choices=SegundoPaso.choices, default="", blank=True,
+        help_text="Además de la contraseña. Lo decide cada negocio al instalarse y se puede cambiar. Con o sin él, a "
+                  "Administración le llega un aviso al correo cuando se entra a su cuenta desde un equipo nuevo.")
     modulos_inactivos = models.JSONField("módulos desactivados", default=modulos_inactivos_iniciales, blank=True)
     funciones_inactivas = models.JSONField("funciones avanzadas ocultas", default=funciones_inactivas_iniciales, blank=True)
 
@@ -94,8 +103,9 @@ class Ajustes(models.Model):
             (210, "Hoja A4 o carta (impresora normal)")],
         default=80, help_text="El ancho del rollo de papel. Si no lo sabes, mídelo con una regla: 8 cm, 7.6 cm o 5.8 cm.")
     imprimir_auto = models.BooleanField(
-        "imprimir el ticket al terminar cada venta", default=False,
-        help_text="Abre la impresión sola. Con Chrome en modo «kiosk-printing» imprime sin preguntar.")
+        "impresión automática (estación de impresión en la PC de caja)", default=False,
+        help_text="Tickets, comandas, precuentas y cierres de caja salen solos, una sola vez, en la ticketera de la PC de caja "
+                  "que tiene abierta la «Estación de impresión». Los celulares y tablets solo toman pedidos.")
     delivery_costo = models.DecimalField("costo de envío habitual", max_digits=8, decimal_places=2, default=Decimal("0"),
                                          help_text="Se propone en cada delivery; se puede cambiar en cada pedido.")
     nivel_pedido = models.PositiveSmallIntegerField(

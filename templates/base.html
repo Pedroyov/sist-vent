@@ -30,7 +30,7 @@
   {% block extra_css %}{% endblock %}
 </head>
 
-<body class="{% block body_class %}layout-fixed sidebar-expand-lg bg-body-tertiary{% endblock %}"
+<body class="{% block body_class %}layout-fixed sidebar-expand-lg bg-body-tertiary{% endblock %}" data-cola="{% if NEGOCIO.imprimir_auto %}1{% endif %}"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 {% block layout %}
 <div class="app-wrapper">

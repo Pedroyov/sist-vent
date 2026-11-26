@@ -195,9 +195,7 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if nueva and NEGOCIO.imprimir_auto and not v.anulada %}
-<script>window.addEventListener("load", function () { window.imprimir("{% url 'ventas:imprimir' v.pk %}"); });</script>
-{% endif %}
+{# Con la impresión automática el ticket lo imprime la estación de impresión (PC de caja), no este equipo. #}
 {% if nueva %}
 <script>
   document.addEventListener("keydown", function (e) {

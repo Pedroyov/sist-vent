@@ -1,5 +1,9 @@
 """Deja lista una instalación nueva para una empresa: python manage.py crear_empresa --nombre "Bodega Doña Rosa" \\
-       --rubro TIE --usuario rosa [--ruc 10456789012] [--nombre-admin "Rosa Mamani"] [--correo rosa@ejemplo.com]
+       --rubro TIE --usuario rosa --segundo-paso correo [--ruc 10456789012] [--nombre-admin "Rosa Mamani"] [--correo rosa@ejemplo.com]
+
+--segundo-paso se pregunta siempre (se decide con el cliente): «no» (solo la contraseña), «correo» (código al correo al
+entrar desde un equipo nuevo; necesita --correo) o «app» (Google o Microsoft Authenticator). Se puede cambiar después en
+Datos del negocio.
 
 Se corre una sola vez, en la base vacía de la empresa (después de `migrate`): pone los datos del negocio, enciende los
 módulos y funciones de su tipo de negocio y crea al administrador principal con una clave temporal que se muestra una
@@ -24,8 +28,10 @@ class Command(BaseCommand):
         parser.add_argument("--nombre-admin", default="", help="Nombre y apellido del administrador.")
         parser.add_argument("--correo", default="")
         parser.add_argument("--ruc", default="")
+        parser.add_argument("--segundo-paso", required=True, choices=["no", "correo", "app"],
+                            help="Segundo paso para entrar a Administración: no, correo o app (se decide con el cliente).")
 
-    def handle(self, *args, nombre, rubro, usuario, nombre_admin, correo, ruc, **opciones):
+    def handle(self, *args, nombre, rubro, usuario, nombre_admin, correo, ruc, segundo_paso, **opciones):
         from core.permisos import MODULOS, NOMBRE_MODULO
         from core.rubros import aplicar
 
@@ -39,10 +45,13 @@ class Command(BaseCommand):
         usuario = usuario.strip()
         if not usuario or " " in usuario:
             raise CommandError("El usuario no puede estar vacío ni tener espacios.")
-        clave = secrets.token_urlsafe(9)
+        if segundo_paso == "correo" and "@" not in correo:
+            raise CommandError("Con el código por correo, pon el correo del administrador: --correo rosa@ejemplo.com")
+        clave = secrets.token_urlsafe(12)
         with transaction.atomic():
             a = Ajustes.cargar()
             a.nombre, a.nombre_corto, a.rubro = nombre, nombre[:30], rubro
+            a.codigo_ingreso = {"no": "", "correo": Ajustes.SegundoPaso.CORREO, "app": Ajustes.SegundoPaso.APP}[segundo_paso]
             if ruc:
                 a.ruc = ruc
             a.save()
@@ -55,5 +64,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Empresa lista: {nombre} ({a.get_rubro_display()})."))
         self.stdout.write(f"Módulos: {', '.join(activos)}.")
         self.stdout.write(f"Administrador principal: {usuario}  ·  clave temporal: {clave}")
+        self.stdout.write(f"Segundo paso: {a.get_codigo_ingreso_display()}.")
         self.stdout.write("Esta clave se muestra una sola vez: entrégala al cliente y pídele que la cambie al entrar "
-                          "(menú del usuario → Cambiar contraseña). En producción, al entrar se le pedirá activar el código del celular.")
+                          "(menú del usuario → Cambiar contraseña; las de Administración, de 10 caracteres o más).")
+        if segundo_paso == "app":
+            self.stdout.write("Al entrar se le pedirá activar la app de códigos: hazlo con él y guarden los códigos de respaldo.")
+        elif not correo:
+            self.stdout.write(self.style.WARNING("Sin correo no le llegarán los avisos de ingreso desde un equipo nuevo."))

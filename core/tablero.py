@@ -67,6 +67,8 @@ class Tablero:
             self._por_hacer()
         if puede(self.user, "compras.ver"):
             self._compras()
+        if puede(self.user, "caja.ver", "caja.usar", "mesas.cobrar"):
+            self._impresion()
         if puede(self.user, "ventas.conciliar"):
             self._conciliacion()
         return self
@@ -79,6 +81,21 @@ class Tablero:
         if n:
             self.pendientes.append(_pend(f"{_plural(n, 'boleta o factura', 'boletas o facturas')} por hacer", reverse("ventas:por_hacer"),
                                          "bi-receipt-cutoff", "warning", "La pidieron al cobrar: hazla aparte y mándala por WhatsApp."))
+
+    def _impresion(self):
+        """Impresión automática: avisa si la estación (PC de caja) no responde o si algo no se pudo imprimir."""
+        from impresion.servicios import activa, estado_cola
+
+        if not activa():
+            return
+        e = estado_cola()
+        if not e["estacion"]:
+            self.pendientes.append(_pend("La estación de impresión no responde", reverse("impresion:cola"), "bi-printer", "danger",
+                                         (f"{_plural(e['pendientes'], 'impresión', 'impresiones')} en cola. " if e["pendientes"] else "")
+                                         + "Prende la PC de caja y abre la Estación de impresión."))
+        elif e["errores"]:
+            self.pendientes.append(_pend(f"{_plural(e['errores'], 'impresión', 'impresiones')} no salieron", reverse("impresion:cola"),
+                                         "bi-printer", "warning", "Revisa la ticketera y reimprime desde la cola."))
 
     def _conciliacion(self):
         """Yape, Plin, tarjeta o transferencias con movimiento y sin conciliar hace más de 2 días."""

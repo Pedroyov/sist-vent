@@ -26,9 +26,9 @@
   <span class="badge text-bg-primary fs-6" id="n-pendientes">{{ pendientes|length }}</span>
   <span class="ms-auto fs-5 fw-semibold" id="reloj"></span>
   <button type="button" class="btn btn-sm btn-outline-light" id="btn-sonido"><i class="bi bi-volume-mute"></i> Activar sonido</button>
-  <div class="form-check form-switch text-white mb-0 ms-1" title="Imprime cada comanda nueva en la impresora de este equipo">
+  {% if not NEGOCIO.imprimir_auto %}<div class="form-check form-switch text-white mb-0 ms-1" title="Imprime cada comanda nueva en la impresora de este equipo">
     <input class="form-check-input" type="checkbox" id="auto-imprimir"><label class="form-check-label small" for="auto-imprimir"><i class="bi bi-printer"></i> Imprimir nuevas</label>
-  </div>
+  </div>{% endif %}
   <button type="button" class="btn btn-sm btn-outline-light" id="btn-pantalla" title="Pantalla completa"><i class="bi bi-arrows-fullscreen"></i></button>
   {% if P.productos_agotar and NEGOCIO.usa_agotados %}<a href="{% url 'productos:agotados' %}" class="btn btn-sm btn-outline-warning" title="Marcar lo que se acabó"><i class="bi bi-slash-circle"></i> Agotados</a>{% endif %}
   <a href="{% url 'core:inicio' %}" class="btn btn-sm btn-outline-light" title="Salir"><i class="bi bi-house"></i></a>
@@ -45,10 +45,13 @@
   var kds = document.getElementById("kds");
   var conocidas = new Set(Array.prototype.map.call(kds.querySelectorAll("[data-clave]"), function (e) { return e.dataset.clave; }));
   var audio = null;
-  try { document.getElementById("auto-imprimir").checked = localStorage.getItem("cocina_imprimir_{{ area }}") === "1"; } catch (e) {}
-  document.getElementById("auto-imprimir").addEventListener("change", function () {
-    try { localStorage.setItem("cocina_imprimir_{{ area }}", this.checked ? "1" : "0"); } catch (e) {}
-  });
+  var autoImp = document.getElementById("auto-imprimir");
+  if (autoImp) {
+    try { autoImp.checked = localStorage.getItem("cocina_imprimir_{{ area }}") === "1"; } catch (e) {}
+    autoImp.addEventListener("change", function () {
+      try { localStorage.setItem("cocina_imprimir_{{ area }}", this.checked ? "1" : "0"); } catch (e) {}
+    });
+  }
   // Los navegadores solo dejan sonar después de un toque en la pantalla
   document.getElementById("btn-sonido").addEventListener("click", function () {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
@@ -75,7 +78,7 @@
     document.getElementById("n-pendientes").textContent = kds.querySelectorAll(".comanda[data-clave]").length;
     if (nuevas.length) {
       timbre();
-      if (document.getElementById("auto-imprimir").checked) {
+      if (autoImp && autoImp.checked) {
         nuevas.forEach(function (el, i) { setTimeout(function () { window.imprimir(el.dataset.comanda); }, i * 2500); });
       }
     }

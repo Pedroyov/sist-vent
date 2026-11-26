@@ -268,6 +268,11 @@ def registrar_venta(usuario, items, pagos, descuento=0, cliente_nombre="", clien
             if previa:
                 return previa
         raise
+    from django.urls import reverse
+
+    from impresion.servicios import encolar
+
+    encolar("TIC", reverse("ventas:imprimir", args=[venta.pk]), f"Ticket · venta {venta.numero_str}", usuario)  # impresión automática
     return venta
 
 

@@ -81,6 +81,7 @@ LOCAL_APPS = [
     "reservas",
     "citas",
     "compras",
+    "impresion",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -144,6 +145,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "core.validadores.ClaveAdministracion"},
 ]
 
 LOGIN_URL = "login"
@@ -242,7 +244,9 @@ CACHES = {
 
 # Código del celular (segundo factor) obligatorio para Administración: por defecto en producción;
 # apagado en la PC local (DEBUG), en las demos y al correr las pruebas.
-DOS_FACTOR_OBLIGATORIO = env.bool("DOS_FACTOR_OBLIGATORIO", default=not DEBUG and not DEMO) and "test" not in sys.argv[1:2]
+# Obligar a Administración a usar la app de códigos. Ahora lo decide cada negocio (Datos del negocio → «Pedir un código…»,
+# por correo o app); esto queda solo para exigir la app desde el servidor.
+DOS_FACTOR_OBLIGATORIO = env.bool("DOS_FACTOR_OBLIGATORIO", default=False) and "test" not in sys.argv[1:2]
 
 
 # --- Sesiones ----------------------------------------------------------------

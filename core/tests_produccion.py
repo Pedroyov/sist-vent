@@ -70,17 +70,20 @@ class ProduccionTests(TestCase):
 
     def test_crear_empresa(self):
         salida = StringIO()
+        with self.assertRaisesMessage(CommandError, "--correo"):  # código por correo sin correo del administrador
+            call_command("crear_empresa", nombre="Pollería El Buen Sabor", rubro="RES", usuario="carlos", segundo_paso="correo", stdout=StringIO())
         call_command("crear_empresa", nombre="Pollería El Buen Sabor", rubro="RES", usuario="carlos", nombre_admin="Carlos Ruiz",
-                     ruc="20123456789", stdout=salida)
+                     ruc="20123456789", segundo_paso="correo", correo="carlos@ejemplo.com", stdout=salida)
         a = Ajustes.cargar()
-        self.assertEqual((a.nombre, a.rubro, a.ruc), ("Pollería El Buen Sabor", "RES", "20123456789"))
+        self.assertEqual((a.nombre, a.rubro, a.ruc, a.codigo_ingreso), ("Pollería El Buen Sabor", "RES", "20123456789", "COR"))
+        self.assertIn("Segundo paso: Código por correo", salida.getvalue())
         self.assertTrue(a.tiene_modulo("mesas"))
         u = User.objects.get(username="carlos")
         self.assertTrue(u.is_superuser)
         clave = salida.getvalue().split("clave temporal: ")[1].split()[0]
         self.assertTrue(u.check_password(clave))
         with self.assertRaisesMessage(CommandError, "ya tiene usuarios"):
-            call_command("crear_empresa", nombre="Otra", rubro="TIE", usuario="otro", stdout=StringIO())
+            call_command("crear_empresa", nombre="Otra", rubro="TIE", usuario="otro", segundo_paso="no", stdout=StringIO())
 
     @override_settings(STORAGES=MEMORIA)
     def test_fotos_en_cualquier_almacen(self):

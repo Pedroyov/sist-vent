@@ -102,6 +102,12 @@ AYUDA = {
         "Hazla en tu sistema de siempre y escribe aquí su número («Ya la hice»).",
         "Luego «Enviar» abre el WhatsApp del cliente: adjunta el PDF.",
         "Solo aparece si no usas la facturación electrónica del sistema."], "13.9"),
+    "impresion:cola": ("Cola de impresión", "Lo que se mandó a la ticketera de caja: lo que espera, lo que salió y lo que falló.", [
+        "Reimprimir saca otra vez cualquier ticket o comanda (sale marcado como copia).",
+        "Si dice «La estación no responde», prende la PC de caja y abre la Estación de impresión: lo pendiente sale solo."], "3.3"),
+    "impresion:estacion": ("Estación de impresión", "Esta PC imprime sola los tickets, comandas, precuentas y cierres de todos los equipos.", [
+        "Déjala abierta todo el turno; Chrome tiene que abrirse con --kiosk-printing.",
+        "La ticketera tiene que ser la impresora predeterminada de Windows."], "3.3"),
     "ventas:conciliar": ("Conciliar Yape y bancos", "Compara lo cobrado con Yape, Plin, tarjeta y transferencia con lo que llegó al banco.", [
         "Cada día y método: escribe lo que dice el banco; el sistema calcula la diferencia.",
         "Si algo no llegó, márcalo: queda como faltante de quien cobró.",
@@ -230,6 +236,12 @@ GUIA = {
         "«Copiar para WhatsApp» y pégalo en tus estados o grupos."], [
         "Si un grupo dice «también Menú económico», lo que cambies ahí cambia en los dos menús.",
         "El nombre o el precio del menú se cambia con el lápiz (es un producto)."]),
+    "impresion:estacion": ([
+        "Instala la ticketera en Windows y déjala como impresora predeterminada.",
+        "Abre Chrome con un acceso directo que tenga --kiosk-printing al final del «Destino».",
+        "Entra con un usuario de caja y abre esta pantalla. Déjala abierta todo el turno."], [
+        "Si aparece la ventana de impresión, Chrome no se abrió con --kiosk-printing: ciérralo del todo y ábrelo con el acceso directo.",
+        "Si apagas esta PC, lo que se pida queda en cola y sale al volver a abrir esta pantalla."]),
     "ventas:pos": ([
         "Toca los productos o escanea su código (lector o el botón de la cámara).",
         "Corrige cantidades con − y + en el carrito.",

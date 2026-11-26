@@ -201,7 +201,27 @@ def enviar_cocina(cuenta):
     n = cuenta.items.filter(anulado=False, enviado_en__isnull=True).update(enviado_en=ahora)
     # Lo que saca el mozo (gaseosas, agua) no espera a nadie: queda listo para llevar a la mesa
     cuenta.items.filter(enviado_en=ahora, area="MOZ", es_envio=False).update(listo_en=ahora)
+    if n:
+        encolar_comandas(cuenta, ahora)
     return ahora if n else None
+
+
+def encolar_comandas(cuenta, enviado):
+    """Impresión automática: la comanda de lo recién enviado, una por área (cocina, barra), a la estación de impresión.
+    Si la cocina trabaja con la pantalla de cocina, no se imprime (ya la ven ahí)."""
+    from urllib.parse import quote
+
+    from django.urls import reverse
+
+    from core.models import Ajustes
+    from impresion.servicios import activa, encolar
+
+    if not activa() or Ajustes.cargar().cocina_pantalla:
+        return
+    areas = set(cuenta.items.filter(enviado_en=enviado, anulado=False, es_envio=False).exclude(area="MOZ").values_list("area", flat=True))
+    for area in sorted(areas):
+        url = reverse("mesas:comanda", args=[cuenta.pk]) + f"?enviado={quote(enviado.isoformat())}&area={area}"
+        encolar("COM", url, f"Comanda · {cuenta.titulo}" + (" (barra)" if area == "BAR" else ""))
 
 
 def marcar_listo(items, listo=True):
@@ -446,6 +466,7 @@ def _cobrar(cuenta, cajero, pendientes, pagos, propina, cliente_nombre, cliente_
         ahora = timezone.now()
         if ItemCuenta.objects.filter(pk__in=ids, enviado_en__isnull=True).update(enviado_en=ahora):
             enviado["en"] = ahora
+            encolar_comandas(cuenta, ahora)
         if liberar and not ItemCuenta.objects.filter(cuenta=cuenta, anulado=False, venta__isnull=True).exists():
             Cuenta.objects.filter(pk=cuenta.pk).update(estado=Cuenta.Estado.COBRADA, cerrada_en=ahora)
 

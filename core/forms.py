@@ -27,9 +27,10 @@ class LoginForm(AuthenticationForm):
         widget=forms.PasswordInput(attrs={"autocomplete": "current-password", "class": "form-control"}),
     )
 
-    # Contra adivinar contraseñas: tras 5 intentos fallidos con un usuario (o 30 desde una misma
-    # conexión) hay que esperar 15 minutos.
-    MAX_USUARIO, MAX_IP, ESPERA = 5, 30, 15 * 60
+    # Contra adivinar contraseñas: tras 5 intentos fallidos con un usuario (o 40 desde una misma conexión, que en un
+    # local es la de todos los celulares del Wi-Fi) hay que esperar 15 minutos, o que Administración lo desbloquee.
+    # Quien se equivoca y luego entra bien deja de contar para su conexión.
+    MAX_USUARIO, MAX_IP, ESPERA = 5, 40, 15 * 60
 
     def _claves(self):
         return claves_ingreso(self.request, self.data.get("username"))
@@ -44,14 +45,14 @@ class LoginForm(AuthenticationForm):
                 cache.set(k_usuario + ":anotado", 1, self.ESPERA)
                 anotar("ingreso.bloqueado", f"Ingreso bloqueado para «{(self.data.get('username') or '').strip()[:40]}» por intentos fallidos")
             raise forms.ValidationError(
-                "Demasiados intentos fallidos. Por seguridad, espera 15 minutos o pide al administrador que revise tu usuario.",
+                "Demasiados intentos fallidos. Por seguridad, espera 15 minutos o pide a Administración que te desbloquee (Usuarios).",
                 code="bloqueado")
         try:
             datos = super().clean()
         except forms.ValidationError:
             contar_fallo(self.request, self.data.get("username"))
             raise
-        cache.delete(k_usuario)
+        limpiar_fallos(self.request, self.data.get("username"))
         return datos
 
 
@@ -68,17 +69,46 @@ def claves_ingreso(request, usuario):
     from .utils import ip_cliente
 
     usuario = (usuario or "").strip().lower()
-    return ("login:u:" + sha256(usuario.encode()).hexdigest()[:32], "login:ip:" + ip_cliente(request))
+    return ("login:u:" + sha256(usuario.encode()).hexdigest()[:32], "login:ip:" + (ip_cliente(request) if request is not None else ""))
 
 
 def contar_fallo(request, usuario):
     """Un intento fallido (contraseña o código del celular) cuenta para el bloqueo de ese usuario y de esa conexión."""
     cache = cache_seguridad()
-    for k in claves_ingreso(request, usuario):
+    k_usuario, k_ip = claves_ingreso(request, usuario)
+    for k in (k_usuario, k_ip):
         try:
             cache.incr(k)
         except ValueError:
             cache.set(k, 1, LoginForm.ESPERA)
+    cache.set(k_usuario + ":ip", k_ip, LoginForm.ESPERA)  # para desbloquear también su conexión
+
+
+def limpiar_fallos(request, usuario):
+    """Entró bien: sus intentos fallidos dejan de contar, también los que sumaban a su conexión."""
+    cache = cache_seguridad()
+    k_usuario, k_ip = claves_ingreso(request, usuario)
+    n = cache.get(k_usuario, 0)
+    if n and cache.get(k_ip, 0):
+        try:
+            cache.decr(k_ip, min(n, cache.get(k_ip, 0)))
+        except ValueError:
+            pass
+    cache.delete_many([k_usuario, k_usuario + ":ip"])
+
+
+def esta_bloqueado(username):
+    """¿Este usuario está bloqueado por intentos fallidos? (para la lista de Usuarios)."""
+    k_usuario = claves_ingreso(None, username)[0]
+    return cache_seguridad().get(k_usuario, 0) >= LoginForm.MAX_USUARIO
+
+
+def desbloquear(username):
+    """Administración o soporte: borra los intentos fallidos del usuario y de la conexión desde donde se equivocó."""
+    cache = cache_seguridad()
+    k_usuario = claves_ingreso(None, username)[0]
+    k_ip = cache.get(k_usuario + ":ip")
+    cache.delete_many([k for k in (k_usuario, k_usuario + ":ip", k_usuario + ":anotado", k_ip) if k])
 
 
 def bloqueado(request, usuario):
@@ -165,7 +195,7 @@ class DatosNegocioForm(forms.ModelForm):
         model = Ajustes
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
-                  "vender_sin_caja", "cierre_ciego", "propina_activa", "exigir_operacion", "dias_devolucion", "dias_fiado", "monedero_porcentaje", "monedero_dias", "descuentos_activos", "cortesias_activas",
+                  "vender_sin_caja", "cierre_ciego", "codigo_ingreso", "propina_activa", "exigir_operacion", "dias_devolucion", "dias_fiado", "monedero_porcentaje", "monedero_dias", "descuentos_activos", "cortesias_activas",
                   "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo"]
         widgets = {
             "nivel_pedido": forms.RadioSelect,
@@ -176,8 +206,10 @@ class DatosNegocioForm(forms.ModelForm):
             "whatsapp": forms.TextInput(attrs={"inputmode": "tel", "placeholder": "987654321"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, puede_seguridad=True, **kwargs):
         super().__init__(*args, **kwargs)
+        if not puede_seguridad:  # el segundo paso de Administración solo lo cambia Administración
+            self.fields["codigo_ingreso"].disabled = True
         from ventas.models import MetodoPago
 
         from .rubros import CODIGOS_FUNCIONES, FUNCIONES

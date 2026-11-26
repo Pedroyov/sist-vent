@@ -27,19 +27,33 @@ class Ingresar(LoginView):
 
     def form_valid(self, form):
         user = form.get_user()
-        if df.activo(user) and not df.recordado(self.request, user):
-            self.request.session[df.PENDIENTE] = {"u": user.pk, "t": int(time.time()), "b": user.backend,
-                                                  "next": self.get_success_url()}
+        if df.pide_codigo(user) and not df.recordado(self.request, user):
+            pendiente = {"u": user.pk, "t": int(time.time()), "b": user.backend, "next": self.get_success_url(),
+                         "metodo": "app" if df.activo(user) else "correo"}
+            if pendiente["metodo"] == "correo":
+                if not user.email:  # sin correo no hay a dónde mandarlo: entra, pero se le pide ponerlo
+                    anotar("ingreso.sin_correo", f"{user.get_full_name() or user.username} entró sin código: su usuario no tiene correo",
+                           objeto=user, usuario=user)
+                    respuesta = super().form_valid(form)
+                    messages.warning(self.request, "Tu usuario no tiene correo: no se pudo pedirte el código. Pide que lo agreguen en Usuarios.")
+                    return respuesta
+                if not df.enviar_codigo_correo(pendiente, user):
+                    messages.error(self.request, "No se pudo enviar el código a tu correo. Intenta en unos minutos; si sigue, llama a soporte.")
+                    return redirect("login")
+            self.request.session[df.PENDIENTE] = pendiente
             return redirect("ingresar_codigo")
         respuesta = super().form_valid(form)
-        if df.activo(user):
+        if df.pide_codigo(user):
             self.request.session[df.VERIFICADO] = True
+        else:
+            df.avisar_equipo_nuevo(self.request, respuesta, user)
         return respuesta
 
 
 def _pendiente(request):
     p = request.session.get(df.PENDIENTE)
-    if not p or time.time() - p.get("t", 0) > df.MINUTOS_PARA_CODIGO * 60:
+    limite = df.MINUTOS_CORREO if p and p.get("metodo") == "correo" else df.MINUTOS_PARA_CODIGO
+    if not p or time.time() - p.get("t", 0) > limite * 60:
         request.session.pop(df.PENDIENTE, None)
         return None, None
     return p, User.objects.filter(pk=p["u"], is_active=True).first()
@@ -52,13 +66,22 @@ def ingresar_codigo(request):
         messages.info(request, "Vuelve a escribir tu usuario y contraseña.")
         return redirect("login")
     error = ""
+    correo = p.get("metodo") == "correo"
+    if request.method == "POST" and correo and request.POST.get("accion") == "reenviar":
+        if df.enviar_codigo_correo(p, user):
+            p["t"] = int(time.time())
+            request.session[df.PENDIENTE] = p
+            messages.info(request, "Te enviamos un código nuevo.")
+        else:
+            messages.error(request, "No se pudo enviar otro código. Vuelve a entrar en unos minutos.")
+        return redirect("ingresar_codigo")
     if request.method == "POST":
         codigo = request.POST.get("codigo", "")
         if bloqueado(request, user.username):
             request.session.pop(df.PENDIENTE, None)
             messages.error(request, "Demasiados intentos fallidos. Por seguridad, espera 15 minutos.")
             return redirect("login")
-        tipo = df.validar(user, codigo)
+        tipo = ("correo" if df.validar_correo(p, user, codigo) else None) if correo else df.validar(user, codigo)
         if tipo:
             request.session.pop(df.PENDIENTE, None)
             auth_login(request, user, backend=p["b"])
@@ -70,8 +93,10 @@ def ingresar_codigo(request):
                 messages.warning(request, "Usaste un código de respaldo. Si perdiste el celular, entra a Seguridad y cambia de celular.")
             return respuesta
         contar_fallo(request, user.username)
-        error = "El código no es correcto o ya venció. Escribe el que muestra ahora la app."
-    return render(request, "registration/codigo.html", {"error": error, "dias": df.DIAS_RECORDAR})
+        error = ("El código no es correcto o ya venció. Revisa el último correo o pide uno nuevo." if correo
+                 else "El código no es correcto o ya venció. Escribe el que muestra ahora la app.")
+    return render(request, "registration/codigo.html", {"error": error, "dias": df.DIAS_RECORDAR, "correo": correo,
+                                                       "a_donde": df.correo_oculto(user.email), "reenviar": p.get("envios", 0) < df.ENVIOS_MAX})
 
 
 @login_required
@@ -139,13 +164,7 @@ def quitar_codigo(request, pk):
     u = get_object_or_404(User, pk=pk)
     if u == request.user:
         return redirect("seguridad")
-    with transaction.atomic():
-        f = SegundoFactor.objects.select_for_update().filter(usuario=u, activo=True).first()
-        if f:
-            f.activo, f.respaldos = False, []
-            f.version += 1
-            f.save(update_fields=["activo", "respaldos", "version"])
-            anotar("ingreso.2fa_quitado", f"Se quitó el código del celular a {u.get_full_name() or u.username}", objeto=u)
+    df.quitar(u, por=request.user)
     messages.success(request, f"Listo. {u.get_full_name() or u.username} tendrá que activar el código de nuevo"
                      + (" al ingresar." if df.obligatorio(u) else " si quiere usarlo."))
     return redirect("core:usuario_lista")

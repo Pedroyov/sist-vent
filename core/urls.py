@@ -17,6 +17,7 @@ urlpatterns = [
     path("configuracion/modulos/", cfg.modulos, name="modulos"),
     path("configuracion/bitacora/", cfg.bitacora, name="bitacora"),
     path("configuracion/usuarios/<int:pk>/quitar-codigo/", seg.quitar_codigo, name="quitar_codigo"),
+    path("configuracion/usuarios/<int:pk>/desbloquear/", cfg.usuario_desbloquear, name="usuario_desbloquear"),
     path("configuracion/roles/nuevo/", cfg.rol_form, name="rol_nuevo"),
     path("configuracion/roles/<int:pk>/editar/", cfg.rol_form, name="rol_editar"),
     path("configuracion/roles/<int:pk>/eliminar/", cfg.rol_eliminar, name="rol_eliminar"),

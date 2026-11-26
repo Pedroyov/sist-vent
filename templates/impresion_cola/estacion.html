@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Estación de impresión{% endblock %}
+{% block page_title %}Estación de impresión{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'impresion:cola' %}">Cola de impresión</a></li><li class="breadcrumb-item active">Estación</li>{% endblock %}
+
+{% block content %}
+{% if not activa %}
+<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>La <strong>impresión automática</strong> está apagada. Enciéndela en
+  {% if P.config_negocio %}<a href="{% url 'core:datos_negocio' %}">Datos del negocio → Impresión</a>{% else %}Datos del negocio (pídeselo a Administración){% endif %}.
+  Mientras tanto, aquí solo salen los trabajos que alguien mande con «Ticketera de caja».</div>
+{% endif %}
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card card-outline card-success mb-3">
+      <div class="card-body text-center py-4">
+        <div class="display-6" id="est-icono"><i class="bi bi-printer text-success"></i></div>
+        <div class="fs-5 fw-semibold mt-2" id="est-estado">Conectando…</div>
+        <div class="small text-body-secondary" id="est-detalle">Deja esta pantalla abierta: los tickets y comandas salen solos.</div>
+        <div class="input-group input-group-sm mt-3 mx-auto" style="max-width: 18rem">
+          <span class="input-group-text">Nombre</span>
+          <input type="text" class="form-control" id="est-nombre" maxlength="60" placeholder="Caja">
+        </div>
+      </div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-gear me-1"></i> Preparar esta PC (una sola vez)</h3></div>
+      <div class="card-body small">
+        <ol class="ps-3 mb-2">
+          <li>Instala la ticketera en Windows con su controlador, con papel de {% if NEGOCIO.ticket_ancho == 210 %}hoja A4{% else %}{{ NEGOCIO.ticket_ancho }} mm{% endif %}, y déjala como <strong>impresora predeterminada</strong>.</li>
+          <li>Crea un acceso directo de Chrome y en «Destino» agrega al final: <code class="user-select-all">--kiosk-printing</code></li>
+          <li>Abre el sistema con ese acceso directo, entra con un usuario de <strong>caja</strong> y abre esta pantalla.</li>
+          <li>Opcional: copia el acceso directo en la carpeta de inicio de Windows (<code>shell:startup</code>) para que se abra solo al prender la PC.</li>
+        </ol>
+        <p class="mb-0 text-body-secondary">Si al imprimir aparece la ventana de impresión, Chrome no se abrió con <code>--kiosk-printing</code>: ciérralo del todo y ábrelo con el acceso directo.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="bi bi-list-check me-1"></i> Impreso en esta PC</h3>
+        <a href="{% url 'impresion:cola' %}" class="btn btn-sm btn-outline-secondary ms-auto">Ver la cola</a></div>
+      <ul class="list-group list-group-flush small" id="est-log"><li class="list-group-item text-body-secondary">Todavía nada.</li></ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var clave, nombre = document.getElementById("est-nombre"), ocupado = false, errores = 0;
+  try {
+    clave = localStorage.getItem("estacion_clave") || ((window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random());
+    localStorage.setItem("estacion_clave", clave);
+    localStorage.setItem("estacion_impresion", "1");  // en esta PC, «Imprimir» imprime directo
+    nombre.value = localStorage.getItem("estacion_nombre") || "Caja";
+  } catch (e) { clave = clave || String(Date.now()); }
+  nombre.addEventListener("change", function () { try { localStorage.setItem("estacion_nombre", nombre.value); } catch (e) {} });
+  var estado = document.getElementById("est-estado"), detalle = document.getElementById("est-detalle"), icono = document.getElementById("est-icono");
+  var log = document.getElementById("est-log");
+  function poner(texto, det, clase) { estado.textContent = texto; detalle.textContent = det; icono.innerHTML = '<i class="bi bi-printer ' + clase + '"></i>'; }
+  function anotar(t, ok, error) {
+    if (log.querySelector(".text-body-secondary")) log.innerHTML = "";
+    var li = document.createElement("li");
+    li.className = "list-group-item d-flex gap-2";
+    li.innerHTML = '<span class="text-body-secondary">' + new Date().toLocaleTimeString("es-PE", {hour: "2-digit", minute: "2-digit"}) + "</span>" +
+      '<span class="flex-grow-1"></span>' + (ok ? '<i class="bi bi-check2 text-success"></i>' : '<i class="bi bi-x-lg text-danger" title=""></i>');
+    li.children[1].textContent = t.descripcion + (t.copia ? " (copia)" : "") + (error ? " — " + error : "");
+    log.prepend(li);
+    while (log.children.length > 30) log.lastChild.remove();
+  }
+  function post(url, datos) {
+    return fetch(url, {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json", "X-CSRFToken": window.csrfToken()},
+      body: JSON.stringify(datos)}).then(function (r) {
+      if (r.status === 403 || r.redirected) throw new Error("sesion");
+      return r.json();
+    });
+  }
+  function ciclo() {
+    if (ocupado) return;
+    ocupado = true;
+    post("{% url 'impresion:siguiente' %}", {clave: clave, nombre: nombre.value}).then(function (d) {
+      errores = 0;
+      if (!d.trabajo) { poner("Lista para imprimir", "Deja esta pantalla abierta: los tickets y comandas salen solos.", "text-success"); ocupado = false; return; }
+      var t = d.trabajo;
+      poner("Imprimiendo…", t.descripcion, "text-primary");
+      return window.imprimir(t.url, {estacion: true}).then(function () {
+        anotar(t, true);
+        return post("{% url 'impresion:listo' %}", {clave: clave, id: t.id, ok: true});
+      }, function (e) {
+        anotar(t, false, e.message);
+        return post("{% url 'impresion:listo' %}", {clave: clave, id: t.id, ok: false, error: e.message});
+      }).then(function () { ocupado = false; setTimeout(ciclo, 300); });
+    }).catch(function (e) {
+      ocupado = false;
+      errores++;
+      if (e.message === "sesion") { poner("Se cerró la sesión", "Vuelve a entrar con un usuario de caja.", "text-danger"); setTimeout(function () { location.reload(); }, 5000); return; }
+      poner("Sin conexión", "Reintentando… Los tickets esperan en la cola.", "text-warning");
+    });
+  }
+  ciclo();
+  setInterval(ciclo, 2500);
+})();
+</script>
+{% endblock %}

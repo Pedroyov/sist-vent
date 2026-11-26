@@ -25,6 +25,9 @@ class PersonaForm(forms.ModelForm):
         self.fields["usuario"].queryset = User.objects.filter(is_active=True).exclude(pk__in=usados).order_by("first_name", "username")
         self.fields["usuario"].label_from_instance = lambda u: f"{u.get_full_name() or u.username} ({u.username})"
         self.fields["usuario"].empty_label = "Sin usuario (no entra al sistema)"
+        self.fields["orden"].label = "Orden en las listas"
+        self.fields["orden"].help_text = ("En qué lugar sale esta persona en la agenda de citas, en «¿Quién atendió?» y en los pagos: "
+                                          "el número menor sale primero. Con todos en 0 se ordenan por nombre.")
         if "citas" in modulos:
             self.fields["servicios"].queryset = Producto.objects.filter(tipo=Producto.Tipo.SERVICIO, activo=True).order_by("nombre")
             self.fields["servicios"].label = "Servicios que hace"

@@ -144,6 +144,9 @@ def cerrar_caja(request, pk):
             messages.success(request, f"Caja cerrada. ¡Cuadró exacto!{retiro}")
         else:
             messages.warning(request, f"Caja cerrada con {'sobrante' if s.diferencia > 0 else 'faltante'} de S/ {abs(s.diferencia):.2f}.{retiro}")
+        from impresion.servicios import encolar
+
+        encolar("CIE", reverse("caja:imprimir", args=[pk]), f"Cierre de caja · {s.usuario.get_full_name() or s.usuario.username}", request.user)
         return redirect("caja:sesion", pk=pk)
     return render(request, "caja/cerrar.html", {"s": s, "r": r, "form": form, "denominaciones": DENOMINACIONES, "ciego": ciego})
 
