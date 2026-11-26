@@ -1,4 +1,4 @@
-"""Proveedores y compras de ejemplo (las usa python manage.py datos_demo en tienda, ropa y librería).
+"""Proveedores y compras de ejemplo (las usa python manage.py datos_demo en tienda, ropa, librería y restaurante).
 
 Se registran con el mismo servicio que usa la pantalla, así el kardex, el costo promedio, los pagos y lo que se debe
 quedan como en la vida real: una compra pagada fuera de caja, una al crédito ya vencida (con un pago a cuenta), otra que
@@ -16,6 +16,7 @@ PROVEEDORES = {
     Rubro.TIENDA: [("Distribuidora El Sol", "Carlos Rojas"), ("Bebidas del Norte", "Lucía Ramos"), ("Mercado Mayorista Santa Anita", "")],
     Rubro.ROPA: [("Textiles Gamarra", "Rosa Quispe"), ("Confecciones Andinas", "Miguel Torres"), ("Accesorios Lima", "")],
     Rubro.LIBRERIA: [("Útiles Escolares Perú", "Ana Flores"), ("Papelera Central", "Jorge Díaz"), ("Editorial Arco", "")],
+    Rubro.RESTAURANTE: [("Bebidas del Norte", "Lucía Ramos"), ("Avícola La Granja", "Pedro Huamán"), ("Gas Express", "")],
 }
 
 
@@ -56,6 +57,8 @@ def cargar_compras(rubro):
         provs.append(Proveedor.objects.create(
             nombre=f"{nombre.upper()} S.A.C.", comercial=nombre, ruc=_ruc(1234500 + i * 37), contacto=contacto,
             telefono=f"98765{4320 + i}" if contacto else "", plazo=15 if i < 2 else 0))
+    if rubro == Rubro.RESTAURANTE:
+        return _compras_restaurante(admin, provs, variantes, hoy)
     azar.shuffle(variantes)
     tercio = max(1, len(variantes) // 3)
     grupos = [variantes[:tercio], variantes[tercio:2 * tercio], variantes[2 * tercio:]]
@@ -83,6 +86,37 @@ def cargar_compras(rubro):
         documento = "BOL" if prov_i == 2 else "FAC"
         c = registrar_compra(admin, p, items, documento, "B001" if documento == "BOL" else "F001", str(numero),
                              dia, credito=credito, pago=None if credito else "fuera")
+        _fechar(c, dia)
+        if credito and atras >= 20:  # la vencida tiene un pago a cuenta
+            pagar(c, (c.total / 2).quantize(Decimal("0.10")), admin, "fuera", dia + timedelta(days=7))
+        n += 1
+    return n
+
+
+def _compras_restaurante(admin, provs, variantes, hoy):
+    """Un restaurante compra bebidas (con stock) a la distribuidora, pollo y gas como insumos (líneas libres) y las
+    verduras en el mercado, sin proveedor registrado («Proveedor varios»)."""
+    from .servicios import pagar, registrar_compra
+
+    bebidas, pollo, gas = provs
+    plan = [  # (proveedor, días atrás, crédito, número, líneas)
+        (bebidas, 22, True, 3301, [{"variante": v.pk, "cantidad": "24", "costo": str(v.costo_efectivo or (v.precio_venta * Decimal("0.55")).quantize(Decimal("0.10")))}
+                                   for v in variantes[:6]]),
+        (pollo, 6, True, 518, [{"variante": None, "descripcion": "Pollo entero (kg)", "cantidad": "40", "costo": "9.80"}]),
+        (gas, 3, False, 92, [{"variante": None, "descripcion": "Balón de gas 45 kg", "cantidad": "1", "costo": "210"}]),
+        (None, 1, False, "", [{"variante": None, "descripcion": "Verduras del mercado", "cantidad": "1", "costo": "86.50"},
+                              {"variante": None, "descripcion": "Limones (malla)", "cantidad": "1", "costo": "38"}]),
+        (bebidas, 2, False, 3342, [{"variante": v.pk, "cantidad": "12", "costo": str(v.costo_efectivo or (v.precio_venta * Decimal("0.55")).quantize(Decimal("0.10")))}
+                                   for v in variantes[:3]]),
+    ]
+    n = 0
+    for prov, atras, credito, numero, items in plan:
+        if not items:
+            continue
+        dia = hoy - timedelta(days=atras)
+        documento = "SIN" if prov is None else ("BOL" if prov is gas else "FAC")
+        c = registrar_compra(admin, prov, items, documento, "" if documento == "SIN" else ("B001" if documento == "BOL" else "F001"),
+                             str(numero), dia, credito=credito, pago=None if credito else "fuera")
         _fechar(c, dia)
         if credito and atras >= 20:  # la vencida tiene un pago a cuenta
             pagar(c, (c.total / 2).quantize(Decimal("0.10")), admin, "fuera", dia + timedelta(days=7))

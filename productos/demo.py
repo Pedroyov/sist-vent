@@ -297,8 +297,18 @@ def _opciones_restaurante():
             n, _, pr = linea.partition("|")
             Opcion.objects.create(grupo=g, nombre=n, precio=Decimal(pr or "0"), orden=j, activa=linea in hoy)
         diarios.append(g)
+    # el económico usa entrada y segundo comunes; el ejecutivo comparte las entradas pero tiene sus segundos; los dos dan bebida
+    ejecutivo = GrupoOpciones.objects.create(nombre="Segundo (Menú ejecutivo)", minimo=1, maximo=1, orden=1, diario=True)
+    for j, linea in enumerate(["Lomo saltado", "Ají de gallina", "Pescado a lo macho", "Pollo al horno"]):
+        Opcion.objects.create(grupo=ejecutivo, nombre=linea, orden=j, activa=j < 3)
+    bebida = GrupoOpciones.objects.create(nombre="Bebida", minimo=1, maximo=1, orden=900, diario=True)
+    for j, linea in enumerate(["Chicha morada", "Limonada", "Maracuyá"]):
+        Opcion.objects.create(grupo=bebida, nombre=linea, orden=j, activa=j < 2)
     for p in Producto.objects.filter(nombre__startswith="Menú"):
-        p.grupos.add(*diarios)
+        if "ejecutivo" in p.nombre.lower():
+            p.grupos.add(diarios[0], ejecutivo, bebida)
+        else:
+            p.grupos.add(*diarios, bebida)
 
 
 def cargar_catalogo(rubro, usuario=None):

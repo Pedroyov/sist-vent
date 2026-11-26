@@ -6,6 +6,7 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.inicio, name="inicio"),
+    path("ayuda/manual/", views.manual, name="manual"),
 
     # Configuración
     path("configuracion/usuarios/", cfg.usuario_lista, name="usuario_lista"),

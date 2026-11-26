@@ -267,10 +267,11 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 - **Botones:** `{% include "partials/exportar.html" %}` pone Excel (`{% querystring excel=1 page=None %}`) e Imprimir / PDF (`window.print()`). `with excel=False` o `imprimir=False` quitan uno.
 - **Imprimir la pantalla:** las reglas `@media print` de `static/css/app.css` ocultan menú, migas, `.barra-fija`, `.ayuda-pantalla` y todo lo marcado `no-print` (filtros, barras de herramientas), y dejan el título. El PDF es «Guardar como PDF» del navegador.
 
-## Ayuda de cada pantalla («?»)
+## Ayuda de cada pantalla («?») y manual dentro del sistema
 
-- `core/ayuda.py`: diccionario `AYUDA` con clave `"namespace:nombre_de_url"` → `(título, para qué sirve, [lo más usado], sección del manual)`. El context processor pone `AYUDA` según `request.resolver_match`; `templates/base.html` muestra el botón **?** junto al título y el panel (offcanvas `#ayuda-pantalla`).
-- **Toda pantalla nueva de lista o tablero agrega su entrada** (los formularios no la necesitan). `core/tests_exportar.py` comprueba que cada clave exista como ruta.
+- `core/ayuda.py`: `AYUDA` con clave `"namespace:nombre_de_url"` → `(título, para qué sirve, [lo más usado], sección del manual)`, y `GUIA` (`clave` → `([paso a paso], [ojo])`) para las pantallas donde se hace un trabajo. El context processor pone `AYUDA` según `request.resolver_match`; `templates/base.html` muestra el botón **?** y el panel (offcanvas `#ayuda-pantalla`).
+- **Toda pantalla nueva de lista o tablero agrega su entrada; si en ella se hace un trabajo, también su `GUIA`.** `core/tests_exportar.py` y `compras/tests_varios.py` comprueban que las claves existan.
+- **Manual de usuario dentro del sistema** (`core:manual`, `/ayuda/manual/`, menú del usuario): índice, buscador por sección y PDF. Se genera al cerrar cada lote, del mismo `.md` que el Word: `python manage.py generar_manual "<ruta>/Manual de usuario – Sistema de ventas.md"` (necesita pandoc; el PDF, weasyprint). Deja `core/manual/manual.html`, `core/manual/indice.json`, `static/manual/capturas/*.jpg` (livianas) y `static/manual/manual.pdf`. Cada sección tiene el id `s-6-3`; el enlace del «?» usa `AYUDA.ancla` con el mismo formato.
 
 ## Boletas y facturas hechas aparte (sin el módulo de facturación)
 
@@ -282,6 +283,15 @@ Las demás apps del negocio (ventas, caja, clientes, etc.) se crean como apps nu
 
 - Separar unidades de una línea solo con `mesas.servicios._separar` (cortesía parcial y cobrar 1 de 4 gaseosas). `cobrar`/`cotizar` aceptan `items` como `[id, …]` o `[{"id", "cantidad"}]`; `cotizar` deshace la separación (solo calcula).
 - `ItemCuenta.llevar`: plato de una mesa que se empaca; solo con mesa; no se junta con la misma línea sin «llevar». Se ve en la cuenta, la comanda y la pantalla de cocina.
+
+## Escanear con la cámara
+
+- `static/js/escaner.js` (cargado en `base.html`) pone un botón de cámara junto a todo `<input data-escaner>`: código del producto y de la variante, buscador de Vender. Usa `BarcodeDetector` si el navegador lo tiene y si no la librería ZXing guardada en `static/vendor/zxing` (Apache 2.0, se carga solo al usarla). Al leer escribe el código y simula Enter, como un lector. Solo con https o localhost (el botón no aparece en http de la red local).
+
+## Compras sin proveedor y menú del día por tipos
+
+- Proveedor opcional: `compras.servicios.registrar_compra` usa `proveedor_varios()` («Proveedor varios», se crea una vez); al crédito exige un proveedor real.
+- Menú del día: función `menu` (`Ajustes.usa_menu`) que además necesita `usa_opciones`. Cada tipo de menú es un producto de la categoría «Menú del día» con grupos diarios propios («Segundo (Menú ejecutivo)») o compartidos con otro tipo; Bebida y Postre son grupos diarios comunes (`EXTRAS_MENU`). Todo en `productos.servicios` (`menu_tipos`, `menu_nuevo_tipo`, `menu_extras`, `menu_texto`, `nombre_corto`).
 
 ## Pantalla de cocina
 

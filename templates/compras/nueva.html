@@ -8,6 +8,8 @@
 <form method="post" novalidate id="f-compra">
   {% csrf_token %}
   {{ form.items }}{{ form.token }}
+<div class="alert alert-light border py-2 small mb-3"><i class="bi bi-info-circle me-1"></i>Aquí va lo que compras para <strong>vender o preparar</strong> (mercadería, insumos, verduras, bebidas).
+    {% if P.caja_ver %}¿Es luz, alquiler, movilidad o limpieza? Eso va en <a href="{% url 'caja:gastos' %}">Gastos</a>.{% endif %}</div>
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
   {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
   <div class="row g-3">

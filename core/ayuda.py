@@ -1,7 +1,7 @@
 """Ayuda de cada pantalla: el botón «?» junto al título abre para qué sirve y lo más usado.
 
 Una entrada por pantalla, por su nombre de ruta («app:nombre»): (título, para qué sirve, [lo más usado], sección del manual).
-Al crear una pantalla nueva, agrega aquí su ayuda (corta: 2 a 4 puntos). Las pantallas sin entrada no muestran el botón.
+Al crear una pantalla nueva, agrega aquí su ayuda (corta: 2 a 4 puntos) y, si en ella se hace un trabajo, su GUIA. Las pantallas sin entrada no muestran el botón.
 """
 AYUDA = {
     # --- Inicio y cuenta ---
@@ -71,9 +71,10 @@ AYUDA = {
     "productos:agotados": ("Agotados y porciones de hoy", "Lo que se acabó hoy y cuántas porciones quedan de cada plato.", [
         "Toca un plato para marcarlo agotado; mañana vuelve solo.",
         "Porciones de hoy: pon cuántas hay; avisa en amarillo (5) y rojo (2); con 0 queda agotado."], "5.2"),
-    "productos:menu": ("Menú del día", "Arma las entradas y segundos de hoy del menú.", [
+    "productos:menu": ("Menú del día", "Arma lo que hay hoy en cada tipo de menú (económico, ejecutivo…): entradas, segundos, bebida y postre.", [
         "Toca los platos de hoy; los de otros días quedan guardados.",
-        "«Copiar para WhatsApp» copia el menú listo para enviar."], "5.1"),
+        "«+ Tipo de menú» para otro precio con sus propios platos (o los mismos de otro tipo).",
+        "«Copiar para WhatsApp» copia el menú de todos los tipos, con sus precios."], "5.1"),
     "productos:listas_precios": ("Listas de precios", "Tipos de cliente con sus precios (Mayorista, Revendedor).", [
         "Cada lista con un % menos sobre el precio normal.",
         "Se asigna al cliente en su ficha; al elegirlo en el cobro, la venta se recalcula."], "4.11"),
@@ -199,9 +200,11 @@ AYUDA = {
     "compras:lista": ("Compras", "Las compras a proveedores del periodo, con lo pagado y lo que falta.", [
         "Nueva compra suma el stock y actualiza el costo promedio.",
         "Baja en Excel o imprime."], "18.2"),
-    "compras:nueva": ("Nueva compra", "Registra la factura o boleta de un proveedor.", [
-        "Agrega los productos con cantidad y costo; al guardar suben al stock.",
-        "Si es al crédito, pon cuándo vence."], "18.2"),
+    "compras:nueva": ("Nueva compra", "Lo que compras para vender o preparar: mercadería, insumos, verduras, bebidas.", [
+        "Agrega los productos con cantidad y costo; al guardar suben al stock. Fletes o insumos sin producto: línea libre.",
+        "¿Mercado o ambulante? Deja el proveedor vacío: queda en «Proveedor varios».",
+        "Al crédito sí elige el proveedor y pon cuándo vence.",
+        "Luz, alquiler, movilidad o limpieza no son compras: van en Gastos."], "18.2"),
     "compras:por_pagar": ("Por pagar", "Lo que se debe a cada proveedor, lo vencido primero.", [
         "Paga una compra o al proveedor de una vez (va a lo más antiguo).",
         "Baja en Excel o imprime."], "18.3"),
@@ -217,6 +220,126 @@ AYUDA = {
 }
 
 
+# Paso a paso y «Ojo» de las pantallas donde se hace un trabajo y es fácil equivocarse: {clave: ([pasos], [ojo])}.
+# Las claves también deben estar en AYUDA. Pasos cortos (3 a 5); en «Ojo», el error más común y cómo evitarlo.
+GUIA = {
+    "productos:menu": ([
+        "Cada mañana: «Empezar de cero» si el menú cambia todo.",
+        "En cada tipo de menú, toca los platos de hoy o escribe uno nuevo (entrada, segundo, bebida, postre).",
+        "Si algo se acaba, tócalo como agotado: en las mesas sale tachado.",
+        "«Copiar para WhatsApp» y pégalo en tus estados o grupos."], [
+        "Si un grupo dice «también Menú económico», lo que cambies ahí cambia en los dos menús.",
+        "El nombre o el precio del menú se cambia con el lápiz (es un producto)."]),
+    "ventas:pos": ([
+        "Toca los productos o escanea su código (lector o el botón de la cámara).",
+        "Corrige cantidades con − y + en el carrito.",
+        "Pulsa Cobrar (o F9). Si pide boleta o factura, elígela arriba y escribe sus datos.",
+        "Elige cómo paga; en efectivo escribe con cuánto paga y mira el vuelto.",
+        "Confirmar. Imprime el ticket o envíalo por WhatsApp."], [
+        "Boleta o factura se elige antes de Confirmar: después ya no se cambia desde aquí.",
+        "Para fiar, primero elige el cliente (Cliente y nota) y luego el método Fiado.",
+        "En Yape o Plin anota el N° de operación: sirve para conciliar con el banco."]),
+    "caja:mi_caja": ([
+        "Al empezar el turno: Abrir caja y escribe con cuánto sencillo empiezas.",
+        "Si sale dinero del cajón (movilidad, pago a un proveedor), regístralo como salida con su motivo.",
+        "Si entra dinero que no es venta (sencillo que trajeron), regístralo como ingreso.",
+        "Al terminar: Cerrar caja."], [
+        "Toda salida del cajón se anota en el momento: si no, al cerrar faltará dinero.",
+        "Un retiro del dueño no es gasto: elige ese motivo para que no baje la ganancia."]),
+    "caja:cerrar": ([
+        "Separa solo el efectivo (Yape, tarjeta y fiado no se cuentan).",
+        "Escribe cuántos billetes y monedas hay de cada uno; el sistema suma.",
+        "Escribe cuánto dejas en el cajón para el siguiente turno.",
+        "Pulsa Cerrar caja e imprime el cierre para entregarlo con el dinero."], [
+        "No ves cuánto debería haber: cuenta con calma. Si no cuadra por más de S/ 1, te pide contar otra vez.",
+        "Si después recuerdas una salida que no anotaste, avisa a Administración: la corrige sin reabrir la caja."]),
+    "mesas:agregar": ([
+        "Toca los platos; lo más vendido sale primero.",
+        "Si el plato tiene opciones (término, acompañamiento), elígelas en la ventana que se abre.",
+        "Escribe en la nota lo especial («sin cebolla»); «Llevar» si se lo llevan empacado.",
+        "Al terminar, agrega y envía: va a cocina o barra (o solo «Agregar» para enviarlo después)."], [
+        "Lo que no envías, cocina no lo ve: revisa que no quede nada en «Por enviar».",
+        "«Quedan 3» en amarillo o rojo: avisa al cliente antes de que se acabe."]),
+    "mesas:cuenta": ([
+        "Tomar pedido para agregar; Enviar para mandar a cocina lo nuevo.",
+        "Cuando suena la campana, lleva el plato y pulsa «Ya serví lo listo».",
+        "Precuenta para que el cliente revise antes de pagar.",
+        "Cobrar (cajero): todo junto, o ⋯ → Dividir cuenta para que cada uno pague lo suyo."], [
+        "Al dividir, de 4 gaseosas elige cuántas paga esa persona: el resto queda en la cuenta.",
+        "Quitar un plato ya enviado necesita permiso y un motivo (queda registrado).",
+        "Si se van sin pagar todo, no liberes la mesa: queda lo pendiente."]),
+    "mesas:cocina": ([
+        "Los pedidos salen en orden de llegada; el tiempo arriba dice cuánto llevan esperando.",
+        "Toca un plato cuando esté listo, o LISTO para toda la comanda.",
+        "El mozo recibe el aviso en su celular."], [
+        "Lo tachado en rojo lo quitaron después de pedirlo: no lo prepares.",
+        "«PARA LLEVAR»: va empacado.",
+        "Si se acaba un plato, avisa para marcarlo agotado o poner las porciones que quedan."]),
+    "mesas:pedidos": ([
+        "Nuevo pedido: escribe el celular; si ya pidió antes, su dirección sale sola.",
+        "Agrega los productos y el costo de envío.",
+        "«Salió» con el repartidor: imprime su hoja con dirección y vuelto.",
+        "Al volver, cobra y queda como entregado."], [
+        "Anota con cuánto paga el cliente: así el repartidor lleva el vuelto exacto."]),
+    "productos:nuevo": ([
+        "Escribe el nombre y elige la categoría.",
+        "Pon el precio de venta y el costo (para saber cuánto ganas).",
+        "Escanea el código de barras si tiene (lector o cámara).",
+        "Si llevas la cuenta de unidades, activa «Controlar stock» y pon cuántas tienes.",
+        "Guarda. Tallas, colores o tamaños se agregan después en su ficha."], [
+        "Sin costo, los reportes no pueden calcular tu ganancia.",
+        "Un código de barras no se puede repetir en dos productos."]),
+    "compras:nueva": ([
+        "Elige el proveedor (o déjalo vacío si es del mercado: «Proveedor varios»).",
+        "Elige el documento (factura, boleta, sin documento) y su número.",
+        "Agrega cada producto con cantidad y costo; fletes o insumos sin producto como línea libre.",
+        "Indica cómo se paga: de tu caja, fuera de caja o al crédito.",
+        "Guarda: el stock sube y el costo se actualiza solo."], [
+        "Luz, alquiler, movilidad o limpieza no son compras: van en Gastos.",
+        "Al crédito sí hay que elegir el proveedor: es a quien le debes.",
+        "El costo es por unidad, no el total de la línea."]),
+    "caja:gastos": ([
+        "Elige el periodo (hoy, este mes…) para ver todo lo que salió.",
+        "«Gasto fuera de caja» para lo pagado por transferencia, Yape o con dinero que no estaba en el cajón.",
+        "Elige el motivo correcto y escribe el detalle («Luz de octubre»)."], [
+        "Lo que sale del cajón durante el turno se registra en Caja, no aquí.",
+        "Un gasto mal registrado se anula con motivo; no se borra."]),
+    "clientes:detalle": ([
+        "Arriba ves cuánto debe y qué está vencido (en rojo).",
+        "Registrar pago: escribe cuánto paga y cómo; se aplica a lo más antiguo primero.",
+        "Recordar deuda: abre WhatsApp con el mensaje listo y las fechas.",
+        "Imprime el estado de cuenta si lo pide."], [
+        "El saldo a favor se usa al cobrar con el método «Saldo a favor»; no se descuenta solo.",
+        "Con algo vencido, el sistema no deja fiarle más (salvo a quien tiene permiso)."]),
+    "ventas:ticket": ([
+        "Imprimir o enviar por WhatsApp el ticket.",
+        "Devolver productos si trae algo de vuelta (cambio, producto fallado).",
+        "Anular solo si la venta entera estuvo mal (con motivo)."], [
+        "Si ya tiene devoluciones, no se puede anular entera: devuelve lo que falta.",
+        "Anular una venta con boleta o factura genera su nota de crédito."]),
+    "ventas:devolver": ([
+        "Marca cuántas unidades de cada producto devuelve.",
+        "Si llegó dañado, márcalo como merma (no vuelve al stock).",
+        "Elige cómo le devuelves el dinero: de la caja, fuera de caja, saldo a favor o descontando su deuda.",
+        "Escribe el motivo y confirma."], [
+        "Devolver de la caja necesita la caja abierta con efectivo suficiente.",
+        "Con boleta o factura, el sistema hace la nota de crédito por lo devuelto."]),
+    "ventas:por_hacer": ([
+        "Haz la boleta o factura en tu sistema de siempre (SUNAT o tu facturador) con los datos que se ven.",
+        "Escribe aquí su número (por ejemplo B001-123) y toca «Ya la hice».",
+        "En «Ya hechas», toca Enviar: abre el WhatsApp del cliente.",
+        "Adjunta el PDF en el chat y envía."], [
+        "Hazlas el mismo día de la venta, con la misma fecha.",
+        "Si anotaste mal el número, Deshacer la regresa a «por hacer»."]),
+    "cobranzas:cuenta": ([
+        "Marca las cuotas que paga (las vencidas primero).",
+        "Elige cómo paga y confirma.",
+        "Imprime o envía el recibo por WhatsApp."], [
+        "Dar de baja deja de generar cuotas nuevas, pero lo vencido se sigue debiendo.",
+        "Una beca o cortesía se exonera con motivo; no se cobra en S/ 0."]),
+}
+
+
 def de(request):
     """La ayuda de la pantalla actual (o None)."""
     m = getattr(request, "resolver_match", None)
@@ -227,4 +350,7 @@ def de(request):
     if not datos:
         return None
     titulo, para_que, puntos, seccion = datos
-    return {"titulo": titulo, "para_que": para_que, "puntos": puntos, "seccion": seccion}
+    pasos, ojo = GUIA.get(clave, ([], []))
+    # ancla de la sección en el manual dentro del sistema (la misma que pone `manage.py generar_manual`)
+    ancla = "s-" + str(seccion).strip(".").replace(".", "-")
+    return {"titulo": titulo, "para_que": para_que, "puntos": puntos, "seccion": seccion, "pasos": pasos, "ojo": ojo, "ancla": ancla}

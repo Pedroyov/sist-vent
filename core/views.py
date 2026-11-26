@@ -127,3 +127,24 @@ def archivo(request, ruta):
     resp["Cache-Control"] = "public, max-age=86400" if publico else "private, max-age=3600"
     resp["X-Content-Type-Options"] = "nosniff"
     return resp
+
+
+@login_required
+def manual(request):
+    """El Manual de usuario dentro del sistema: índice, buscador y PDF. Lo genera `manage.py generar_manual`
+    (del mismo .md que el Word); el «?» de cada pantalla enlaza aquí con #s-6-3 para abrir su sección."""
+    import json
+    import re
+    from pathlib import Path
+
+    from django.contrib.staticfiles import finders
+    from django.utils.safestring import mark_safe
+
+    carpeta = Path(settings.BASE_DIR) / "core" / "manual"
+    try:
+        contenido = (carpeta / "manual.html").read_text(encoding="utf-8")
+        datos = json.loads((carpeta / "indice.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        contenido, datos = "", {"fecha": "", "indice": []}
+    return render(request, "core/manual.html", {"contenido": mark_safe(contenido), "indice": datos.get("indice", []),  # noqa: S308 (lo genera el sistema)
+                                                "fecha": re.sub(r"\s*\(.*\)\s*$", "", datos.get("fecha", "")), "hay_pdf": bool(finders.find("manual/manual.pdf"))})

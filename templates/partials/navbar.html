@@ -39,6 +39,7 @@
             {% if MIS_ROLES %}<div>{{ MIS_ROLES|join:", " }}</div>{% endif %}
           </li>
           <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{% url 'core:manual' %}"><i class="bi bi-book me-2"></i>Manual de usuario</a></li>
           <li><a class="dropdown-item" href="{% url 'password_change' %}"><i class="bi bi-key me-2"></i>Cambiar contraseña</a></li>
           <li><a class="dropdown-item" href="{% url 'seguridad' %}"><i class="bi bi-shield-lock me-2"></i>Código del celular</a></li>
           <li>

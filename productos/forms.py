@@ -23,7 +23,8 @@ def _codigo_libre(codigo, excluir_variante=None):
 
 class ProductoForm(forms.ModelForm):
     codigo = forms.CharField(label="Código / código de barras", max_length=50, required=False,
-                             help_text="Puedes escanearlo con la lectora. Opcional, no se repite.")
+                             widget=forms.TextInput(attrs={"data-escaner": "1", "autocomplete": "off"}),
+                             help_text="Escanéalo con la lectora o con la cámara. Opcional, no se repite.")
     stock_inicial = forms.DecimalField(label="Stock inicial", required=False, min_value=CERO, decimal_places=3,
                                        widget=forms.NumberInput(attrs=CANTIDAD), help_text="Cuánto tienes ahora.")
 
@@ -101,7 +102,8 @@ class VarianteForm(forms.ModelForm):
     class Meta:
         model = Variante
         fields = ["nombre", "codigo", "precio", "costo", "activa"]
-        widgets = {"precio": forms.NumberInput(attrs=DINERO), "costo": forms.NumberInput(attrs=DINERO)}
+        widgets = {"precio": forms.NumberInput(attrs=DINERO), "costo": forms.NumberInput(attrs=DINERO),
+                   "codigo": forms.TextInput(attrs={"data-escaner": "1", "autocomplete": "off"})}
 
     def __init__(self, *args, ver_costos=True, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,0 +1,660 @@
+{
+"fecha": "Actualizado: 25 de noviembre de 2026 (cámara, compras sin proveedor, menú por tipos, ayuda paso a paso)",
+"indice": [
+{
+"id": "s-1",
+"nivel": 1,
+"texto": "1. Qué es y cómo está organizado"
+},
+{
+"id": "s-1-1",
+"nivel": 2,
+"texto": "1.1 Cómo leer este manual"
+},
+{
+"id": "s-1-2",
+"nivel": 2,
+"texto": "1.2 El menú"
+},
+{
+"id": "s-1-3",
+"nivel": 2,
+"texto": "1.3 Roles que vienen con el sistema"
+},
+{
+"id": "s-1-4",
+"nivel": 2,
+"texto": "1.4 Guía rápida según tu trabajo"
+},
+{
+"id": "s-1-5",
+"nivel": 2,
+"texto": "1.5 Practicar con la demo"
+},
+{
+"id": "s-2",
+"nivel": 1,
+"texto": "2. Entrar al sistema"
+},
+{
+"id": "s-2-1",
+"nivel": 2,
+"texto": "2.1 Qué se necesita"
+},
+{
+"id": "s-2-2",
+"nivel": 2,
+"texto": "2.2 Entrar y salir"
+},
+{
+"id": "s-2-3",
+"nivel": 2,
+"texto": "2.3 La pantalla de Inicio"
+},
+{
+"id": "s-2-4",
+"nivel": 2,
+"texto": "2.4 Código del celular (segundo paso al entrar)"
+},
+{
+"id": "s-3",
+"nivel": 1,
+"texto": "3. Configuración inicial"
+},
+{
+"id": "s-3-1",
+"nivel": 2,
+"texto": "3.1 Datos del negocio"
+},
+{
+"id": "s-3-2",
+"nivel": 2,
+"texto": "3.2 Cómo se toman los pedidos"
+},
+{
+"id": "s-3-3",
+"nivel": 2,
+"texto": "3.3 Ticketera"
+},
+{
+"id": "s-3-4",
+"nivel": 2,
+"texto": "3.4 Módulos (solo el administrador principal)"
+},
+{
+"id": "s-3-5",
+"nivel": 2,
+"texto": "3.5 Tipo de negocio, funciones y palabras"
+},
+{
+"id": "s-3-6",
+"nivel": 2,
+"texto": "3.6 Usuarios"
+},
+{
+"id": "s-3-7",
+"nivel": 2,
+"texto": "3.7 Roles y permisos"
+},
+{
+"id": "s-3-8",
+"nivel": 2,
+"texto": "3.8 Zonas y mesas (restaurantes)"
+},
+{
+"id": "s-3-9",
+"nivel": 2,
+"texto": "3.9 Personal"
+},
+{
+"id": "s-4",
+"nivel": 1,
+"texto": "4. Productos"
+},
+{
+"id": "s-4-1",
+"nivel": 2,
+"texto": "4.1 Categorías"
+},
+{
+"id": "s-4-2",
+"nivel": 2,
+"texto": "4.2 Crear un producto"
+},
+{
+"id": "s-4-3",
+"nivel": 2,
+"texto": "4.3 Variantes (tallas, colores, tamaños)"
+},
+{
+"id": "s-4-4",
+"nivel": 2,
+"texto": "4.4 Stock"
+},
+{
+"id": "s-4-5",
+"nivel": 2,
+"texto": "4.5 Opciones al pedir (niveles Con opciones y Detallado)"
+},
+{
+"id": "s-4-6",
+"nivel": 2,
+"texto": "4.6 Qué lleva cada plato (nivel Detallado)"
+},
+{
+"id": "s-4-7",
+"nivel": 2,
+"texto": "4.7 Importar desde Excel"
+},
+{
+"id": "s-4-8",
+"nivel": 2,
+"texto": "4.8 Desactivar o borrar"
+},
+{
+"id": "s-4-9",
+"nivel": 2,
+"texto": "4.9 Dónde se prepara: cocina, barra o mozo (restaurantes)"
+},
+{
+"id": "s-4-10",
+"nivel": 2,
+"texto": "4.10 Combos y packs"
+},
+{
+"id": "s-4-11",
+"nivel": 2,
+"texto": "4.11 Listas de precios (por cantidad y por tipo de cliente)"
+},
+{
+"id": "s-4-12",
+"nivel": 2,
+"texto": "4.12 Promociones"
+},
+{
+"id": "s-5",
+"nivel": 1,
+"texto": "5. Hoy: menú del día y agotados"
+},
+{
+"id": "s-5-1",
+"nivel": 2,
+"texto": "5.1 Menú del día"
+},
+{
+"id": "s-5-2",
+"nivel": 2,
+"texto": "5.2 Agotados y porciones de hoy"
+},
+{
+"id": "s-6",
+"nivel": 1,
+"texto": "6. Caja"
+},
+{
+"id": "s-6-1",
+"nivel": 2,
+"texto": "6.1 Abrir caja"
+},
+{
+"id": "s-6-2",
+"nivel": 2,
+"texto": "6.2 Durante el turno"
+},
+{
+"id": "s-6-3",
+"nivel": 2,
+"texto": "6.3 Cerrar caja"
+},
+{
+"id": "s-6-4",
+"nivel": 2,
+"texto": "6.4 Historial"
+},
+{
+"id": "s-6-5",
+"nivel": 2,
+"texto": "6.5 Varias cajas y sus series"
+},
+{
+"id": "s-6-6",
+"nivel": 2,
+"texto": "6.6 Si algo no está bien en una caja cerrada"
+},
+{
+"id": "s-6-7",
+"nivel": 2,
+"texto": "6.7 Gastos"
+},
+{
+"id": "s-6-8",
+"nivel": 2,
+"texto": "6.8 Pagos al personal"
+},
+{
+"id": "s-6-9",
+"nivel": 2,
+"texto": "6.9 Conciliar Yape, Plin, tarjeta y transferencias con el banco"
+},
+{
+"id": "s-7",
+"nivel": 1,
+"texto": "7. Vender en mostrador"
+},
+{
+"id": "s-7-1",
+"nivel": 2,
+"texto": "7.1 Armar la venta"
+},
+{
+"id": "s-7-2",
+"nivel": 2,
+"texto": "7.2 Cobrar"
+},
+{
+"id": "s-7-3",
+"nivel": 2,
+"texto": "7.3 Después de cobrar"
+},
+{
+"id": "s-7-4",
+"nivel": 2,
+"texto": "7.4 Enviar por delivery"
+},
+{
+"id": "s-7-5",
+"nivel": 2,
+"texto": "7.5 Ver, devolver y anular ventas"
+},
+{
+"id": "s-8",
+"nivel": 1,
+"texto": "8. Mesas: lo que hace el mozo"
+},
+{
+"id": "s-8-1",
+"nivel": 2,
+"texto": "8.1 Colores de las mesas"
+},
+{
+"id": "s-8-2",
+"nivel": 2,
+"texto": "8.2 Tomar un pedido"
+},
+{
+"id": "s-8-3",
+"nivel": 2,
+"texto": "8.3 Cuando la comida está lista"
+},
+{
+"id": "s-8-4",
+"nivel": 2,
+"texto": "8.4 Cambios en el pedido"
+},
+{
+"id": "s-8-5",
+"nivel": 2,
+"texto": "8.5 Precuenta"
+},
+{
+"id": "s-8-6",
+"nivel": 2,
+"texto": "8.6 Para llevar"
+},
+{
+"id": "s-8-7",
+"nivel": 2,
+"texto": "8.7 Mesas juntas (familias y grupos)"
+},
+{
+"id": "s-8-8",
+"nivel": 2,
+"texto": "8.8 Aviso cuando algo está listo"
+},
+{
+"id": "s-9",
+"nivel": 1,
+"texto": "9. Cobrar mesas (cajero)"
+},
+{
+"id": "s-9-1",
+"nivel": 2,
+"texto": "9.1 Formas de dividir la cuenta"
+},
+{
+"id": "s-9-2",
+"nivel": 2,
+"texto": "9.2 Descuentos y cortesías"
+},
+{
+"id": "s-9-3",
+"nivel": 2,
+"texto": "9.3 Pagar antes o al final"
+},
+{
+"id": "s-9-4",
+"nivel": 2,
+"texto": "9.4 Después de cobrar"
+},
+{
+"id": "s-10",
+"nivel": 1,
+"texto": "10. Cocina y barra"
+},
+{
+"id": "s-11",
+"nivel": 1,
+"texto": "11. Delivery"
+},
+{
+"id": "s-11-1",
+"nivel": 2,
+"texto": "11.1 Tomar el pedido (por teléfono o WhatsApp)"
+},
+{
+"id": "s-11-2",
+"nivel": 2,
+"texto": "11.2 Estados del pedido"
+},
+{
+"id": "s-11-3",
+"nivel": 2,
+"texto": "11.3 Hoja del repartidor"
+},
+{
+"id": "s-11-4",
+"nivel": 2,
+"texto": "11.4 Cobro"
+},
+{
+"id": "s-11-5",
+"nivel": 2,
+"texto": "11.5 Desde Vender"
+},
+{
+"id": "s-12",
+"nivel": 1,
+"texto": "12. Clientes y fiado"
+},
+{
+"id": "s-12-1",
+"nivel": 2,
+"texto": "12.1 Registrar clientes"
+},
+{
+"id": "s-12-2",
+"nivel": 2,
+"texto": "12.2 Fiar (vender al crédito)"
+},
+{
+"id": "s-12-3",
+"nivel": 2,
+"texto": "12.3 La ficha del cliente"
+},
+{
+"id": "s-12-4",
+"nivel": 2,
+"texto": "12.4 Cuenta corriente (facturas al crédito)"
+},
+{
+"id": "s-12-5",
+"nivel": 2,
+"texto": "12.5 Deuda incobrable"
+},
+{
+"id": "s-12-6",
+"nivel": 2,
+"texto": "12.6 Monedero"
+},
+{
+"id": "s-13",
+"nivel": 1,
+"texto": "13. Boletas y facturas electrónicas"
+},
+{
+"id": "s-13-1",
+"nivel": 2,
+"texto": "13.1 Al cobrar"
+},
+{
+"id": "s-13-2",
+"nivel": 2,
+"texto": "13.2 Qué sale impreso"
+},
+{
+"id": "s-13-3",
+"nivel": 2,
+"texto": "13.3 Comprobantes"
+},
+{
+"id": "s-13-4",
+"nivel": 2,
+"texto": "13.4 Si SUNAT o Nubefact no responden"
+},
+{
+"id": "s-13-5",
+"nivel": 2,
+"texto": "13.5 Emitir después"
+},
+{
+"id": "s-13-6",
+"nivel": 2,
+"texto": "13.6 Anular"
+},
+{
+"id": "s-13-7",
+"nivel": 2,
+"texto": "13.7 Configuración"
+},
+{
+"id": "s-13-8",
+"nivel": 2,
+"texto": "13.8 Excel para el contador"
+},
+{
+"id": "s-13-9",
+"nivel": 2,
+"texto": "13.9 Sin facturación electrónica: boleta o factura hecha aparte"
+},
+{
+"id": "s-14",
+"nivel": 1,
+"texto": "14. Reportes"
+},
+{
+"id": "s-14-1",
+"nivel": 2,
+"texto": "14.1 Personal: quién atiende más y comisiones"
+},
+{
+"id": "s-14-2",
+"nivel": 2,
+"texto": "14.2 Dinero del día"
+},
+{
+"id": "s-15",
+"nivel": 1,
+"texto": "15. Cobranzas: mensualidades y cuotas"
+},
+{
+"id": "s-15-1",
+"nivel": 2,
+"texto": "15.1 La pantalla de Cobranzas"
+},
+{
+"id": "s-15-2",
+"nivel": 2,
+"texto": "15.2 Planes"
+},
+{
+"id": "s-15-3",
+"nivel": 2,
+"texto": "15.3 Inscribir"
+},
+{
+"id": "s-15-4",
+"nivel": 2,
+"texto": "15.4 Cobrar"
+},
+{
+"id": "s-15-5",
+"nivel": 2,
+"texto": "15.5 En la cuenta de cada persona"
+},
+{
+"id": "s-15-6",
+"nivel": 2,
+"texto": "15.6 Inscritos"
+},
+{
+"id": "s-15-7",
+"nivel": 2,
+"texto": "15.7 Morosos y recordatorios"
+},
+{
+"id": "s-15-8",
+"nivel": 2,
+"texto": "15.8 Avisos y mora"
+},
+{
+"id": "s-15-9",
+"nivel": 2,
+"texto": "15.9 Reporte"
+},
+{
+"id": "s-16",
+"nivel": 1,
+"texto": "16. Reservas"
+},
+{
+"id": "s-16-1",
+"nivel": 2,
+"texto": "16.1 La agenda"
+},
+{
+"id": "s-16-2",
+"nivel": 2,
+"texto": "16.2 Tomar una reserva"
+},
+{
+"id": "s-16-3",
+"nivel": 2,
+"texto": "16.3 Confirmar y recordar por WhatsApp"
+},
+{
+"id": "s-16-4",
+"nivel": 2,
+"texto": "16.4 La mesa reservada en el mapa"
+},
+{
+"id": "s-16-5",
+"nivel": 2,
+"texto": "16.5 Cuando llegan"
+},
+{
+"id": "s-16-6",
+"nivel": 2,
+"texto": "16.6 Cambiar, cancelar o “No vino”"
+},
+{
+"id": "s-16-7",
+"nivel": 2,
+"texto": "16.7 Configuración"
+},
+{
+"id": "s-17",
+"nivel": 1,
+"texto": "17. Citas: peluquería, spa y consultorio"
+},
+{
+"id": "s-17-1",
+"nivel": 2,
+"texto": "17.1 Primero: el personal y sus horarios"
+},
+{
+"id": "s-17-2",
+"nivel": 2,
+"texto": "17.2 La agenda del día"
+},
+{
+"id": "s-17-3",
+"nivel": 2,
+"texto": "17.3 Agendar una cita"
+},
+{
+"id": "s-17-4",
+"nivel": 2,
+"texto": "17.4 La cita: confirmar, atender y cobrar"
+},
+{
+"id": "s-17-5",
+"nivel": 2,
+"texto": "17.5 Cliente sin cita: el trabajador avisa y caja cobra"
+},
+{
+"id": "s-17-6",
+"nivel": 2,
+"texto": "17.6 Quién puede hacer qué"
+},
+{
+"id": "s-17-7",
+"nivel": 2,
+"texto": "17.7 Mi agenda (para quien atiende)"
+},
+{
+"id": "s-17-8",
+"nivel": 2,
+"texto": "17.8 Quién atiende más y comisiones"
+},
+{
+"id": "s-18",
+"nivel": 1,
+"texto": "18. Compras y proveedores"
+},
+{
+"id": "s-18-1",
+"nivel": 2,
+"texto": "18.1 Proveedores"
+},
+{
+"id": "s-18-2",
+"nivel": 2,
+"texto": "18.2 Registrar una compra"
+},
+{
+"id": "s-18-3",
+"nivel": 2,
+"texto": "18.3 Por pagar"
+},
+{
+"id": "s-18-4",
+"nivel": 2,
+"texto": "18.4 Reponer"
+},
+{
+"id": "s-19",
+"nivel": 1,
+"texto": "19. Copias de seguridad y problemas frecuentes"
+},
+{
+"id": "s-19-1",
+"nivel": 2,
+"texto": "19.1 Copias de seguridad"
+},
+{
+"id": "s-19-2",
+"nivel": 2,
+"texto": "19.2 Cuidar las cuentas"
+},
+{
+"id": "s-19-3",
+"nivel": 2,
+"texto": "19.3 Bitácora"
+},
+{
+"id": "s-19-4",
+"nivel": 2,
+"texto": "19.4 Problemas frecuentes"
+}
+]
+}

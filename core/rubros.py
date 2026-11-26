@@ -10,6 +10,8 @@ FUNCIONES = [
     ("variantes", "Variantes", "Tallas, colores o tamaños (S/M/L, personal/mediana/familiar, 500 ml/1 L) con su propio precio, código y stock."),
     ("combos", "Combos y packs", "Un producto que agrupa a otros (menú + bebida, pack escolar) y descuenta el stock de cada uno."),
     ("servicios", "Servicios", "Lo que se cobra sin stock (corte, clase, reparación, instalación), con su duración."),
+    ("menu", "Menú del día", "Menús a precio fijo (económico, ejecutivo, dietético) donde el cliente elige entrada, segundo y, si "
+             "se incluye, bebida o postre. Se arman cada mañana. Necesita el nivel de pedido «Con opciones»."),
     ("agotados", "Agotados del día", "Marcar platos u opciones como agotados solo por hoy, sin tocar el stock."),
     ("atendio", "Quién atendió la venta", "En Vender se elige qué persona del personal atendió al cliente (vendedores a comisión, "
                 "servicios cobrados directo). Sale en el reporte de Personal."),
@@ -35,7 +37,7 @@ PERFILES = {
                      "funciones": {"variantes", "combos"}, "nivel_pedido": 1},
     Rubro.RESTAURANTE: {"encendido": {"mesas", "caja", "reportes"},
                         "opcional": {"mostrador", "cocina", "delivery", "clientes", "facturacion", "reservas", "compras"},
-                        "funciones": {"variantes", "combos", "agotados"}, "nivel_pedido": 2},
+                        "funciones": {"variantes", "combos", "agotados", "menu"}, "nivel_pedido": 2},
     Rubro.PELUQUERIA: {"encendido": {"mostrador", "caja", "clientes", "reportes"}, "opcional": {"facturacion", "cobranzas", "citas", "compras"},
                        "funciones": {"servicios", "variantes"}, "nivel_pedido": 1},
     Rubro.ACADEMIA: {"encendido": {"cobranzas", "clientes", "caja", "reportes"}, "opcional": {"mostrador", "facturacion", "compras"},
@@ -87,6 +89,10 @@ def en_uso(funcion):
         from clientes.models import MovimientoSaldo
 
         return MovimientoSaldo.objects.filter(tipo="MON").exists()
+    if funcion == "menu":
+        from productos.models import GrupoOpciones
+
+        return GrupoOpciones.objects.filter(diario=True, productos__activo=True).exists()
     if funcion == "agotados":
         return False  # se reinicia cada día: apagarla no pierde nada
     return False

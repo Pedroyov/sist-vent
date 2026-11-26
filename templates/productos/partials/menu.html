@@ -1,67 +1,111 @@
 {% load sis %}
-{% if not grupos %}
+{% if not hay_menu %}
 <div class="card card-outline card-primary"><div class="card-body text-center py-5">
   <i class="bi bi-journal-text display-5 text-primary"></i>
   <h4 class="mt-3">Arma el menú de cada día</h4>
-  <p class="text-body-secondary mx-auto" style="max-width: 34rem">El menú es un producto con precio fijo (por ejemplo «Menú ejecutivo S/ 15») y el cliente elige su <strong>entrada</strong> y su <strong>segundo</strong>.
-    Cada mañana marcas aquí qué hay hoy; los platos de otros días quedan guardados para ponerlos con un toque.</p>
-  <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu">{% csrf_token %}<input type="hidden" name="accion" value="crear">
-    <button class="btn btn-primary btn-lg"><i class="bi bi-plus-lg me-1"></i>Empezar</button></form>
-  <p class="small text-body-secondary mt-3 mb-0">Se crean los grupos «Entrada» y «Segundo» y se ponen en los productos de la categoría «Menú del día».
-    Puedes agregar otros (por ejemplo «Postre») en <a href="{% url 'productos:opciones' %}">Productos → Opciones</a> marcando «Cambia cada día».</p>
+  <p class="text-body-secondary mx-auto" style="max-width: 34rem">El menú tiene un precio fijo y el cliente elige su <strong>entrada</strong> y su <strong>segundo</strong> (y su bebida, si la incluye).
+    Cada mañana marcas aquí qué hay hoy; los platos de otros días quedan guardados para ponerlos con un toque.
+    Después puedes agregar más tipos (económico, ejecutivo, dietético), cada uno con sus platos.</p>
+  <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="mx-auto text-start" style="max-width: 24rem">{% csrf_token %}
+    <input type="hidden" name="accion" value="crear">
+    <div class="row g-2">
+      <div class="col-8"><input type="text" name="nombre" class="form-control" value="Menú económico" maxlength="80" required aria-label="Nombre del menú"></div>
+      <div class="col-4"><input type="number" name="precio" class="form-control" min="0.10" step="0.50" inputmode="decimal" placeholder="S/" required aria-label="Precio"></div>
+      <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="bebida" value="1" id="m-beb0"><label class="form-check-label" for="m-beb0">Incluye bebida (refresco del día)</label></div></div>
+      <div class="col-12"><button class="btn btn-primary btn-lg w-100"><i class="bi bi-plus-lg me-1"></i>Empezar</button></div>
+    </div>
+  </form>
 </div></div>
 {% else %}
 
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-  <div class="small text-body-secondary flex-grow-1">
-    {% if productos_menu %}Se elige en: {% for p in productos_menu %}<strong>{{ p.nombre }}</strong> ({{ p.precio|soles }}){% if not forloop.last %}, {% endif %}{% endfor %}.
-    {% else %}<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Ningún producto usa estos grupos todavía.</span>
-      {% if P.productos_editar %}<a href="{% url 'productos:grupo_editar' grupos.0.pk %}">Elige en qué productos</a>{% endif %}{% endif %}
-  </div>
-  <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" hx-confirm="¿Vaciar el menú para armar el de hoy? Los platos quedan guardados abajo.">{% csrf_token %}
+  <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="collapse" data-bs-target="#nuevo-tipo"><i class="bi bi-plus-lg me-1"></i>Tipo de menú</button>
+  <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" hx-confirm="¿Vaciar el menú de todos los tipos para armar el de hoy? Los platos quedan guardados.">{% csrf_token %}
     <input type="hidden" name="accion" value="limpiar"><button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Empezar de cero</button></form>
-  <button type="button" class="btn btn-sm btn-success" id="copiar-menu"><i class="bi bi-whatsapp me-1"></i>Copiar para WhatsApp</button>
+  {% if texto %}<button type="button" class="btn btn-sm btn-success ms-auto" id="copiar-menu"><i class="bi bi-whatsapp me-1"></i>Copiar para WhatsApp</button>{% endif %}
 </div>
 <textarea id="texto-menu" class="form-control d-none mb-3" rows="8" readonly>{{ texto }}</textarea>
 
-<div class="row g-3">
-  {% for g in grupos %}
-  <div class="col-lg-6">
-    <div class="card h-100 mb-0">
-      <div class="card-header d-flex align-items-center"><h3 class="card-title mb-0">{{ g.nombre }} <span class="badge text-bg-primary">{{ g.hoy|length }}</span></h3>
-        {% if not g.activo %}<span class="badge text-bg-secondary ms-2">grupo desactivado</span>{% endif %}</div>
-      <ul class="list-group list-group-flush">
-        {% for o in g.hoy %}
-        <li class="list-group-item d-flex align-items-center gap-2 {% if o.agotada %}list-group-item-danger{% endif %}">
-          <span class="flex-grow-1 {% if o.agotada %}text-decoration-line-through{% endif %}">{{ o.nombre }}{% if o.precio %} <span class="small text-body-secondary">+{{ o.precio|soles }}</span>{% endif %}</span>
-          <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="opcion" value="{{ o.pk }}">
-            <button name="accion" value="agotar" class="btn btn-sm {% if o.agotada %}btn-danger{% else %}btn-outline-danger{% endif %}" title="{% if o.agotada %}Hay de nuevo{% else %}Se acabó{% endif %}">{% if o.agotada %}Agotado{% else %}<i class="bi bi-slash-circle"></i>{% endif %}</button>
-            <button name="accion" value="sacar" class="btn btn-sm btn-outline-secondary" title="Sacar del menú de hoy" aria-label="Sacar"><i class="bi bi-x-lg"></i></button>
-          </form>
-        </li>
-        {% empty %}<li class="list-group-item text-body-secondary small">Nada todavía: toca los platos de abajo o escribe uno nuevo.</li>
-        {% endfor %}
-      </ul>
-      <div class="card-body">
-        <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="d-flex gap-1 mb-2">{% csrf_token %}
-          <input type="hidden" name="accion" value="agregar"><input type="hidden" name="grupo" value="{{ g.pk }}">
-          <input type="text" name="nombre" class="form-control" placeholder="{% if forloop.first %}Ej.: Sopa de casa{% else %}Ej.: Arroz con pollo{% endif %}" maxlength="60" required>
-          <input type="number" name="precio" class="form-control" style="max-width: 6.5rem" min="0" step="0.50" inputmode="decimal" placeholder="+ S/" title="Si este plato cuesta más (opcional)">
-          <button class="btn btn-primary" aria-label="Agregar"><i class="bi bi-plus-lg"></i></button>
-        </form>
-        {% if g.otros %}
-        <div class="small text-body-secondary mb-1">Platos de otros días (toca para ponerlo hoy):</div>
-        <div class="d-flex flex-wrap gap-1">
-          {% for o in g.otros %}
-          <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu">{% csrf_token %}<input type="hidden" name="accion" value="poner"><input type="hidden" name="opcion" value="{{ o.pk }}">
-            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-plus"></i> {{ o.nombre }}</button></form>
-          {% endfor %}
-        </div>
-        {% endif %}
+<div class="collapse mb-3" id="nuevo-tipo">
+  <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="card card-body">{% csrf_token %}
+    <input type="hidden" name="accion" value="nuevo_tipo">
+    <div class="row g-2">
+      <div class="col-8"><label class="form-label small mb-1">Nombre</label><input type="text" name="nombre" class="form-control" maxlength="80" required placeholder="Ej.: Menú ejecutivo"></div>
+      <div class="col-4"><label class="form-label small mb-1">Precio</label><input type="number" name="precio" class="form-control" min="0.10" step="0.50" inputmode="decimal" placeholder="S/" required></div>
+      {% if tipos %}
+      <div class="col-6"><label class="form-label small mb-1">Entradas</label><select name="entradas" class="form-select">
+        <option value="">Propias (otras)</option>{% for t in tipos %}<option value="{{ t.pk }}">Las mismas que {{ t.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-6"><label class="form-label small mb-1">Segundos</label><select name="segundos" class="form-select">
+        <option value="">Propios (otros)</option>{% for t in tipos %}<option value="{{ t.pk }}">Los mismos que {{ t.nombre }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="col-12 d-flex flex-wrap gap-3">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="bebida" value="1" id="nt-beb"><label class="form-check-label" for="nt-beb">Incluye bebida</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="postre" value="1" id="nt-pos"><label class="form-check-label" for="nt-pos">Incluye postre</label></div>
       </div>
+      <div class="col-12"><button class="btn btn-primary w-100">Crear tipo de menú</button></div>
+    </div>
+  </form>
+</div>
+
+{% for t in tipos %}
+<div class="card mb-3">
+  <div class="card-header d-flex flex-wrap align-items-center gap-2">
+    <h3 class="card-title mb-0 fw-semibold">{{ t.nombre }} <span class="text-body-secondary fw-normal">· {{ t.precio|soles }}</span></h3>
+    <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" hx-trigger="change" class="d-flex gap-3 ms-auto small">{% csrf_token %}
+      <input type="hidden" name="accion" value="extras"><input type="hidden" name="tipo" value="{{ t.pk }}">
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" name="bebida" value="1" id="beb-{{ t.pk }}" {% if t.extras.bebida %}checked{% endif %}><label class="form-check-label" for="beb-{{ t.pk }}">Bebida</label></div>
+      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" name="postre" value="1" id="pos-{{ t.pk }}" {% if t.extras.postre %}checked{% endif %}><label class="form-check-label" for="pos-{{ t.pk }}">Postre</label></div>
+    </form>
+    {% if P.productos_editar %}<a href="{% url 'productos:editar' t.pk %}" class="btn btn-sm btn-link px-1" title="Cambiar nombre o precio"><i class="bi bi-pencil"></i></a>{% endif %}
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for g in t.diarios %}
+      <div class="col-md-6 col-xl-4">
+        <div class="border rounded h-100">
+          <div class="px-2 py-1 border-bottom d-flex align-items-center gap-1 bg-body-tertiary">
+            <span class="fw-semibold">{{ g.corto }}</span> <span class="badge text-bg-primary">{{ g.hoy|length }}</span>
+            {% if not g.activo %}<span class="badge text-bg-secondary">desactivado</span>{% endif %}
+            {% if g.con %}<span class="small text-body-secondary ms-auto text-truncate" title="Lo que cambies aquí cambia también en: {{ g.con|join:', ' }}"><i class="bi bi-link-45deg"></i> también {{ g.con|join:", " }}</span>{% endif %}
+          </div>
+          <ul class="list-group list-group-flush">
+            {% for o in g.hoy %}
+            <li class="list-group-item d-flex align-items-center gap-2 py-1 {% if o.agotada %}list-group-item-danger{% endif %}">
+              <span class="flex-grow-1 {% if o.agotada %}text-decoration-line-through{% endif %}">{{ o.nombre }}{% if o.precio %} <span class="small text-body-secondary">+{{ o.precio|soles }}</span>{% endif %}</span>
+              <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="opcion" value="{{ o.pk }}">
+                <button name="accion" value="agotar" class="btn btn-sm {% if o.agotada %}btn-danger{% else %}btn-outline-danger{% endif %}" title="{% if o.agotada %}Hay de nuevo{% else %}Se acabó{% endif %}" aria-label="Agotado"><i class="bi bi-slash-circle"></i></button>
+                <button name="accion" value="sacar" class="btn btn-sm btn-outline-secondary" title="Sacar del menú de hoy" aria-label="Sacar"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </li>
+            {% empty %}<li class="list-group-item text-body-secondary small py-1">Nada hoy todavía.</li>
+            {% endfor %}
+          </ul>
+          <div class="p-2">
+            <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu" class="d-flex gap-1 mb-2">{% csrf_token %}
+              <input type="hidden" name="accion" value="agregar"><input type="hidden" name="grupo" value="{{ g.pk }}">
+              <input type="text" name="nombre" class="form-control form-control-sm" placeholder="{% if g.corto == 'Entrada' %}Ej.: Sopa de casa{% elif g.corto == 'Bebida' %}Ej.: Chicha morada{% elif g.corto == 'Postre' %}Ej.: Gelatina{% else %}Ej.: Arroz con pollo{% endif %}" maxlength="60" required>
+              {% if not g.es_extra %}<input type="number" name="precio" class="form-control form-control-sm" style="max-width: 5.5rem" min="0" step="0.50" inputmode="decimal" placeholder="+ S/" title="Si este plato cuesta más (opcional)">{% endif %}
+              <button class="btn btn-sm btn-primary" aria-label="Agregar"><i class="bi bi-plus-lg"></i></button>
+            </form>
+            {% if g.otros %}
+            <div class="d-flex flex-wrap gap-1">
+              {% for o in g.otros %}
+              <form method="post" hx-post="{% url 'productos:menu' %}" hx-target="#menu">{% csrf_token %}<input type="hidden" name="accion" value="poner"><input type="hidden" name="opcion" value="{{ o.pk }}">
+                <button class="btn btn-sm btn-outline-secondary py-0"><i class="bi bi-plus"></i> {{ o.nombre }}</button></form>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
     </div>
   </div>
-  {% endfor %}
 </div>
-<p class="small text-body-secondary mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>Lo que marques aquí se ve al instante en las mesas y en el punto de venta. «Agotado» vuelve solo al día siguiente; el menú se mantiene hasta que lo cambies.</p>
+{% empty %}
+<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Ningún menú usa los platos del día todavía. Crea un <strong>tipo de menú</strong> con el botón de arriba.</div>
+{% endfor %}
+{% if sueltos %}<p class="small text-body-secondary">Grupos del día que ningún menú usa: {% for g in sueltos %}{{ g.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+  {% if P.productos_editar %}Ponlos en un menú desde <a href="{% url 'productos:opciones' %}">Opciones al pedir</a>.{% endif %}</p>{% endif %}
+<p class="small text-body-secondary mt-2 mb-0"><i class="bi bi-info-circle me-1"></i>Lo que marques aquí se ve al instante en las mesas y en el punto de venta. «Agotado» vuelve solo al día siguiente; el menú se mantiene hasta que lo cambies.</p>
 {% endif %}

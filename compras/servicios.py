@@ -79,6 +79,15 @@ def _lineas(items):
     return lineas
 
 
+PROVEEDOR_VARIOS = "Proveedor varios"
+
+
+def proveedor_varios():
+    """El proveedor genérico de las compras sin proveedor registrado (mercado, ambulante). Se crea la primera vez."""
+    p = Proveedor.objects.filter(nombre=PROVEEDOR_VARIOS, ruc="").order_by("id").first()
+    return p or Proveedor.objects.create(nombre=PROVEEDOR_VARIOS, nota="Compras sin proveedor registrado (mercado, ambulantes).")
+
+
 def registrar_compra(usuario, proveedor, items, documento=Compra.Documento.FACTURA, serie="", numero="", fecha=None,
                      credito=False, vence=None, pago=None, nota="", token=None):
     """Registra la compra en una sola transacción: cabecera, líneas, ingreso al kardex (costo promedio) y, si se paga al
@@ -93,8 +102,10 @@ def registrar_compra(usuario, proveedor, items, documento=Compra.Documento.FACTU
         previa = Compra.objects.filter(token=token).first()
         if previa:
             return previa
-    if proveedor is None:
-        raise CompraError("Elige el proveedor.")
+    if credito and (proveedor is None or proveedor.nombre == PROVEEDOR_VARIOS):
+        raise CompraError("Para dejarla por pagar (al crédito) elige el proveedor: a quién le debes.")
+    if proveedor is None:  # compra en el mercado, a un ambulante…: va a «Proveedor varios» (como «Clientes varios»)
+        proveedor = proveedor_varios()
     if documento not in Compra.Documento.values:
         raise CompraError("Documento no válido.")
     serie = "".join(str(serie or "").split()).upper()[:4]

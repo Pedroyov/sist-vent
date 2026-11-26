@@ -677,27 +677,47 @@ def agotados(request):
 # --- Menú del día ------------------------------------------------------------------
 
 def _datos_menu():
-    from .servicios import menu_texto
     from core.models import Ajustes
 
-    grupos = list(GrupoOpciones.objects.filter(diario=True).order_by("orden", "nombre").prefetch_related("opciones", "productos"))
-    for g in grupos:
-        ops = list(g.opciones.all())
-        g.hoy = [o for o in ops if o.activa]
-        g.otros = sorted([o for o in ops if not o.activa], key=lambda o: o.nombre.lower())
-    productos = Producto.objects.filter(activo=True, grupos__diario=True).distinct().order_by("nombre")
-    return {"grupos": grupos, "productos_menu": productos, "texto": menu_texto(Ajustes.cargar().nombre or "") if grupos else ""}
+    from .servicios import menu_texto, menu_tipos
+
+    tipos = menu_tipos()
+    for t in tipos:
+        for g in t.diarios:
+            ops = list(g.opciones.all())
+            g.hoy = [o for o in ops if o.activa]
+            g.otros = sorted([o for o in ops if not o.activa], key=lambda o: o.nombre.lower())
+    sueltos = list(GrupoOpciones.objects.filter(diario=True, productos__isnull=True))  # grupos diarios que ningún menú usa
+    hay = bool(tipos) or GrupoOpciones.objects.filter(diario=True).exists()
+    return {"tipos": tipos, "sueltos": sueltos, "hay_menu": hay,
+            "texto": menu_texto(Ajustes.cargar().nombre or "") if tipos else ""}
 
 
 @permiso_requerido("productos.menu")
 def menu_dia(request):
-    from .servicios import menu_agregar, menu_crear, menu_limpiar
+    from core.models import Ajustes
 
+    from .servicios import menu_agregar, menu_crear, menu_extras, menu_limpiar, menu_nuevo_tipo
+
+    if not Ajustes.cargar().usa_menu:
+        messages.info(request, "El menú del día está apagado (Datos del negocio → Funciones).")
+        return redirect("core:inicio")
     if request.method == "POST":
         accion = request.POST.get("accion")
         try:
-            if accion == "crear":
-                menu_crear()
+            if accion == "crear":  # el primer menú: si ya hay productos en la categoría del menú, se usan esos
+                if Producto.objects.filter(activo=True, categoria__nombre__iregex=r"men[uú]").exists():
+                    menu_crear()
+                else:
+                    menu_nuevo_tipo(request.POST.get("nombre"), request.POST.get("precio"), bebida=bool(request.POST.get("bebida")))
+            elif accion == "nuevo_tipo":
+                tipos = {str(t.pk): t for t in Producto.objects.filter(activo=True, grupos__diario=True).distinct()}
+                menu_nuevo_tipo(request.POST.get("nombre"), request.POST.get("precio"),
+                                entradas_de=tipos.get(request.POST.get("entradas") or ""), segundos_de=tipos.get(request.POST.get("segundos") or ""),
+                                bebida=bool(request.POST.get("bebida")), postre=bool(request.POST.get("postre")))
+            elif accion == "extras":
+                t = get_object_or_404(Producto, pk=entero(request.POST.get("tipo")), activo=True)
+                menu_extras(t, bebida=bool(request.POST.get("bebida")), postre=bool(request.POST.get("postre")))
             elif accion == "agregar":
                 g = get_object_or_404(GrupoOpciones, pk=entero(request.POST.get("grupo")), diario=True)
                 menu_agregar(g, request.POST.get("nombre"), request.POST.get("precio"))

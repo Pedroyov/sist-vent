@@ -80,6 +80,7 @@
 <script src="{% static 'vendor/adminlte/adminlte.min.js' %}"></script>
 <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 <script src="{% static 'js/app.js' %}"></script>
+<script src="{% static 'js/escaner.js' %}" data-zxing="{% static 'vendor/zxing/zxing.min.js' %}" defer></script>
 {% block extra_js %}{% endblock %}
 {% if AYUDA %}
 <div class="offcanvas offcanvas-end" tabindex="-1" id="ayuda-pantalla" aria-labelledby="ayuda-titulo">
@@ -89,9 +90,13 @@
   </div>
   <div class="offcanvas-body">
     <p class="fs-6">{{ AYUDA.para_que }}</p>
-    {% if AYUDA.puntos %}<h6 class="text-body-secondary small text-uppercase">Lo más usado</h6>
+    {% if AYUDA.pasos %}<h6 class="text-body-secondary small text-uppercase">Paso a paso</h6>
+    <ol class="ps-3">{% for p in AYUDA.pasos %}<li class="mb-2">{{ p }}</li>{% endfor %}</ol>{% endif %}
+    {% if AYUDA.ojo %}<div class="alert alert-warning py-2 small"><div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Ojo</div>
+      <ul class="ps-3 mb-0">{% for p in AYUDA.ojo %}<li class="mb-1">{{ p }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if AYUDA.puntos %}<h6 class="text-body-secondary small text-uppercase">{% if AYUDA.pasos %}También{% else %}Lo más usado{% endif %}</h6>
     <ul class="ps-3">{% for p in AYUDA.puntos %}<li class="mb-2">{{ p }}</li>{% endfor %}</ul>{% endif %}
-    <p class="small text-body-secondary mb-0 border-top pt-2"><i class="bi bi-book me-1"></i>Más detalle en el <strong>Manual de usuario</strong>, sección {{ AYUDA.seccion }}.</p>
+    <a class="d-block small mb-0 border-top pt-2 text-decoration-none" href="{% url 'core:manual' %}#{{ AYUDA.ancla }}"><i class="bi bi-book me-1"></i>Más detalle en el <strong>Manual de usuario</strong>, sección {{ AYUDA.seccion }} <i class="bi bi-box-arrow-up-right small"></i></a>
   </div>
 </div>
 {% endif %}

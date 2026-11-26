@@ -57,7 +57,7 @@ class Command(BaseCommand):
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "citas"]
         elif "citas" not in a.modulos_inactivos:
             a.modulos_inactivos.append("citas")
-        if rubro in (Rubro.TIENDA, Rubro.ROPA, Rubro.LIBRERIA):  # quien vende mercadería registra sus compras
+        if rubro in (Rubro.TIENDA, Rubro.ROPA, Rubro.LIBRERIA, Rubro.RESTAURANTE):  # quien compra mercadería o insumos registra sus compras
             a.modulos_inactivos = [m for m in a.modulos_inactivos if m != "compras"]
         elif "compras" not in a.modulos_inactivos:
             a.modulos_inactivos.append("compras")

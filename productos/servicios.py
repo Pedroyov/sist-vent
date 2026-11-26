@@ -345,6 +345,86 @@ def con_pocas_porciones():
 # ("Entrada", "Segundo"). Cada mañana se activan las opciones de hoy; las de otros días quedan guardadas (inactivas)
 # para volver a ponerlas con un toque.
 
+# Tipos de menú (económico, ejecutivo, dietético): cada uno es un producto de la categoría «Menú del día» con sus propios
+# grupos diarios, o compartidos con otro tipo («las mismas entradas que el económico»). La bebida y el postre del menú
+# son grupos diarios comunes («Bebida», «Postre») que se ponen o se quitan en cada tipo.
+CATEGORIA_MENU = "Menú del día"
+EXTRAS_MENU = {"bebida": "Bebida", "postre": "Postre"}
+ORDEN_EXTRAS = 900  # la bebida y el postre van después de la entrada y el segundo
+
+
+def nombre_corto(grupo):
+    """«Segundo (Menú ejecutivo)» -> «Segundo» (para la pantalla y el texto de WhatsApp)."""
+    return grupo.nombre.split(" (")[0]
+
+
+def _grupo_diario(nombre, orden):
+    from .models import GrupoOpciones
+
+    g, _ = GrupoOpciones.objects.get_or_create(nombre=nombre[:60], defaults={"minimo": 1, "maximo": 1, "orden": orden, "diario": True})
+    if not g.diario or not g.activo:
+        g.diario, g.activo = True, True
+        g.save(update_fields=["diario", "activo"])
+    return g
+
+
+def menu_tipos():
+    """Los tipos de menú: productos activos con algún grupo diario, cada uno con sus grupos (los compartidos se repiten)."""
+    from .models import Producto
+
+    tipos = list(Producto.objects.filter(activo=True, grupos__diario=True).distinct().order_by("precio", "nombre")
+                 .prefetch_related("grupos__opciones", "grupos__productos"))
+    for t in tipos:
+        t.diarios = sorted([g for g in t.grupos.all() if g.diario], key=lambda g: (g.orden, g.nombre))
+        for g in t.diarios:
+            g.corto = nombre_corto(g)
+            g.con = [p.nombre for p in g.productos.all() if p.pk != t.pk and p.activo]
+            g.es_extra = g.nombre in EXTRAS_MENU.values()
+        t.extras = {k: any(g.nombre == v for g in t.diarios) for k, v in EXTRAS_MENU.items()}
+    return tipos
+
+
+def menu_nuevo_tipo(nombre, precio, entradas_de=None, segundos_de=None, bebida=False, postre=False):
+    """Crea un tipo de menú: el producto (en la categoría «Menú del día») y sus grupos diarios. `entradas_de` /
+    `segundos_de`: un tipo existente con el que se comparten (las mismas entradas que el económico)."""
+    from .models import Categoria, GrupoOpciones, Producto
+
+    nombre = " ".join(str(nombre or "").split())[:80]
+    if not nombre:
+        raise ValueError("Escribe el nombre del menú (ej.: Menú ejecutivo).")
+    try:
+        precio = Decimal(str(precio).replace(",", ".")).quantize(Decimal("0.01"))
+    except (ArithmeticError, ValueError):
+        raise ValueError("Escribe el precio del menú.")
+    if not precio.is_finite() or precio <= 0:
+        raise ValueError("Escribe el precio del menú.")
+    if Producto.objects.filter(nombre__iexact=nombre, activo=True).exists():
+        raise ValueError(f"Ya hay un producto llamado «{nombre}».")
+    with transaction.atomic():
+        cat, _ = Categoria.objects.get_or_create(nombre=CATEGORIA_MENU)
+        p = Producto.objects.create(nombre=nombre, precio=precio, categoria=cat, maneja_stock=False)
+        asegurar_variante_unica(p)
+        base = (GrupoOpciones.objects.filter(orden__lt=ORDEN_EXTRAS).order_by("-orden").values_list("orden", flat=True).first() or 0) + 10
+        grupos = []
+        for i, (titulo, de) in enumerate((("Entrada", entradas_de), ("Segundo", segundos_de))):
+            propio = None
+            if de is not None:
+                propio = next((g for g in de.grupos.filter(diario=True) if nombre_corto(g) == titulo), None)
+            grupos.append(propio or _grupo_diario(f"{titulo} ({nombre})", base + i))
+        p.grupos.add(*grupos)
+        menu_extras(p, bebida=bebida, postre=postre)
+    return p
+
+
+def menu_extras(producto, bebida=False, postre=False):
+    """Pone o quita la bebida y el postre del menú (grupos diarios comunes a todos los tipos)."""
+    for clave, quiere in (("bebida", bebida), ("postre", postre)):
+        if quiere:
+            producto.grupos.add(_grupo_diario(EXTRAS_MENU[clave], ORDEN_EXTRAS + (0 if clave == "bebida" else 10)))
+        else:
+            producto.grupos.remove(*producto.grupos.filter(nombre=EXTRAS_MENU[clave]))
+
+
 def menu_crear():
     """Crea los grupos Entrada y Segundo (si no hay ninguno diario) y los pone en los productos de la categoría del menú."""
     from .models import GrupoOpciones, Producto
@@ -395,22 +475,20 @@ def menu_limpiar():
 
 
 def menu_texto(nombre_negocio=""):
-    """El menú de hoy listo para pegar en WhatsApp."""
+    """El menú de hoy listo para pegar en WhatsApp: cada tipo con su precio y sus platos."""
     from django.utils import timezone
     from django.utils.formats import date_format
 
-    from .models import GrupoOpciones, Producto
-
-    grupos = list(GrupoOpciones.objects.filter(diario=True, activo=True).prefetch_related("opciones"))
     hoy = date_format(timezone.localdate(), "l j \\d\\e F")
     lineas = [f"*Menú de hoy* · {hoy}" + (f"\n{nombre_negocio}" if nombre_negocio else "")]
-    for g in grupos:
-        ops = [o for o in g.opciones.all() if o.activa and not o.agotada]
-        if ops:
-            plural = g.nombre if g.nombre.endswith("s") else g.nombre + ("es" if g.nombre[-1] not in "aeiou" else "s")
-            lineas.append("\n*" + plural + "*\n" + "\n".join(f"• {o.nombre}" + (f" (+S/ {o.precio:.2f})" if o.precio else "") for o in ops))
-    productos = Producto.objects.filter(activo=True, grupos__in=grupos).distinct().prefetch_related("variantes")
-    precios = [f"{p.nombre}: S/ {p.precio:.2f}" for p in productos]
-    if precios:
-        lineas.append("\n" + "\n".join(precios))
+    for t in menu_tipos():
+        bloque = []
+        for g in t.diarios:
+            if not g.activo:
+                continue
+            ops = [o for o in g.opciones.all() if o.activa and not o.agotada]
+            if ops:
+                bloque.append(f"_{g.corto}:_ " + ", ".join(o.nombre + (f" (+S/ {o.precio:.2f})" if o.precio else "") for o in ops))
+        if bloque:
+            lineas.append(f"\n*{t.nombre} · S/ {t.precio:.2f}*\n" + "\n".join(bloque))
     return "\n".join(lineas)

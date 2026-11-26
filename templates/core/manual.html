@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Manual de usuario{% endblock %}
+{% block page_title %}Manual de usuario{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Manual de usuario</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .manual { max-width: 52rem; }
+  .manual img { max-width: min(100%, 22rem); height: auto; display: block; margin: .75rem auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+  .manual figure { margin: 1rem 0; text-align: center; }
+  .manual figcaption { font-size: .85rem; color: var(--bs-secondary-color); }
+  .manual h1 { font-size: 1.5rem; margin-top: 2rem; padding-top: 1rem; border-top: 2px solid var(--bs-primary); }
+  .manual h2 { font-size: 1.2rem; margin-top: 1.5rem; }
+  .manual h3 { font-size: 1.05rem; margin-top: 1.2rem; }
+  .manual section { scroll-margin-top: 4.5rem; }
+  .manual section.destacada > h2, .manual section.destacada > h1 { background: var(--bs-warning-bg-subtle); border-radius: .3rem; padding: .2rem .4rem; }
+  .indice { max-height: calc(100vh - 7rem); overflow-y: auto; position: sticky; top: 4.5rem; font-size: .9rem; }
+  .indice a { display: block; padding: .15rem .25rem; text-decoration: none; color: var(--bs-body-color); border-radius: .25rem; }
+  .indice a:hover { background: var(--bs-tertiary-bg); }
+  .indice .n1 { font-weight: 600; margin-top: .5rem; }
+  .indice .n2 { padding-left: .9rem; color: var(--bs-secondary-color); }
+  .oculta { display: none !important; }
+  @media print { .no-print, .indice-col { display: none !important; } .manual { max-width: none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not contenido %}
+<div class="alert alert-info">El manual todavía no está cargado en este sistema.</div>
+{% else %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3 no-print">
+  <div class="input-group" style="max-width: 26rem">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="search" id="buscar-manual" class="form-control" placeholder="Buscar en el manual: «cerrar caja», «boleta»…" autocomplete="off">
+  </div>
+  <button type="button" class="btn btn-outline-secondary d-lg-none" data-bs-toggle="collapse" data-bs-target="#indice-movil"><i class="bi bi-list-ul me-1"></i>Índice</button>
+  {% if hay_pdf %}<a href="{% static 'manual/manual.pdf' %}" class="btn btn-outline-primary ms-lg-auto" download><i class="bi bi-file-earmark-pdf me-1"></i>Descargar PDF</a>{% endif %}
+  {% if fecha %}<span class="small text-body-secondary w-100">{{ fecha }}</span>{% endif %}
+  <span class="small fw-semibold w-100 d-none" id="resultados"></span>
+</div>
+<div class="collapse d-lg-none mb-3 no-print" id="indice-movil"><div class="card card-body py-2 indice position-static" style="max-height: 60vh">
+  {% for s in indice %}<a href="#{{ s.id }}" class="n{{ s.nivel }}" data-bs-toggle="collapse" data-bs-target="#indice-movil">{{ s.texto }}</a>{% endfor %}
+</div></div>
+<div class="row">
+  <div class="col-lg-3 d-none d-lg-block indice-col no-print"><nav class="indice" aria-label="Índice">
+    {% for s in indice %}<a href="#{{ s.id }}" class="n{{ s.nivel }}">{{ s.texto }}</a>{% endfor %}
+  </nav></div>
+  <div class="col-lg-9"><article class="manual" id="manual">{{ contenido }}</article></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var art = document.getElementById("manual"), q = document.getElementById("buscar-manual");
+  if (!art || !q) return;
+  var norm = function (t) { return (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); };
+  // se busca por sección (6.3, 7.1…): se muestran solo las que tienen todas las palabras
+  var secciones = Array.prototype.slice.call(art.querySelectorAll("section.level2"));
+  var capitulos = Array.prototype.slice.call(art.querySelectorAll("section.level1"));
+  secciones.forEach(function (s) { s._t = norm(s.textContent); });
+  capitulos.forEach(function (c) { var t = c.cloneNode(true); t.querySelectorAll("section").forEach(function (x) { x.remove(); }); c._t = norm(t.textContent); });
+  var res = document.getElementById("resultados"), espera;
+  function filtrar() {
+    var palabras = norm(q.value).split(/\s+/).filter(function (p) { return p.length > 1; });
+    if (!palabras.length) {
+      art.querySelectorAll(".oculta").forEach(function (x) { x.classList.remove("oculta"); });
+      res.classList.add("d-none");
+      return;
+    }
+    var n = 0;
+    var tiene = function (t) { return palabras.every(function (p) { return t.indexOf(p) >= 0; }); };
+    secciones.forEach(function (s) { var si = tiene(s._t); s.classList.toggle("oculta", !si); if (si) n++; });
+    capitulos.forEach(function (c) {
+      var hijas = c.querySelectorAll("section.level2:not(.oculta)").length, propio = tiene(c._t);
+      c.classList.toggle("oculta", !hijas && !propio);
+      if (propio && !hijas) n++;
+      // si solo coinciden secciones, el texto suelto del capítulo se esconde
+      Array.prototype.forEach.call(c.children, function (x) { if (x.tagName !== "SECTION" && x.tagName !== "H1") x.classList.toggle("oculta", !propio); });
+    });
+    res.textContent = n ? (n + (n === 1 ? " sección encontrada" : " secciones encontradas")) : "No se encontró nada. Prueba con otra palabra.";
+    res.classList.remove("d-none");
+  }
+  q.addEventListener("input", function () { clearTimeout(espera); espera = setTimeout(filtrar, 200); });
+  // al llegar desde el «?» (#s-6-3): resalta la sección
+  function marcar() {
+    art.querySelectorAll(".destacada").forEach(function (x) { x.classList.remove("destacada"); });
+    var s = location.hash && document.getElementById(location.hash.slice(1));
+    if (s) { s.classList.add("destacada"); s.scrollIntoView(); }
+  }
+  window.addEventListener("hashchange", marcar);
+  marcar();
+})();
+</script>
+{% endblock %}

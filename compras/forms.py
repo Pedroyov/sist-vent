@@ -34,7 +34,8 @@ class CompraForm(forms.Form):
 
     PAGO = [("caja", "Pagado de mi caja"), ("fuera", "Pagado fuera de caja (transferencia, Yape…)"), ("credito", "Queda por pagar (al crédito)")]
 
-    proveedor = forms.ModelChoiceField(queryset=Proveedor.objects.filter(activo=True), empty_label="Elige el proveedor…")
+    proveedor = forms.ModelChoiceField(queryset=Proveedor.objects.filter(activo=True), required=False, empty_label="Proveedor varios (mercado, sin registrar)",
+                                       help_text="Opcional. Para dejarla por pagar (al crédito) sí elige a quién le debes.")
     documento = forms.ChoiceField(choices=Compra.Documento.choices, initial=Compra.Documento.FACTURA)
     serie = forms.CharField(max_length=4, required=False, widget=forms.TextInput(attrs={"placeholder": "F001", "style": "text-transform: uppercase"}))
     numero = forms.CharField(label="Número", max_length=12, required=False, widget=forms.TextInput(attrs={"placeholder": "123", "inputmode": "numeric"}))

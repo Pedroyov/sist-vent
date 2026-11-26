@@ -288,7 +288,7 @@ class MenuDelDiaTests(TestCase):
     def setUp(self):
         from core.models import Ajustes
 
-        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES", "nombre": "El Buen Sabor", "nivel_pedido": 2})
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "funciones_inactivas": [], "rubro": "RES", "nombre": "El Buen Sabor", "nivel_pedido": 2})
         self.cajero = User.objects.create_user("cajero", password="x-clave-123")
         self.cajero.groups.add(Group.objects.get(name="Cajero"))
         self.vendedor = User.objects.create_user("vendedor", password="x-clave-123")
@@ -322,9 +322,9 @@ class MenuDelDiaTests(TestCase):
             resolver_opciones(self.menu, [sopa.pk])
         # texto para WhatsApp
         r = self.client.get(self.url)
-        self.assertContains(r, "*Entradas*")
-        self.assertContains(r, "• Pescado frito (+S/ 3.00)")
-        self.assertContains(r, "Menú ejecutivo: S/ 15.00")
+        self.assertContains(r, "*Menú ejecutivo · S/ 15.00*")
+        self.assertContains(r, "_Entrada:_ Sopa de casa")
+        self.assertContains(r, "Pescado frito (+S/ 3.00)")
         # al día siguiente: se vacía, el pescado queda guardado y se vuelve a poner con un toque
         self.client.post(self.url, {"accion": "limpiar"})
         self.assertFalse(Opcion.objects.filter(grupo__diario=True, activa=True).exists())
@@ -484,7 +484,7 @@ class NivelDePedidoTests(TestCase):
 
         from .models import Componente, GrupoOpciones, Opcion
 
-        self.aj, _ = Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES"})
+        self.aj, _ = Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "funciones_inactivas": [], "rubro": "RES"})
         self.jefe = User.objects.create_user("jefe", password="x-clave-123")
         self.jefe.groups.add(Group.objects.get(name="Administración"))
         self.lomo = Producto.objects.create(nombre="Lomo", precio=Decimal("28"), maneja_stock=False)

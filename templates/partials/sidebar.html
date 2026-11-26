@@ -89,10 +89,10 @@
         {% endif %}
 
         {# ---------- Hoy: lo que cambia cada día ---------- #}
-        {% if P.productos_agotar and NEGOCIO.usa_agotados or P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
+        {% if P.productos_agotar and NEGOCIO.usa_agotados or P.productos_menu and NEGOCIO.usa_menu %}
         <li class="nav-header">HOY</li>
         {% endif %}
-        {% if P.productos_menu and NEGOCIO.rubro == "RES" and NEGOCIO.usa_opciones %}
+        {% if P.productos_menu and NEGOCIO.usa_menu %}
         <li class="nav-item">
           <a href="{% url 'productos:menu' %}" class="nav-link {% if ns == 'productos' and url == 'menu' %}active{% endif %}">
             <i class="nav-icon bi bi-journal-text"></i>
@@ -110,7 +110,7 @@
         {% endif %}
 
         {# ---------- Gestión ---------- #}
-        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver or P.caja_ver or P.compras_ver %}
+        {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar or P.facturacion_ver or P.clientes_ver or P.productos_ver or P.reportes_ver or P.ventas_conciliar %}
         <li class="nav-header">GESTIÓN</li>
         {% endif %}
         {% if P.ventas_vender or P.ventas_ver or P.mesas_cobrar %}
@@ -142,14 +142,6 @@
           <a href="{% url 'clientes:lista' %}" class="nav-link {% if ns == 'clientes' %}active{% endif %}">
             <i class="nav-icon bi bi-people"></i>
             <p>Clientes</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if P.compras_ver %}
-        <li class="nav-item">
-          <a href="{% url 'compras:lista' %}" class="nav-link {% if ns == 'compras' %}active{% endif %}">
-            <i class="nav-icon bi bi-truck"></i>
-            <p>Compras</p>
           </a>
         </li>
         {% endif %}
@@ -210,6 +202,24 @@
           <a href="{% url 'ventas:conciliar' %}" class="nav-link {% if ns == 'ventas' and 'conciliar' in url %}active{% endif %}">
             <i class="nav-icon bi bi-bank"></i>
             <p>Conciliar Yape y bancos</p>
+          </a>
+        </li>
+        {% endif %}
+        {# ---------- Compras y gastos: todo el dinero que sale ---------- #}
+        {% if P.compras_ver or P.caja_ver or P.personal_editar and NEGOCIO.usa_pagos %}
+        <li class="nav-header">COMPRAS Y GASTOS</li>
+        {% endif %}
+        {% if P.compras_ver %}
+        <li class="nav-item">
+          <a href="{% url 'compras:lista' %}" class="nav-link {% if ns == 'compras' and 'proveedor' not in url %}active{% endif %}">
+            <i class="nav-icon bi bi-truck"></i>
+            <p>Compras</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="{% url 'compras:proveedores' %}" class="nav-link {% if ns == 'compras' and 'proveedor' in url %}active{% endif %}">
+            <i class="nav-icon bi bi-person-vcard"></i>
+            <p>Proveedores</p>
           </a>
         </li>
         {% endif %}
