@@ -196,10 +196,12 @@ class DatosNegocioForm(forms.ModelForm):
         fields = ["rubro", "nombre", "nombre_corto", "lema", "logo", "razon_social", "ruc",
                   "direccion", "distrito", "telefono", "whatsapp", "email", "web", "nota_ticket", "color",
                   "vender_sin_caja", "cierre_ciego", "codigo_ingreso", "propina_activa", "exigir_operacion", "dias_devolucion", "dias_fiado", "monedero_porcentaje", "monedero_dias", "descuentos_activos", "cortesias_activas",
-                  "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo"]
+                  "ticket_ancho", "imprimir_auto", "nivel_pedido", "delivery_costo", "carta", "carta_archivo", "carta_estilo", "carta_portada"]
         widgets = {
             "nivel_pedido": forms.RadioSelect,
             "logo": forms.ClearableFileInput(attrs={"accept": "image/png,image/jpeg,image/webp"}),
+            "carta_archivo": forms.ClearableFileInput(attrs={"accept": "application/pdf,image/png,image/jpeg"}),
+            "carta_portada": forms.ClearableFileInput(attrs={"accept": "image/png,image/jpeg,image/webp"}),
             "color": forms.TextInput(attrs={"type": "color", "class": "form-control form-control-color"}),
             "ruc": forms.TextInput(attrs={"inputmode": "numeric", "maxlength": 11}),
             "telefono": forms.TextInput(attrs={"inputmode": "tel"}),
@@ -210,6 +212,7 @@ class DatosNegocioForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if not puede_seguridad:  # el segundo paso de Administración solo lo cambia Administración
             self.fields["codigo_ingreso"].disabled = True
+        self.fields["carta_estilo"].required = False  # vacío = se queda como estaba
         from ventas.models import MetodoPago
 
         from .rubros import CODIGOS_FUNCIONES, FUNCIONES
@@ -237,6 +240,21 @@ class DatosNegocioForm(forms.ModelForm):
         elegidas = set(self.cleaned_data.get("funciones") or [])
         self.instance.funciones_inactivas = [c for c in CODIGOS_FUNCIONES if c not in elegidas]
         return super().save(commit)
+
+    def clean_carta_archivo(self):
+        f = self.cleaned_data.get("carta_archivo")
+        if f and hasattr(f, "name") and not f.name.lower().endswith((".pdf", ".jpg", ".jpeg", ".png")):
+            raise forms.ValidationError("Sube la carta en PDF, JPG o PNG.")
+        return f
+
+    def clean_carta_estilo(self):
+        return self.cleaned_data.get("carta_estilo") or self.instance.carta_estilo or "CLA"
+
+    def clean_carta(self):
+        modo = self.cleaned_data.get("carta") or ""
+        if modo == "ARC" and not (self.files.get("carta_archivo") or self.instance.carta_archivo):
+            raise forms.ValidationError("Sube el archivo de tu carta (abajo) o elige la carta automática.")
+        return modo
 
     def clean_dias_devolucion(self):
         valor = self.cleaned_data.get("dias_devolucion")

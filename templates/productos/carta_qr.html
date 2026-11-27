@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}QR de la carta{% endblock %}
+{% block page_title %}QR de la carta{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'core:datos_negocio' %}">Datos del negocio</a></li><li class="breadcrumb-item active">QR de la carta</li>{% endblock %}
+
+{% block extra_css %}
+<style>
+  .hoja-qr { max-width: 46rem; }
+  .qr-grande { text-align: center; border: 2px dashed var(--bs-border-color); border-radius: 1rem; padding: 1.5rem; }
+  .qr-grande svg { width: 260px; height: 260px; }
+  .qr-chicos { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+  .qr-chico { text-align: center; border: 1px dashed var(--bs-border-color); border-radius: .75rem; padding: .75rem; }
+  .qr-chico svg { width: 150px; height: 150px; }
+  @media print { .qr-grande { break-after: page; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3 no-print">
+  <button type="button" class="btn btn-primary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+  <a href="{{ url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-up-right me-1"></i>Ver la carta</a>
+  <span class="small text-body-secondary">Enlace para WhatsApp o Instagram: <code class="user-select-all">{{ url }}</code></span>
+</div>
+<div class="hoja-qr">
+  <div class="qr-grande">
+    <h2 class="fw-bold mb-1">{{ NEGOCIO.nombre_mostrar }}</h2>
+    <p class="fs-5 mb-2">Escanea para ver la carta</p>
+    {{ qr|safe }}
+    <p class="small text-body-secondary mt-2 mb-0">Abre la cámara del celular y apunta al código</p>
+  </div>
+  <div class="qr-chicos">
+    {% for _ in "1234" %}<div class="qr-chico"><div class="fw-semibold">{{ NEGOCIO.nombre_mostrar }}</div><div class="small">Escanea para ver la carta</div>{{ qr_chico|safe }}</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

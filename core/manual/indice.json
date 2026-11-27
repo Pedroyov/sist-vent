@@ -172,6 +172,11 @@
 "texto": "4.12 Promociones"
 },
 {
+"id": "s-4-13",
+"nivel": 2,
+"texto": "4.13 Carta digital con QR"
+},
+{
 "id": "s-5",
 "nivel": 1,
 "texto": "5. Hoy: menú del día y agotados"
@@ -470,6 +475,11 @@
 "id": "s-14-2",
 "nivel": 2,
 "texto": "14.2 Dinero del día"
+},
+{
+"id": "s-14-3",
+"nivel": 2,
+"texto": "14.3 Comparar periodos y fechas especiales"
 },
 {
 "id": "s-15",

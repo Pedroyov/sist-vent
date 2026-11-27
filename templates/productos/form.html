@@ -76,6 +76,7 @@
           {{ form.imagen|as_crispy_field }}
           {{ form.descripcion|as_crispy_field }}
           {{ form.activo|as_crispy_field }}
+          {% if NEGOCIO.carta %}{{ form.en_carta|as_crispy_field }}{% endif %}
         </div>
       </div>
     </div>

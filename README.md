@@ -131,6 +131,9 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Reservas** – Para restaurantes: agenda por día con personas, mesa opcional y nota; aviso si la mesa ya está reservada; confirmación y recordatorio por WhatsApp; una o varias mesas (grupos grandes, se juntan solas); la mesa se ve «Reservada» en el mapa y al llegar se abre la cuenta; atrasadas y «No vino»; historial por celular
 - [x] **Citas y agenda** – Para peluquerías, spas y consultorios: personal con servicios, horario semanal, refrigerio, días libres y vacaciones; agenda del día por columnas; horarios libres según la duración del servicio; si su persona de confianza está ocupada, la próxima hora con ella o quién más atiende a esa hora; «suele atenderse con»; WhatsApp; atender y cobrar en Vender; cliente sin cita: el trabajador registra lo que hizo y caja lo cobra desde «Servicios por cobrar»; cada trabajador con su usuario ve su agenda y comparte sus horarios libres; sus servicios, ocupación y comisión salen en el reporte de Personal
 - [x] **Reglas de cobro** – El negocio elige qué métodos de pago acepta y si usa propinas, descuentos y cortesías; cobro compacto para celular
+- [x] **Comparar periodos y fechas especiales** – Reportes frente al periodo anterior, el mismo del año pasado u otras fechas; atajos de Navidad, Año Nuevo, Día de la Madre y del Padre y Fiestas Patrias; lo que subió y bajó, qué preparar y proyección al cierre del mes
+- [x] **Carta digital con QR** – Página pública con la carta (automática, sin fotos, estilo claro u oscuro, menú de hoy, tamaños en tabla) o el PDF del negocio; hoja de QR para las mesas
+- [x] **Ubicación del delivery** – El enlace de ubicación que manda el cliente por WhatsApp (Google Maps, Waze) queda en el pedido: botón de ubicación exacta, QR en la hoja del repartidor y mensaje listo para mandarle
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo

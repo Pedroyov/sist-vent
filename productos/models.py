@@ -34,6 +34,8 @@ class Categoria(models.Model):
                             help_text="Al enviar un pedido de mesa: a la cocina, a la barra, o lo lleva el mozo directamente (gaseosas, agua).")
     orden = models.PositiveSmallIntegerField(default=0, help_text="Las de número menor salen primero.")
     activa = models.BooleanField(default=True)
+    en_carta = models.BooleanField("mostrar en la carta digital", default=True,
+                                   help_text="Desmárcalo para lo que el cliente no debe ver (insumos, uso interno).")
 
     class Meta:
         verbose_name = "categoría"
@@ -150,6 +152,8 @@ class Producto(models.Model):
     duracion_min = models.PositiveSmallIntegerField("duración (minutos)", null=True, blank=True,
                                                     help_text="Para servicios: cuántos minutos dura. Las citas la usan para buscar horarios libres.")
     imagen = models.ImageField(upload_to="productos/", blank=True, validators=[TamanoMaximo(5)])
+    en_carta = models.BooleanField("mostrar en la carta digital", default=True,
+                                   help_text="Si el negocio usa la carta digital con QR: desmárcalo para no mostrarlo ahí.")
     area = models.CharField("se prepara en", max_length=3, choices=Area.choices, blank=True,
                             help_text="Vacío = como su categoría. Cámbialo solo si este producto va a otro lado.")
     grupos = models.ManyToManyField(GrupoOpciones, blank=True, related_name="productos", verbose_name="opciones al pedir",

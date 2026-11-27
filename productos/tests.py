@@ -533,3 +533,123 @@ class NivelDePedidoTests(TestCase):
         self.assertContains(self.client.get(reverse("productos:detalle", args=[self.lomo.pk])), "Qué lleva")
         r = self.client.get(reverse("core:datos_negocio"))
         self.assertContains(r, "Cómo se toman los pedidos")
+
+
+class CartaDigitalTests(TestCase):
+    """La carta con QR: página pública sin usuario, automática (sin fotos) o el archivo que sube el negocio."""
+
+    def setUp(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        from core.models import Ajustes
+
+        self.media = override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+        self.media.enable()
+        self.addCleanup(self.media.disable)
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "rubro": "RES", "nombre": "La Cevichería",
+                                                         "funciones_inactivas": []})
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.mozo = User.objects.create_user("mozo", password="x-clave-123")
+        self.mozo.groups.add(Group.objects.get(name="Vendedor"))
+        self.marinos = Categoria.objects.create(nombre="Marinos", orden=1)
+        self.bebidas = Categoria.objects.create(nombre="Bebidas", orden=2)
+        for nombre, base in [("Ceviche de pescado", 25), ("Ceviche mixto", 28)]:  # mismos tamaños: van en tabla
+            p = Producto.objects.create(nombre=nombre, precio=Decimal(base), categoria=self.marinos, maneja_stock=False)
+            for i, (t, d) in enumerate([("Personal", 0), ("Mediano", 10), ("Familiar", 20)]):
+                Variante.objects.create(producto=p, nombre=t, precio=Decimal(base + d), orden=i)
+        self.jalea = Producto.objects.create(nombre="Jalea", precio=Decimal("38"), categoria=self.marinos, maneja_stock=False)
+        asegurar_variante_unica(self.jalea)
+        self.chicha = Producto.objects.create(nombre="Chicha morada", precio=Decimal("8"), categoria=self.bebidas, maneja_stock=False)
+        for i, t in enumerate(["Vaso", "Jarra"]):  # tamaños propios: uno por línea
+            Variante.objects.create(producto=self.chicha, nombre=t, precio=Decimal(8 + i * 10), orden=i)
+        self.oculto = Producto.objects.create(nombre="Plato secreto", precio=Decimal("50"), categoria=self.marinos, en_carta=False)
+        self.corte = Producto.objects.create(nombre="Corte de cabello", precio=Decimal("20"), tipo=Producto.Tipo.SERVICIO)
+        self.url = reverse("carta")
+
+    def _activar(self, **campos):
+        from core.models import Ajustes
+
+        Ajustes.objects.filter(pk=1).update(carta="AUT", **campos)
+
+    def test_apagada_y_automatica(self):
+        from .carta import contenido
+
+        self.assertEqual(self.client.get(self.url).status_code, 404)  # apagada: no existe
+        self._activar()
+        r = self.client.get(self.url)  # sin iniciar sesión
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "La Cevichería")
+        self.assertContains(r, "Ceviche mixto")
+        self.assertContains(r, "Personal")
+        self.assertNotContains(r, "Plato secreto")      # marcado «no mostrar en la carta»
+        self.assertNotContains(r, "Corte de cabello")   # los servicios no van
+        self.assertIn("max-age=60", r["Cache-Control"])  # el celular la guarda un minuto
+        secciones = dict(contenido())
+        tabla, sueltos = secciones["Marinos"]
+        self.assertEqual(tabla["cols"], ("Personal", "Mediano", "Familiar"))
+        self.assertEqual([(p.nombre, p.celdas) for p in tabla["productos"]],
+                         [("Ceviche de pescado", [Decimal("25"), Decimal("35"), Decimal("45")]),
+                          ("Ceviche mixto", [Decimal("28"), Decimal("38"), Decimal("48")])])
+        self.assertEqual([p.nombre for p in sueltos["productos"]], ["Jalea"])
+        (bebidas,) = secciones["Bebidas"]
+        self.assertEqual(bebidas["cols"], ())  # un solo plato con esos tamaños: cada uno en su línea
+        self.assertEqual(bebidas["productos"][0].precios, [("Vaso", Decimal("8")), ("Jarra", Decimal("18"))])
+        # una categoría fuera de la carta se oculta entera; lo agotado hoy se avisa
+        Categoria.objects.filter(pk=self.bebidas.pk).update(en_carta=False)
+        Producto.objects.filter(pk=self.jalea.pk).update(agotado_en=timezone.now())
+        r = self.client.get(self.url)
+        self.assertNotContains(r, "Chicha morada")
+        self.assertContains(r, "Agotado hoy")
+
+    def test_menu_de_hoy_arriba(self):
+        from .models import Opcion
+        from .servicios import menu_nuevo_tipo
+
+        self._activar()
+        tipo = menu_nuevo_tipo("Menú ejecutivo", Decimal("15"))
+        entrada = tipo.grupos.filter(diario=True).order_by("orden").first()
+        Opcion.objects.create(grupo=entrada, nombre="Papa a la huancaína")
+        r = self.client.get(self.url)
+        self.assertContains(r, "Menú de hoy")
+        self.assertContains(r, "Papa a la huancaína")
+        self.assertNotIn("Menú ejecutivo", [p.nombre for _, bs in r.context["secciones"] for b in bs for p in b["productos"]])
+        from core.models import Ajustes
+
+        a = Ajustes.cargar()
+        a.funciones_inactivas = ["menu"]
+        a.save()
+        self.assertNotContains(self.client.get(self.url), "Menú de hoy")  # sin la función Menú no sale
+
+    def test_archivo_qr_y_permisos(self):
+        from core.models import Ajustes
+
+        self.client.force_login(self.jefe)
+        datos = {"rubro": "RES", "nombre": "La Cevichería", "nombre_corto": "Cevichería", "color": "#0d6efd", "ticket_ancho": 80,
+                 "metodos": ["YAP"], "delivery_costo": "0", "carta": "ARC", "nivel_pedido": 2}
+        r = self.client.post(reverse("core:datos_negocio"), datos)
+        self.assertContains(r, "Sube el archivo de tu carta")  # con «archivo» hay que subirlo
+        r = self.client.post(reverse("core:datos_negocio"), {**datos, "carta_archivo": SimpleUploadedFile("carta.exe", b"MZ")})
+        self.assertContains(r, "PDF, JPG o PNG")
+        pdf = SimpleUploadedFile("carta.pdf", b"%PDF-1.4 carta", content_type="application/pdf")
+        r = self.client.post(reverse("core:datos_negocio"), {**datos, "carta_archivo": pdf, "carta_estilo": "OSC"})
+        self.assertRedirects(r, reverse("core:datos_negocio"), msg_prefix=str(r.context and r.context["form"].errors))
+        a = Ajustes.cargar()
+        self.assertEqual((a.carta, a.carta_estilo), ("ARC", "OSC"))
+        self.client.logout()
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 302)  # va directo al archivo
+        self.assertIn("negocio/", r["Location"])
+        # el QR para imprimir: solo quien configura el negocio
+        self.assertEqual(self.client.get(reverse("productos:carta_qr")).status_code, 302)  # sin sesión: a ingresar
+        self.client.force_login(self.mozo)
+        self.assertEqual(self.client.get(reverse("productos:carta_qr")).status_code, 403)
+        self.client.force_login(self.jefe)
+        r = self.client.get(reverse("productos:carta_qr"))
+        self.assertContains(r, "<svg")
+        self.assertContains(r, "/carta/")
+        # sin tocar los campos de la carta, el formulario deja todo como estaba
+        self.client.post(reverse("core:datos_negocio"), {k: v for k, v in datos.items() if k != "carta"} | {"carta": "ARC"})
+        self.assertEqual(Ajustes.cargar().carta_estilo, "OSC")

@@ -9,12 +9,34 @@ from core.utils import dias
 from . import servicios as s
 
 
+def _comparar(request, desde, hasta, atajo):
+    """Con qué se compara el periodo: ?comparar=anterior|anio|fechas (&c_desde, &c_hasta). En una fecha especial, por
+    defecto con la del año pasado."""
+    from datetime import date
+
+    modo = request.GET.get("comparar") or ("anio" if atajo.startswith("esp:") else "anterior")
+    if modo not in dict(s.COMPARAR):
+        modo = "anterior"
+    try:
+        c_desde, c_hasta = date.fromisoformat(request.GET.get("c_desde", "")), date.fromisoformat(request.GET.get("c_hasta", ""))
+    except ValueError:
+        c_desde = c_hasta = None
+        if modo == "fechas":
+            modo = "anterior"
+    d0, d1 = s.rango_comparado(desde, hasta, modo, c_desde, c_hasta)
+    return modo, d0, d1
+
+
 def _datos(request):
     desde, hasta, atajo = s.periodo(request)
+    modo, d0, d1 = _comparar(request, desde, hasta, atajo)
     fechas, mensual = s.por_fecha(desde, hasta)
+    hoy = timezone.localdate()
     d = {
         "desde": desde, "hasta": hasta, "atajo": atajo, "atajos": s.ATAJOS,
-        "r": s.resumen(desde, hasta), "fechas": fechas, "mensual": mensual,
+        "especiales": [(k, n, s.especial_cercana(k, hoy)) for k, n in s.FECHAS_ESPECIALES],
+        "comparar": modo, "opciones_comparar": s.COMPARAR, "cmp": s.comparacion(desde, hasta, d0, d1),
+        "r": s.resumen(desde, hasta, d0, d1), "fechas": fechas, "mensual": mensual,
         "horas": s.por_hora(desde, hasta), "semana": s.por_dia_semana(desde, hasta),
         "productos": s.productos(desde, hasta), "categorias": s.categorias(desde, hasta),
         "sin_ventas": s.sin_ventas(desde, hasta), "opciones": s.opciones(desde, hasta),
@@ -57,6 +79,13 @@ def _datos(request):
         d["deudores"] = s.deudores()
     d["inventario"] = s.inventario(desde, hasta)
     d["opciones_ingreso"] = sum((f["ingreso"] for f in d["opciones"]), s.CERO)
+    fin = hasta
+    if atajo == "mes":  # «Este mes» llega hasta hoy: la proyección es al último día del mes
+        import calendar
+
+        fin = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+    d["proyeccion"] = s.proyeccion(desde, fin, d["r"]["total"], hoy)
+    d["futuro"] = desde > hoy  # una fecha especial que todavía no llega: sirve para preparar
     d["top"] = d["productos"][:20]
     d["menos"] = [p for p in reversed(d["productos"][20:])][:10] if len(d["productos"]) > 20 else []
     return d
@@ -101,7 +130,10 @@ def _excel(d):
     filas = [["Periodo", f"{d['desde']:%d/%m/%Y} al {d['hasta']:%d/%m/%Y}"], ["Total vendido", r["total"]], ["Ventas", r["n"]],
              ["Ticket promedio", r["promedio"]], ["Promedio por día", r["por_dia"]], ["Descuentos", r["descuentos"]],
              ["Propinas", r["propinas"]], ["Anuladas (cantidad)", r["anuladas"]], ["Anuladas (monto)", r["anuladas_monto"]],
-             ["Periodo anterior", r["anterior"]["total"]], ["Variación %", r["variacion"]]]
+             [f"Comparado con ({r['anterior']['desde']:%d/%m/%Y} al {r['anterior']['hasta']:%d/%m/%Y})", r["anterior"]["total"]],
+             ["Variación %", r["variacion"]]]
+    if d.get("proyeccion"):
+        filas.append(["Proyección al cierre del periodo", d["proyeccion"]["total"]])
     if d["ver_costos"]:
         filas.append(["Ganancia aproximada", r["ganancia"]])
     if d.get("gastos"):
@@ -216,6 +248,15 @@ def _excel(d):
                nom(i.venta.atendio or i.venta.usuario), nom(i.cortesia_por)] for i in rb["cortesias"]]
              + [[fecha(v.fecha), v.numero_str, "Descuento", f"Venta de {v.subtotal}", v.descuento, v.descuento_motivo,
                  nom(v.atendio or v.usuario), nom(v.descuento_por)] for v in rb["descuentos"]])
+    cm = d["cmp"]
+    hoja("Comparación", ["", f"{cm['ahora']['desde']:%d/%m/%Y} al {cm['ahora']['hasta']:%d/%m/%Y}",
+                         f"{cm['antes']['desde']:%d/%m/%Y} al {cm['antes']['hasta']:%d/%m/%Y}", "Variación %"],
+         [["Total vendido", cm["ahora"]["total"], cm["antes"]["total"], cm["ahora"]["var_total"]],
+          ["Ventas", cm["ahora"]["n"], cm["antes"]["n"], cm["ahora"]["var_n"]],
+          ["Ticket promedio", cm["ahora"]["promedio"], cm["antes"]["promedio"], cm["ahora"]["var_promedio"]],
+          ["Venta por día", cm["ahora"]["por_dia"], cm["antes"]["por_dia"], cm["ahora"]["var_por_dia"]], [],
+          ["Producto", "Vendido ahora", "Vendido antes", "Diferencia S/"]]
+         + [[f["nombre"], f["total_ahora"], f["total_antes"], f["dif"]] for f in cm["subieron"] + cm["bajaron"]])
     resp = HttpResponse(a_bytes(wb), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp["Content-Disposition"] = content_disposition_header(True, f"reporte_{d['desde']:%Y%m%d}_{d['hasta']:%Y%m%d}.xlsx")
     return resp

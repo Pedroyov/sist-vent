@@ -1,0 +1,7 @@
+{# Una cifra de la comparación, pensada para el celular: arriba el nombre y la variación; abajo ahora y antes. #}
+<div class="col"><div class="border-bottom py-2">
+  <div class="d-flex align-items-baseline"><span class="small text-body-secondary">{{ titulo }}</span>
+    <span class="ms-auto small fw-semibold text-nowrap">{% if var is not None %}<span class="{% if var >= 0 %}text-success{% else %}text-danger{% endif %}">{% if var >= 0 %}▲ +{% else %}▼ {% endif %}{{ var }}%</span>{% else %}—{% endif %}</span></div>
+  <div class="d-flex align-items-baseline flex-wrap column-gap-3"><span class="fs-5 fw-semibold text-nowrap">{{ ahora }}</span>
+    <span class="ms-auto small text-body-secondary text-nowrap">{{ etiqueta }}: {{ antes }}</span></div>
+</div></div>

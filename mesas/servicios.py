@@ -1,4 +1,5 @@
 """Reglas de las mesas: abrir, agregar, enviar a cocina, mover, juntar, quitar, cobrar y anular."""
+import re
 from decimal import Decimal, InvalidOperation
 
 from django.db import IntegrityError, transaction
@@ -52,29 +53,47 @@ def _monto(texto):
     return m.quantize(Decimal("0.01"))
 
 
-def datos_delivery(cuenta, nombre="", telefono="", direccion="", referencia="", paga_con=""):
-    """Guarda los datos del pedido y los recuerda en el cliente (con el módulo Clientes activo)."""
+def datos_delivery(cuenta, nombre="", telefono="", direccion="", referencia="", paga_con="", ubicacion=None):
+    """Guarda los datos del pedido y los recuerda en el cliente (con el módulo Clientes activo).
+
+    `ubicacion`: lo que se pegó de WhatsApp o del mapa (None = no se toca). Si pegaron el enlace en la dirección, se pasa
+    solo a la ubicación. Basta la dirección o la ubicación."""
+    from core.utils import enlace_mapa
+
+    from .models import SIN_DIRECCION
+
     cuenta.nombre = _limpio(nombre, 60)
     cuenta.telefono = "".join(c for c in str(telefono or "") if c.isdigit() or c == "+")[:20]
-    cuenta.direccion = _limpio(direccion, 200)
+    direccion = _limpio(direccion, 300)
+    if ubicacion is not None:
+        cuenta.ubicacion = enlace_mapa(ubicacion)
+        if str(ubicacion).strip() and not cuenta.ubicacion:
+            raise MesaError("La ubicación no se reconoce: pega el enlace de Google Maps o Waze que mandó el cliente, o sus coordenadas.")
+    if direccion == SIN_DIRECCION:
+        direccion = ""
+    pegado = enlace_mapa(direccion)
+    if pegado:  # pegaron el enlace o las coordenadas en la dirección: van a la ubicación y queda el texto que acompañaba
+        cuenta.ubicacion = cuenta.ubicacion or pegado
+        direccion = " ".join(re.sub(r"https?://\S+|-?\d{1,2}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}", "", direccion).split()).strip(" ,-:")
+    cuenta.direccion = direccion[:200] or (SIN_DIRECCION if cuenta.ubicacion else "")
     cuenta.referencia = _limpio(referencia, 200)
     cuenta.paga_con = _limpio(paga_con, 40)
     if not cuenta.direccion:
-        raise MesaError("Escribe la dirección de entrega.")
+        raise MesaError("Escribe la dirección de entrega o pega la ubicación que mandó el cliente.")
     from clientes.servicios import recordar
 
     if cuenta.telefono:  # el cliente por su celular (lo registra si es nuevo y recuerda su última dirección)
-        cuenta.cliente = recordar(cuenta.nombre, cuenta.telefono, cuenta.direccion, "delivery", cuenta.cliente_id and cuenta.cliente)
+        cuenta.cliente = recordar(cuenta.nombre, cuenta.telefono, "" if cuenta.direccion == SIN_DIRECCION else cuenta.direccion, "delivery", cuenta.cliente_id and cuenta.cliente)
     cuenta.save()
     return cuenta
 
 
-def abrir_delivery(mozo, nombre="", telefono="", direccion="", referencia="", paga_con="", costo_envio=None):
+def abrir_delivery(mozo, nombre="", telefono="", direccion="", referencia="", paga_con="", costo_envio=None, ubicacion=None):
     from core.models import Ajustes
 
     c = Cuenta(mozo=mozo, tipo=Cuenta.Tipo.DELIVERY, estado_envio=Cuenta.Envio.PREPARANDO)
     with transaction.atomic():
-        datos_delivery(c, nombre, telefono, direccion, referencia, paga_con)
+        datos_delivery(c, nombre, telefono, direccion, referencia, paga_con, ubicacion)
         poner_envio(c, Ajustes.cargar().delivery_costo if costo_envio in (None, "") else costo_envio, mozo)
     return c
 

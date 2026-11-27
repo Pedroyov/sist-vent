@@ -90,6 +90,35 @@ class TamanoMaximo:
         return isinstance(otro, TamanoMaximo) and otro.megas == self.megas
 
 
+_GOOGLE = re.compile(r"^(www\.|maps\.)?google\.(com|com\.[a-z]{2}|[a-z]{2})$")
+_COORDS = re.compile(r"(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})")
+
+
+def enlace_mapa(texto):
+    """La ubicación exacta que manda el cliente, lista para abrir en el mapa. El único lugar que la reconoce.
+
+    Acepta lo que se pega desde WhatsApp o una app de mapas: un enlace de Google Maps (también maps.app.goo.gl), Waze o
+    Apple Maps, aunque venga con texto alrededor, o coordenadas («-12.0464, -77.0428»). Cualquier otro enlace no se
+    acepta (el repartidor solo debe abrir mapas). Devuelve el enlace o "" si no hay ubicación."""
+    from urllib.parse import urlsplit
+
+    texto = str(texto or "").strip()
+    if not texto:
+        return ""
+    for url in re.findall(r"https?://[^\s<>\"']+", texto):
+        partes = urlsplit(url)
+        host = (partes.hostname or "").lower()
+        es_mapa = ((_GOOGLE.match(host) and (host.startswith("maps.") or partes.path.startswith("/maps")))
+                   or host == "maps.app.goo.gl" or (host == "goo.gl" and partes.path.startswith("/maps"))
+                   or host in ("waze.com", "www.waze.com", "ul.waze.com", "maps.apple.com"))
+        if es_mapa:
+            return url[:300]
+    m = _COORDS.search(texto)
+    if m and abs(float(m.group(1))) <= 90 and abs(float(m.group(2))) <= 180:
+        return f"https://www.google.com/maps/search/?api=1&query={m.group(1)},{m.group(2)}"
+    return ""
+
+
 def qr_svg(texto, tam=110):
     """Código QR en SVG, listo para la plantilla (comprobantes, código del celular)."""
     if not texto:

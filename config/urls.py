@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from core import views_seguridad as seg
+from productos import carta as carta_views
 
 admin.site.site_header = f"{settings.NEGOCIO_NOMBRE} · Administración"
 admin.site.site_title = settings.NEGOCIO_NOMBRE_CORTO
@@ -29,6 +30,7 @@ urlpatterns = [
     path("citas/", include("citas.urls")),
     path("compras/", include("compras.urls")),
     path("impresion/", include("impresion.urls")),
+    path("carta/", carta_views.carta, name="carta"),  # carta digital: pública, sin usuario
     path("", include("core.urls")),
 ]
 if settings.ADMIN_ACTIVO:

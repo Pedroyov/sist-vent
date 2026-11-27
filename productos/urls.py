@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import carta, views
 
 app_name = "productos"
 
@@ -36,5 +36,6 @@ urlpatterns = [
     path("opciones/<int:pk>/eliminar/", views.grupo_eliminar, name="grupo_eliminar"),
     path("agotados/", views.agotados, name="agotados"),
     path("menu-del-dia/", views.menu_dia, name="menu"),
+    path("carta/qr/", carta.carta_qr, name="carta_qr"),
     path("importar/plantilla/", views.plantilla, name="plantilla"),
 ]

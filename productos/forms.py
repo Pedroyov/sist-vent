@@ -31,7 +31,7 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
         fields = ["tipo", "nombre", "categoria", "unidad", "precio", "costo", "maneja_stock", "stock_minimo",
-                  "duracion_min", "descripcion", "imagen", "activo", "grupos", "area"]
+                  "duracion_min", "descripcion", "imagen", "activo", "en_carta", "grupos", "area"]
         widgets = {
             "tipo": forms.RadioSelect,
             "precio": forms.NumberInput(attrs=DINERO),
@@ -172,7 +172,7 @@ class MovimientoForm(forms.Form):
 class CategoriaForm(forms.ModelForm):
     class Meta:
         model = Categoria
-        fields = ["nombre", "area", "orden", "activa"]
+        fields = ["nombre", "area", "orden", "activa", "en_carta"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

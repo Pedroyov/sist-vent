@@ -42,6 +42,19 @@ class Ajustes(models.Model):
         "segundo paso para entrar a Administración", max_length=3, choices=SegundoPaso.choices, default="", blank=True,
         help_text="Además de la contraseña. Lo decide cada negocio al instalarse y se puede cambiar. Con o sin él, a "
                   "Administración le llega un aviso al correo cuando se entra a su cuenta desde un equipo nuevo.")
+    class Carta(models.TextChoices):
+        NO = "", "No usar"
+        AUTOMATICA = "AUT", "Automática (se arma con los productos y el menú del día)"
+        ARCHIVO = "ARC", "Mi carta en PDF o foto"
+
+    carta = models.CharField("carta digital con QR", max_length=3, choices=Carta.choices, default="", blank=True,
+                             help_text="Una página pública con la carta, para un QR en las mesas o compartir por WhatsApp.")
+    carta_archivo = models.FileField("archivo de la carta", upload_to="negocio/", blank=True, validators=[TamanoMaximo(10)],
+                                     help_text="PDF, JPG o PNG (hasta 10 MB). Solo si eliges «Mi carta en PDF o foto».")
+    carta_estilo = models.CharField("estilo de la carta", max_length=3, default="CLA",
+                                    choices=[("CLA", "Clara (fondo crema)"), ("OSC", "Oscura (fondo negro, títulos dorados)")])
+    carta_portada = models.ImageField("foto de portada de la carta", upload_to="negocio/", blank=True, validators=[TamanoMaximo(5)],
+                                      help_text="Opcional: el local o sus platos. Sale arriba, de fondo del nombre. Los platos no llevan foto.")
     modulos_inactivos = models.JSONField("módulos desactivados", default=modulos_inactivos_iniciales, blank=True)
     funciones_inactivas = models.JSONField("funciones avanzadas ocultas", default=funciones_inactivas_iniciales, blank=True)
 

@@ -108,6 +108,18 @@
       </div>
 
       <div class="card mb-4">
+        <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-qr-code me-1"></i> Carta digital con QR</h3></div>
+        <div class="card-body">
+          {{ form.carta|as_crispy_field }}
+          <div class="row g-2"><div class="col-md-6">{{ form.carta_estilo|as_crispy_field }}</div><div class="col-md-6">{{ form.carta_portada|as_crispy_field }}</div></div>
+          {{ form.carta_archivo|as_crispy_field }}
+          {% if NEGOCIO.carta %}<p class="small mb-0"><a href="{% url 'carta' %}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Ver la carta</a> ·
+            <a href="{% url 'productos:carta_qr' %}"><i class="bi bi-printer me-1"></i>Imprimir el QR para las mesas</a></p>
+          <p class="small text-body-secondary mb-0 mt-1">En la carta automática no salen las categorías ni los productos que tengan desmarcado «Mostrar en la carta digital».</p>{% endif %}
+        </div>
+      </div>
+
+      <div class="card mb-4">
         <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-printer me-1"></i> Impresión y cocina</h3></div>
         <div class="card-body">
           {{ form.ticket_ancho|as_crispy_field }}

@@ -378,10 +378,15 @@ def historial(telefono=None, cliente=None):
             datos["pedidos"] = qs.count()
             ultimo = qs.order_by("-abierta_en").first()
             if ultimo:
-                datos.setdefault("direccion", ultimo.direccion)
+                from mesas.models import SIN_DIRECCION
+
+                dir_ultimo = "" if ultimo.direccion == SIN_DIRECCION else ultimo.direccion
+                misma = not datos.get("direccion") or datos["direccion"] == dir_ultimo
                 if not datos.get("direccion"):
-                    datos["direccion"] = ultimo.direccion
+                    datos["direccion"] = dir_ultimo
                 datos["referencia"] = ultimo.referencia
+                if ultimo.ubicacion and misma:
+                    datos["ubicacion"] = ultimo.ubicacion  # la ubicación exacta de la vez pasada (si sigue la misma dirección)
                 ultimos.append((ultimo.abierta_en, ultimo.nombre))
     if "reservas" in modulos:
         from reservas.models import Reserva

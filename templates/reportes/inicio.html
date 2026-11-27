@@ -29,9 +29,17 @@
   <div class="btn-group btn-group-sm flex-wrap" role="group">
     {% for k, t in atajos %}<a href="?p={{ k }}" class="btn btn-outline-secondary {% if atajo == k %}active{% endif %}">{{ t }}</a>{% endfor %}
   </div>
-  <form class="d-flex gap-1 align-items-end" method="get">
-    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Desde">
-    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" aria-label="Hasta">
+  <form class="d-flex flex-wrap gap-1 align-items-end" method="get" id="f-periodo">
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Desde">
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Hasta">
+    <select name="comparar" class="form-select form-select-sm" style="width: auto" aria-label="Comparar con"
+            onchange="document.getElementById('c-fechas').classList.toggle('d-none', this.value !== 'fechas')">
+      {% for k, t in opciones_comparar %}<option value="{{ k }}" {% if comparar == k %}selected{% endif %}>Comparar: {{ t|lower }}</option>{% endfor %}
+    </select>
+    <span id="c-fechas" class="d-flex gap-1 {% if comparar != 'fechas' %}d-none{% endif %}">
+      <input type="date" name="c_desde" value="{{ r.anterior.desde|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Comparar desde">
+      <input type="date" name="c_hasta" value="{{ r.anterior.hasta|date:'Y-m-d' }}" class="form-control form-control-sm" style="width: auto" aria-label="Comparar hasta">
+    </span>
     <button class="btn btn-sm btn-primary">Ver</button>
   </form>
   <div class="ms-auto d-flex gap-2">
@@ -40,9 +48,15 @@
   </div>
 </div>
 
+<div class="d-flex flex-wrap gap-1 align-items-center mb-3 no-print small">
+  <span class="text-body-secondary me-1"><i class="bi bi-stars"></i> Fechas especiales:</span>
+  {% for k, n, rango in especiales %}<a href="?p=esp:{{ k }}" class="btn btn-sm {% if atajo == 'esp:'|add:k %}btn-warning{% else %}btn-outline-warning{% endif %}" title="{{ rango.0|date:'d/m/Y' }} al {{ rango.1|date:'d/m/Y' }}">{{ n }} {% if k == "anio_nuevo" %}{{ rango.1|date:"Y" }}{% else %}{{ rango.0|date:"Y" }}{% endif %}</a>{% endfor %}
+</div>
+
 <nav class="indice bg-body-tertiary py-2 mb-3 no-print">
   <ul class="nav nav-pills flex-nowrap overflow-auto small">
     <li class="nav-item"><a class="nav-link" href="#resumen">Resumen</a></li>
+    <li class="nav-item"><a class="nav-link" href="#comparar">Comparación</a></li>
     <li class="nav-item"><a class="nav-link" href="{% url 'reportes:dinero' %}?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}"><i class="bi bi-cash-stack me-1"></i>Dinero del día</a></li>
     {% if con_caja %}<li class="nav-item"><a class="nav-link" href="#gastos">Gastos</a></li>{% endif %}
     {% if compras %}<li class="nav-item"><a class="nav-link" href="#compras">Compras</a></li>{% endif %}
@@ -62,7 +76,8 @@
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3"><div class="small-box text-bg-success mb-0 h-100 kpi"><div class="inner"><h3>{{ r.total|soles }}</h3>
     <p class="mb-0">Vendido{% if r.variacion is not None %} · <span class="fw-bold">{% if r.variacion >= 0 %}▲ +{% else %}▼ {% endif %}{{ r.variacion }}%</span>{% endif %}</p>
-    <div class="small opacity-75">antes: {{ r.anterior.total|soles }}{% if r.devuelto %} · devoluciones −{{ r.devuelto|soles }}{% endif %}</div></div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
+    <div class="small opacity-75">{% if comparar == "anio" %}el año pasado{% else %}antes{% endif %}: {{ r.anterior.total|soles }}{% if r.devuelto %} · devoluciones −{{ r.devuelto|soles }}{% endif %}</div>
+    {% if proyeccion %}<div class="small fw-semibold mt-1"><i class="bi bi-graph-up"></i> Si sigue así: {{ proyeccion.total|soles }} al cierre</div>{% endif %}</div><i class="small-box-icon bi bi-cash-stack"></i></div></div>
   <div class="col-6 col-lg-3"><div class="small-box text-bg-primary mb-0 h-100 kpi"><div class="inner"><h3>{{ r.n }}</h3><p class="mb-0">Ventas · {{ r.promedio|soles }} c/u</p>
     <div class="small opacity-75">{{ r.por_dia|soles }} por día</div></div><i class="small-box-icon bi bi-receipt"></i></div></div>
   {% if ver_costos %}<div class="col-6 col-lg-3"><div class="small-box text-bg-info mb-0 h-100 kpi"><div class="inner"><h3>{{ r.ganancia|soles }}</h3>
@@ -72,6 +87,36 @@
     {% empty %}<li class="list-group-item text-body-secondary">Sin ventas</li>{% endfor %}
   </ul></div></div>
 </div>
+
+{# ---------- Comparación lado a lado ---------- #}
+{% with a=cmp.ahora b=cmp.antes %}
+<div class="card mb-3" id="comparar">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-arrow-left-right me-1"></i> Comparación
+    <small class="text-body-secondary">{{ a.desde|date:"d/m/Y" }}{% if a.desde != a.hasta %} al {{ a.hasta|date:"d/m/Y" }}{% endif %} frente a {{ b.desde|date:"d/m/Y" }}{% if b.desde != b.hasta %} al {{ b.hasta|date:"d/m/Y" }}{% endif %}</small></h3></div>
+  <div class="card-body">
+    {% if futuro %}<div class="alert alert-info py-2 small"><i class="bi bi-calendar-event me-1"></i>Esta fecha todavía no llega: abajo tienes lo que se vendió el año pasado para <strong>preparar</strong> compras y producción.</div>{% endif %}
+    {% if comparar == "anio" %}{% firstof "Año pasado" as etiqueta %}{% else %}{% firstof "Antes" as etiqueta %}{% endif %}
+    <div class="row row-cols-1 row-cols-md-2 gx-5 mb-3">
+      {% include "reportes/partials/fila_comparar.html" with titulo="Total vendido" ahora=a.total|soles antes=b.total|soles var=a.var_total %}
+      {% include "reportes/partials/fila_comparar.html" with titulo="Ventas" ahora=a.n antes=b.n var=a.var_n %}
+      {% include "reportes/partials/fila_comparar.html" with titulo="Ticket promedio" ahora=a.promedio|soles antes=b.promedio|soles var=a.var_promedio %}
+      {% include "reportes/partials/fila_comparar.html" with titulo="Venta por día" ahora=a.por_dia|soles antes=b.por_dia|soles var=a.var_por_dia %}
+      {% if proyeccion %}<div class="col"><div class="border-bottom py-2"><div class="small text-body-secondary"><i class="bi bi-graph-up me-1"></i>Si sigue así, al cierre (día {{ proyeccion.pasados }} de {{ proyeccion.todos }})</div>
+        <div class="fs-5 fw-semibold">{{ proyeccion.total|soles }}</div></div></div>{% endif %}
+    </div>
+    <div class="row g-3">
+      {% if cmp.subieron %}<div class="col-md-6"><h6 class="small text-uppercase text-success"><i class="bi bi-arrow-up-right"></i> Lo que más subió</h6>
+        <ul class="list-group list-group-flush small">{% for f in cmp.subieron %}<li class="list-group-item d-flex px-0 py-1"><span class="text-truncate">{{ f.nombre }}</span>
+          <span class="ms-auto text-nowrap text-success">+{{ f.dif|soles }}</span></li>{% endfor %}</ul></div>{% endif %}
+      {% if cmp.bajaron %}<div class="col-md-6"><h6 class="small text-uppercase text-danger"><i class="bi bi-arrow-down-right"></i> Lo que más bajó</h6>
+        <ul class="list-group list-group-flush small">{% for f in cmp.bajaron %}<li class="list-group-item d-flex px-0 py-1"><span class="text-truncate">{{ f.nombre }}</span>
+          <span class="ms-auto text-nowrap text-danger">{{ f.dif|soles }}</span></li>{% endfor %}</ul></div>{% endif %}
+      {% if cmp.preparar and comparar != "anterior" %}<div class="col-12"><h6 class="small text-uppercase text-body-secondary"><i class="bi bi-basket me-1"></i> Qué preparar: lo más vendido {% if comparar == "anio" %}el año pasado en estas fechas{% else %}en las fechas comparadas{% endif %}</h6>
+        <div class="d-flex flex-wrap gap-1">{% for f in cmp.preparar %}<span class="badge text-bg-light border fw-normal fs-6"><strong>{{ f.cantidad|cantidad }}</strong> {{ f.nombre }}</span>{% endfor %}</div></div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endwith %}
 </section>
 
 {# ---------- Gastos y ganancia real ---------- #}

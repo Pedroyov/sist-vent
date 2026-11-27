@@ -1114,6 +1114,53 @@
 <img src="/static/manual/capturas/102_venta_promocion.jpg" loading="lazy" alt="" /><figcaption>Una línea con 2×1 en Vender.</figcaption>
 </figure>
 </section>
+<section id="s-4-13" class="level2">
+<h2>4.13 Carta digital con QR</h2>
+<p>Una página con la carta del negocio que el cliente abre en su celular <strong>escaneando un QR</strong> en la mesa o con un enlace por WhatsApp. No necesita usuario ni instalar nada. Se enciende en <strong>Configuración → Datos del negocio → Carta digital con QR</strong>.</p>
+<figure>
+<img src="/static/manual/capturas/124_carta_config.jpg" loading="lazy" alt="" /><figcaption>Datos del negocio → Carta digital con QR.</figcaption>
+</figure>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+<colgroup>
+<col />
+<col />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Opción</th>
+<th>Qué hace</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Apagada</td>
+<td>No hay carta digital (viene así)</td>
+</tr>
+<tr class="even">
+<td>Automática</td>
+<td>Se arma sola con las categorías y productos activos y sus precios. Si cambias un precio, la carta cambia sola</td>
+</tr>
+<tr class="odd">
+<td>Mi carta en PDF o foto</td>
+<td>Sube tu carta (PDF, JPG o PNG, hasta 10 MB); el QR abre ese archivo</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>La carta automática</strong> se ve como una carta impresa: el nombre del negocio grande arriba, el lema, las secciones con su título y cada plato con su precio a la derecha. Los platos <strong>no llevan foto</strong>.</p>
+<ul>
+<li><strong>Estilo:</strong> clara (fondo crema) u oscura (fondo negro con títulos dorados).</li>
+<li><strong>Foto de portada</strong> (opcional): el local o sus platos, de fondo detrás del nombre.</li>
+<li><strong>Arriba sale el menú de hoy</strong> (si usas el menú del día, 5.1) con sus entradas, segundos y bebida.</li>
+<li><strong>Tamaños:</strong> si un plato tiene variantes (4.3), cada una sale en su línea con su precio. Si <strong>varios platos de la misma categoría tienen los mismos tamaños</strong> (por ejemplo, cuatro ceviches en Personal, Mediano y Familiar), salen juntos en una <strong>tabla con una columna por tamaño</strong>, como en las cevicherías.</li>
+<li><strong>Lo agotado hoy</strong> sale tachado con «Agotado hoy».</li>
+<li>Tiene un <strong>buscador</strong>, botones para saltar a cada sección y, si el negocio tiene WhatsApp, el botón <strong>Pedir o reservar por WhatsApp</strong>.</li>
+<li>Los servicios no salen. Para ocultar un producto o una categoría entera, desmarca <strong>Mostrar en la carta digital</strong> en su ficha.</li>
+</ul>
+<figure>
+<img src="/static/manual/capturas/123_carta_digital.jpg" loading="lazy" alt="" /><figcaption>La carta digital en el celular (estilo oscuro): el menú de hoy arriba y los ceviches con sus tamaños en tabla.</figcaption>
+</figure>
+<p><strong>El QR:</strong> en la misma tarjeta, <strong>Imprimir el QR para las mesas</strong> saca una hoja con un QR grande y cuatro chicos para recortar y poner en cada mesa. <strong>Ver la carta</strong> abre la página para copiar su enlace y mandarlo por WhatsApp.</p>
+</section>
 </section>
 <section id="s-5" class="level1">
 <h1>5. Hoy: menú del día y agotados</h1>
@@ -1714,12 +1761,13 @@
 <section id="s-11-1" class="level2">
 <h2>11.1 Tomar el pedido (por teléfono o WhatsApp)</h2>
 <figure>
-<img src="/static/manual/capturas/40_delivery_nuevo.jpg" loading="lazy" alt="" /><figcaption>Nuevo delivery: al escribir el celular, el sistema reconoce al cliente.</figcaption>
+<img src="/static/manual/capturas/126_delivery_ubicacion.jpg" loading="lazy" alt="" /><figcaption>Nuevo delivery: datos del cliente y la ubicación que mandó por WhatsApp.</figcaption>
 </figure>
 <ol type="1">
 <li>Pulsa <strong>Nuevo pedido</strong> (o <strong>Delivery</strong> en el mapa de mesas).</li>
-<li>Escribe el <strong>celular</strong>: si el cliente ya pidió antes, se completan su nombre y su última dirección, y avisa cuántos pedidos hizo y si debe algo.</li>
+<li>Escribe el <strong>celular</strong>: si el cliente ya pidió antes, se completan su nombre, su última dirección (y su ubicación, si la mandó), y avisa cuántos pedidos hizo y si debe algo.</li>
 <li>Completa dirección, referencia y, si paga en efectivo, <strong>con cuánto paga</strong> (para mandar el vuelto).</li>
+<li><strong>Ubicación</strong> (opcional): si el cliente mandó su ubicación por WhatsApp, tócala; se abre en Google Maps. Ahí pulsa <strong>Compartir → Copiar enlace</strong> y pégalo en el campo de la ubicación (o pulsa <strong>Pegar</strong>). Sirven enlaces de Google Maps, Waze o Apple Maps y también coordenadas (-12.0464, -77.0428). Otros enlaces no se aceptan. Con la ubicación, la dirección escrita ya no es obligatoria. Si pegas el enlace en la dirección, el sistema lo pasa solo a la ubicación.</li>
 <li>El <strong>costo de envío</strong> se pone solo (el de Datos del negocio); se puede cambiar.</li>
 <li>Pulsa <strong>Tomar el pedido</strong> y agrega los productos. En un restaurante se envían a cocina; en una tienda solo se agregan.</li>
 </ol>
@@ -1755,11 +1803,16 @@
 </tr>
 </tbody>
 </table></div>
-<p>En el pedido hay enlaces para llamar, escribir por <strong>WhatsApp</strong> al cliente (“su pedido va en camino”) y abrir la dirección en <strong>Google Maps</strong>. <strong>Editar datos</strong> corrige dirección, referencia, envío o “paga con”.</p>
+<p>En el pedido hay enlaces para llamar y escribir por <strong>WhatsApp</strong> al cliente (“su pedido va en camino”). Con la ubicación del cliente sale el botón rojo <strong>Ubicación exacta</strong>; sin ella, <strong>Buscar en el mapa</strong> busca la dirección escrita en Google Maps.</p>
+<p><strong>Enviar al repartidor</strong> abre WhatsApp con el pedido listo para mandárselo: cliente, celular, dirección, referencia, el enlace del mapa, cuánto cobrar y el vuelto. Eliges al repartidor y le llega a su celular.</p>
+<figure>
+<img src="/static/manual/capturas/127_delivery_ubicacion_pedido.jpg" loading="lazy" alt="" /><figcaption>Pedido con la ubicación exacta del cliente y el botón para mandarlo al repartidor.</figcaption>
+</figure>
+<p><strong>Editar datos</strong> corrige dirección, referencia, ubicación, envío o “paga con”.</p>
 </section>
 <section id="s-11-3" class="level2">
 <h2>11.3 Hoja del repartidor</h2>
-<p>Al marcar <strong>Salió</strong> (en una tienda, desde ahí el pedido ya no se cambia con + y −) se imprime una hoja con cliente, celular, dirección grande, referencia, productos, total, con cuánto paga y el vuelto que debe llevar.</p>
+<p>Al marcar <strong>Salió</strong> (en una tienda, desde ahí el pedido ya no se cambia con + y −) se imprime una hoja con cliente, celular, dirección grande, referencia, un <strong>QR del mapa</strong> (el repartidor lo escanea con su celular y llega al punto exacto), productos, total, con cuánto paga y el vuelto que debe llevar.</p>
 </section>
 <section id="s-11-4" class="level2">
 <h2>11.4 Cobro</h2>
@@ -2002,7 +2055,7 @@
 </section>
 <section id="s-14" class="level1">
 <h1>14. Reportes</h1>
-<p><strong>Gestión → Reportes.</strong> Arriba eliges el periodo (Hoy, Ayer, 7 días, 30 días, Este mes, Mes pasado o fechas a elección) y pulsas <strong>Ver</strong>. Debajo hay un índice para saltar a cada sección.</p>
+<p><strong>Gestión → Reportes.</strong> Arriba eliges el periodo (Hoy, Ayer, 7 días, 30 días, Este mes, Mes pasado o fechas a elección), <strong>con qué compararlo</strong> y pulsas <strong>Ver</strong>. También hay botones para las <strong>fechas especiales</strong>: Navidad, Año Nuevo, Día de la Madre, Día del Padre y Fiestas Patrias (14.3). Debajo hay un índice para saltar a cada sección.</p>
 <figure>
 <img src="/static/manual/capturas/35_reportes.jpg" loading="lazy" alt="" /><figcaption>Reportes: totales, ventas por día, horas punta y lo más vendido.</figcaption>
 </figure>
@@ -2020,45 +2073,49 @@
 <tbody>
 <tr class="odd">
 <td>Resumen</td>
-<td>Total vendido y comparación con el periodo anterior, número de ventas, ticket promedio, ganancia aproximada, por método de pago, propinas, por cobrar</td>
+<td>Total vendido y comparación con el periodo anterior, número de ventas, ticket promedio, ganancia aproximada, por método de pago, propinas, por cobrar. Si el periodo aún no termina (Este mes), <strong>Si sigue así</strong>: cuánto se cerraría al mismo ritmo</td>
 </tr>
 <tr class="even">
+<td>Comparación</td>
+<td>El periodo frente al que elegiste: total, ventas, ticket promedio y venta por día con su variación; lo que más subió y lo que más bajó; y <strong>qué preparar</strong> (14.3)</td>
+</tr>
+<tr class="odd">
 <td>Gastos</td>
 <td>Gastos por motivo (de las cajas y fuera de caja) y la <strong>Ganancia real</strong>: ganancia de lo vendido menos los gastos. Lo pagado a proveedores no se resta otra vez: su costo ya sale al vender. Los retiros del dueño van aparte</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Compras</td>
 <td>Lo comprado por proveedor y el registro de compras (con el módulo Compras, capítulo 18)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Días y horas</td>
 <td>Ventas por día, día de la semana y horas punta</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Productos</td>
 <td>Lo más vendido (cantidad, total y ganancia), por categoría, opciones y adicionales más pedidos, lo que no se vendió</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Personal</td>
 <td>Una fila por persona: lo que cobró en caja (ventas, cuotas y deudas), lo que atendió (mozo o vendedor), propinas, servicios, entregas y comisión. Ver 14.1</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Mesas</td>
 <td>Mesas atendidas, personas, tiempo promedio en mesa, por mesa</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Delivery</td>
 <td>Pedidos, ingresos por envío, entregas y tiempo por repartidor</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Inventario</td>
 <td>Valor del inventario a costo, por reponer ahora, mermas y salidas, ajustes por conteo</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Deudores</td>
 <td>Quién debe, cuánto, cuánto está vencido y hace cuántos días</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Control</td>
 <td>Diferencias de caja por cajero, Yape, Plin, tarjeta y transferencias frente al banco y los cobros que <strong>no llegaron</strong> (por quién los cobró), ventas anuladas, cortesías y descuentos con quién los autorizó, platos quitados después de enviarse a cocina</td>
 </tr>
@@ -2210,6 +2267,44 @@
 </tbody>
 </table></div>
 <p>Arriba están los totales del periodo; abajo, un día por tarjeta (toca un día para abrirlo). Un ícono rojo marca los días con faltante y uno amarillo los días con Yape o tarjeta sin conciliar. El botón <strong>Excel</strong> descarga una fila por día con todas las columnas.</p>
+</section>
+<section id="s-14-3" class="level2">
+<h2>14.3 Comparar periodos y fechas especiales</h2>
+<p>En <strong>Comparar</strong> eliges con qué se compara el periodo:</p>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+<colgroup>
+<col />
+<col />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Comparar con</th>
+<th>Ejemplo</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Periodo anterior</td>
+<td>Esta semana frente a la semana pasada (viene así)</td>
+</tr>
+<tr class="even">
+<td>Mismo periodo del año pasado</td>
+<td>Noviembre de este año frente a noviembre del año pasado</td>
+</tr>
+<tr class="odd">
+<td>Otras fechas</td>
+<td>Las que tú elijas: esta Navidad frente a un fin de semana largo</td>
+</tr>
+</tbody>
+</table></div>
+<p>La tarjeta <strong>Comparación</strong> pone las dos columnas lado a lado (total vendido, ventas, ticket promedio, venta por día) con la variación en verde si subió y en rojo si bajó. Debajo, <strong>lo que más subió</strong> y <strong>lo que más bajó</strong> por producto, en soles.</p>
+<figure>
+<img src="/static/manual/capturas/125_reportes_comparacion.jpg" loading="lazy" alt="" /><figcaption>Comparación: este periodo frente a otras fechas, lo que subió, lo que bajó y qué preparar.</figcaption>
+</figure>
+<p><strong>Fechas especiales.</strong> Los botones de Navidad (20 al 25 de diciembre), Año Nuevo (30 de diciembre al 1 de enero), Día de la Madre (sábado y 2.º domingo de mayo), Día del Padre (sábado y 3.er domingo de junio) y Fiestas Patrias (27 al 29 de julio) muestran esas fechas y las comparan <strong>con las del año pasado</strong>. Si la fecha de este año ya pasó o viene en menos de 45 días, muestra la de este año; si no, la del año pasado.</p>
+<p><strong>Qué preparar.</strong> Al comparar con el año pasado o con otras fechas, sale la lista de <strong>lo más vendido en las fechas comparadas, con cantidades</strong>. Sirve para comprar insumos y preparar a tiempo: por ejemplo, a inicios de diciembre pulsa <strong>Navidad</strong>, mira qué se vendió la Navidad pasada y haz tus pedidos a proveedores.</p>
+<p><strong>Si sigue así.</strong> Con <strong>Este mes</strong> (o un periodo que aún no termina), el reporte calcula cuánto se cerraría si se sigue vendiendo al mismo ritmo.</p>
+<p>La hoja <strong>Comparación</strong> del Excel trae lo mismo.</p>
 </section>
 </section>
 <section id="s-15" class="level1">

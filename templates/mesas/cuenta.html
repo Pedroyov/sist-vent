@@ -76,8 +76,13 @@
     <div class="fw-semibold">{{ c.nombre|default:"(sin nombre)" }}{% if c.cliente %} <a href="{% url 'clientes:detalle' c.cliente_id %}" class="small fw-normal">ficha</a>{% endif %}</div>
     {% if c.telefono %}<div><i class="bi bi-phone me-1"></i><a href="tel:{{ c.telefono }}">{{ c.telefono }}</a>
       <a href="{{ c.telefono|wa_enlace }}" target="_blank" rel="noopener" class="ms-2 text-success"><i class="bi bi-whatsapp"></i> WhatsApp</a></div>{% endif %}
-    <div><i class="bi bi-geo-alt me-1"></i>{{ c.direccion }} {% if c.mapa_url %}<a href="{{ c.mapa_url }}" target="_blank" rel="noopener" class="small">mapa</a>{% endif %}</div>
+    <div><i class="bi bi-geo-alt me-1"></i>{{ c.direccion }}</div>
     {% if c.referencia %}<div class="small text-body-secondary ms-3">{{ c.referencia }}</div>{% endif %}
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      {% if c.mapa_url %}<a href="{{ c.mapa_url }}" target="_blank" rel="noopener" class="btn btn-sm {% if c.ubicacion %}btn-danger{% else %}btn-outline-secondary{% endif %}">
+        <i class="bi bi-geo-alt-fill me-1"></i>{% if c.ubicacion %}Ubicación exacta{% else %}Buscar en el mapa{% endif %}</a>{% endif %}
+      <a href="{{ c.wa_repartidor }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success"><i class="bi bi-whatsapp me-1"></i>Enviar al repartidor</a>
+    </div>
     <div class="small mt-1">Envío <strong>{{ c.costo_envio|soles }}</strong>{% if c.paga_con %} · Paga con <strong>{{ c.paga_con }}</strong>{% if c.vuelto_para %} → llevar vuelto <strong>{{ c.vuelto_para|soles }}</strong>{% endif %}{% endif %}</div>
   </div>
   {% if c.abierta %}
@@ -98,8 +103,9 @@
     <div class="row g-2">
       <div class="col-6"><input type="text" name="nombre" class="form-control form-control-sm" value="{{ c.nombre }}" placeholder="Nombre" maxlength="60"></div>
       <div class="col-6"><input type="tel" name="telefono" class="form-control form-control-sm" value="{{ c.telefono }}" placeholder="Celular" maxlength="20"></div>
-      <div class="col-12"><input type="text" name="direccion" class="form-control form-control-sm" value="{{ c.direccion }}" placeholder="Dirección" maxlength="200" required></div>
+      <div class="col-12"><input type="text" name="direccion" class="form-control form-control-sm" value="{% if c.direccion != sin_direccion %}{{ c.direccion }}{% endif %}" placeholder="Dirección" maxlength="300"></div>
       <div class="col-12"><input type="text" name="referencia" class="form-control form-control-sm" value="{{ c.referencia }}" placeholder="Referencia" maxlength="200"></div>
+      <div class="col-12">{% include "mesas/partials/campo_ubicacion.html" with id="ed-ubi" valor=c.ubicacion %}</div>
       <div class="col-6"><div class="input-group input-group-sm"><span class="input-group-text">Envío S/</span><input type="number" name="costo_envio" class="form-control" value="{{ c.costo_envio|stringformat:'.2f' }}" min="0" step="0.50"></div></div>
       <div class="col-6"><input type="text" name="paga_con" class="form-control form-control-sm" value="{{ c.paga_con }}" placeholder="Paga con" maxlength="40"></div>
       <div class="col-12"><button class="btn btn-sm btn-primary">Guardar</button></div>

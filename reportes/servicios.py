@@ -24,10 +24,59 @@ def c(valor):
 ATAJOS = [("hoy", "Hoy"), ("ayer", "Ayer"), ("7d", "7 días"), ("30d", "30 días"), ("mes", "Este mes"), ("mes_pasado", "Mes pasado")]
 
 
+# Fechas especiales del Perú: (clave, nombre). Las fechas de cada año las da `fecha_especial`.
+FECHAS_ESPECIALES = [("navidad", "Navidad"), ("anio_nuevo", "Año Nuevo"), ("madre", "Día de la Madre"),
+                     ("padre", "Día del Padre"), ("patrias", "Fiestas Patrias")]
+DIAS_PARA_PREPARAR = 45  # si la fecha especial viene en menos de esto, se muestra la que viene (para preparar)
+
+
+def _domingo(anio, mes, n):
+    """El n-ésimo domingo del mes (Día de la Madre: 2.º de mayo; del Padre: 3.º de junio)."""
+    d = date(anio, mes, 1)
+    d += timedelta(days=(6 - d.weekday()) % 7)
+    return d + timedelta(weeks=n - 1)
+
+
+def fecha_especial(clave, anio):
+    """(desde, hasta) de la fecha especial en ese año: los días en que más se vende por ella."""
+    if clave == "navidad":
+        return date(anio, 12, 20), date(anio, 12, 25)
+    if clave == "anio_nuevo":
+        return date(anio, 12, 30), date(anio + 1, 1, 1)
+    if clave == "madre":
+        dom = _domingo(anio, 5, 2)
+        return dom - timedelta(days=1), dom
+    if clave == "padre":
+        dom = _domingo(anio, 6, 3)
+        return dom - timedelta(days=1), dom
+    if clave == "patrias":
+        return date(anio, 7, 27), date(anio, 7, 29)
+    raise ValueError(clave)
+
+
+def especial_cercana(clave, hoy=None):
+    """La de este año si ya pasó o viene pronto (para preparar); si no, la del año pasado."""
+    hoy = hoy or timezone.localdate()
+    desde, hasta = fecha_especial(clave, hoy.year)
+    if desde <= hoy + timedelta(days=DIAS_PARA_PREPARAR):
+        return desde, hasta
+    return fecha_especial(clave, hoy.year - 1)
+
+
+def un_anio_antes(d):
+    try:
+        return d.replace(year=d.year - 1)
+    except ValueError:  # 29 de febrero
+        return d.replace(year=d.year - 1, day=28)
+
+
 def periodo(request, defecto="7d"):
     """(desde, hasta, clave del atajo). Por defecto, los últimos 7 días (o «Este mes» con defecto="mes")."""
     hoy = timezone.localdate()
     p = request.GET.get("p", "")
+    if p.startswith("esp:") and p[4:] in dict(FECHAS_ESPECIALES):
+        desde, hasta = especial_cercana(p[4:], hoy)
+        return desde, hasta, p
     if p == "hoy":
         return hoy, hoy, p
     if p == "ayer":
@@ -66,7 +115,7 @@ def ventas(desde, hasta):
     return Venta.objects.filter(**dias("fecha", desde, hasta), estado=Venta.Estado.PAGADA)
 
 
-def resumen(desde, hasta):
+def resumen(desde, hasta, d0=None, d1=None):
     from ventas.models import Venta
     from ventas.servicios import resumen as resumen_ventas
 
@@ -80,13 +129,77 @@ def resumen(desde, hasta):
     r["bruto"], r["devuelto"], r["devoluciones_n"] = r["total"], dv["total"], dv["n"]
     r["total"] -= dv["total"]
     r["ganancia"] -= dv["ganancia"]
-    d0, d1 = anterior(desde, hasta)
+    if d0 is None:
+        d0, d1 = anterior(desde, hasta)
     previo = resumen_ventas(Venta.objects.filter(**dias("fecha", d0, d1)))
     previo["total"] -= resumen_periodo(d0, d1)["total"]
     r["anterior"] = {"desde": d0, "hasta": d1, "total": previo["total"], "n": previo["n"]}
     r["variacion"] = ((r["total"] - previo["total"]) / previo["total"] * 100).quantize(Decimal("0.1")) if previo["total"] else None
     r["por_dia"] = c(r["total"] / ((hasta - desde).days + 1))
     return r
+
+
+# --- Comparar y proyectar ----------------------------------------------------------------
+
+COMPARAR = [("anterior", "Periodo anterior"), ("anio", "Mismo periodo del año pasado"), ("fechas", "Otras fechas")]
+
+
+def rango_comparado(desde, hasta, modo, c_desde=None, c_hasta=None):
+    """Con qué se compara: el periodo de igual largo justo antes, las mismas fechas del año pasado u otras fechas."""
+    if modo == "anio":
+        return un_anio_antes(desde), un_anio_antes(hasta)
+    if modo == "fechas" and c_desde and c_hasta:
+        return (c_desde, c_hasta) if c_desde <= c_hasta else (c_hasta, c_desde)
+    return anterior(desde, hasta)
+
+
+def _cifras(desde, hasta):
+    from ventas.models import Venta
+    from ventas.servicios import resumen as resumen_ventas
+
+    from ventas.devoluciones import resumen_periodo
+
+    r = resumen_ventas(Venta.objects.filter(**dias("fecha", desde, hasta)))
+    total = r["total"] - resumen_periodo(desde, hasta)["total"]
+    dias_ = (hasta - desde).days + 1
+    return {"desde": desde, "hasta": hasta, "total": total, "n": r["n"], "promedio": c(total / r["n"]) if r["n"] else CERO,
+            "por_dia": c(total / dias_), "dias": dias_}
+
+
+def _variacion(ahora, antes):
+    return ((ahora - antes) / antes * 100).quantize(Decimal("0.1")) if antes else None
+
+
+def comparacion(desde, hasta, d0, d1):
+    """Las dos columnas lado a lado (total, ventas, ticket promedio, por día) y los productos que más subieron y bajaron.
+    `preparar`: lo más vendido en el periodo comparado, con cantidades (para comprar o preparar a tiempo)."""
+    a, b = _cifras(desde, hasta), _cifras(d0, d1)
+    for k in ("total", "n", "promedio", "por_dia"):
+        a["var_" + k] = _variacion(Decimal(a[k]), Decimal(b[k]))
+    ahora = {f["id"]: f for f in productos(desde, hasta)}
+    antes = {f["id"]: f for f in productos(d0, d1)}
+    filas = []
+    for pid in set(ahora) | set(antes):
+        x, y = ahora.get(pid), antes.get(pid)
+        f = x or y
+        filas.append({"nombre": f["nombre"], "cant_ahora": x["cantidad"] if x else 0, "cant_antes": y["cantidad"] if y else 0,
+                      "total_ahora": x["total"] if x else CERO, "total_antes": y["total"] if y else CERO})
+    for f in filas:
+        f["dif"] = f["total_ahora"] - f["total_antes"]
+        f["var"] = _variacion(f["total_ahora"], f["total_antes"])
+    subieron = sorted([f for f in filas if f["dif"] > 0], key=lambda f: -f["dif"])[:10]
+    bajaron = sorted([f for f in filas if f["dif"] < 0], key=lambda f: f["dif"])[:10]
+    preparar = sorted(antes.values(), key=lambda f: -f["cantidad"])[:15]
+    return {"ahora": a, "antes": b, "subieron": subieron, "bajaron": bajaron, "preparar": preparar}
+
+
+def proyeccion(desde, hasta, total, hoy=None):
+    """Si el periodo todavía no termina: cuánto se cerraría si se sigue vendiendo al mismo ritmo (o None)."""
+    hoy = hoy or timezone.localdate()
+    if not (desde <= hoy < hasta):
+        return None
+    pasados, todos = (hoy - desde).days + 1, (hasta - desde).days + 1
+    return {"total": c(total / pasados * todos), "pasados": pasados, "todos": todos}
 
 
 def _con_barras(filas, campo="total"):

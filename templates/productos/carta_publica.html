@@ -1,0 +1,150 @@
+{% load static sis %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carta · {{ negocio.nombre_mostrar }}</title>
+  <link rel="icon" type="image/png" href="{% static 'img/icons/icon-192.png' %}">
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+  <style>
+    /* Como una carta impresa: nombre grande arriba, secciones con título en mayúsculas y cada plato con su precio a la derecha. */
+    :root { --fondo: #faf6ef; --papel: #fffdf8; --texto: #2b2420; --suave: #74685d; --acento: #8a5a2b; --linea: #e6dccd; --chip: #fff; }
+    {% if negocio.carta_estilo == "OSC" %}
+    :root { --fondo: #121010; --papel: rgba(18, 16, 16, .92); --texto: #f3eee8; --suave: #b9aea3; --acento: #d9b26f; --linea: #3a332e; --chip: #1e1a18; }
+    {% endif %}
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--fondo); color: var(--texto); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .portada { text-align: center; padding: 2.5rem 1rem 2rem; position: relative; color: var(--texto); }
+    .portada.con-foto { color: #fff; background-size: cover; background-position: center; }
+    .portada.con-foto::before { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
+    .portada > * { position: relative; }
+    .portada img.logo { max-height: 80px; max-width: 160px; margin-bottom: .5rem; }
+    .portada h1 { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 700; font-size: 2.6rem; line-height: 1.1; margin: 0; }
+    .portada .lema { font-family: Georgia, serif; text-transform: uppercase; letter-spacing: .3em; font-size: .85rem; margin-top: .75rem; opacity: .9; }
+    .carta { max-width: 64rem; margin: 0 auto; padding: 0 1rem 5.5rem; }
+    .hoja { background: var(--papel); border-radius: .5rem; padding: 1.25rem 1.5rem; }
+    @media (max-width: 600px) { .hoja { padding: .75rem .25rem; } }
+    .buscar { width: 100%; padding: .6rem .9rem; border-radius: .5rem; border: 1px solid var(--linea); background: var(--chip); color: var(--texto); font-size: 1rem; }
+    .chips { position: sticky; top: 0; z-index: 5; background: var(--fondo); padding: .5rem 0; overflow-x: auto; white-space: nowrap; margin-bottom: .75rem; }
+    .chips a { display: inline-block; margin-right: .35rem; padding: .3rem .8rem; border-radius: 2rem; border: 1px solid var(--linea);
+               color: var(--texto); text-decoration: none; font-size: .85rem; background: var(--chip); }
+    .secciones { columns: 1; column-gap: 3rem; }
+    @media (min-width: 820px) { .secciones { columns: 2; } }
+    .seccion { break-inside: avoid; margin-bottom: 1.75rem; scroll-margin-top: 3.5rem; }
+    .seccion h2 { font-family: Georgia, "Times New Roman", serif; text-transform: uppercase; color: var(--acento); font-size: 1.3rem;
+                  letter-spacing: .03em; margin: 0 0 .6rem; }
+    .plato { padding: .28rem 0; }
+    .plato .fila { display: flex; align-items: baseline; gap: 1rem; }
+    .plato .nombre { flex: 1; }
+    .plato .precio { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .plato .desc { font-size: .85rem; color: var(--suave); margin-top: .05rem; }
+    .plato .variante { padding-left: 1rem; font-size: .92rem; margin-top: .1rem; }
+    .plato .variante .nombre { color: var(--suave); }
+    /* Platos con los mismos tamaños: una columna por tamaño */
+    .tabla { margin: .2rem 0 .5rem; }
+    .tabla .fila { gap: .35rem; }
+    .tabla .nombre { flex: 1; }
+    .tabla .col { flex: none; width: 3.9rem; text-align: right; font-size: .92rem; }
+    .tabla .cab { display: flex; padding-bottom: .15rem; border-bottom: 1px solid var(--linea); }
+    .tabla .cab .col { font-size: .68rem; text-transform: uppercase; color: var(--acento); overflow-wrap: anywhere; line-height: 1.15; }
+    @media (max-width: 380px) { .tabla .col { width: 3.5rem; font-size: .85rem; } }
+    .agotado .nombre, .agotado .precio { text-decoration: line-through; color: var(--suave); }
+    .agotado .aviso { font-size: .78rem; color: #c0392b; }
+    .menu-dia { border: 2px solid var(--acento); border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: 1.75rem; }
+    .menu-dia .tipo + .tipo { margin-top: .9rem; padding-top: .9rem; border-top: 1px solid var(--linea); }
+    .menu-dia .tipo .fila { font-weight: 700; font-size: 1.1rem; }
+    .menu-dia .grupo { font-size: .92rem; margin-top: .2rem; }
+    .menu-dia .grupo b { color: var(--acento); font-weight: 600; }
+    .nota { text-align: center; color: var(--suave); font-size: .85rem; margin-top: 1rem; }
+    .oculta { display: none !important; }
+    .pie { position: fixed; bottom: 0; left: 0; right: 0; background: var(--fondo); border-top: 1px solid var(--linea); padding: .6rem; text-align: center; }
+    .pie a { display: inline-block; padding: .6rem 1.2rem; border-radius: .5rem; background: #198754; color: #fff; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+<header class="portada {% if negocio.carta_portada %}con-foto{% endif %}" {% if negocio.carta_portada %}style="background-image: url('{{ negocio.carta_portada.url }}')"{% endif %}>
+  {% if negocio.tiene_logo and not negocio.carta_portada %}<img class="logo" src="{{ negocio.logo_url }}" alt="Logo de {{ negocio.nombre_mostrar }}">{% endif %}
+  <h1>{{ negocio.nombre_mostrar }}</h1>
+  {% if negocio.lema %}<div class="lema">{{ negocio.lema }}</div>{% endif %}
+</header>
+<div class="carta">
+  <input type="search" id="buscar" class="buscar" placeholder="Buscar en la carta…" autocomplete="off" aria-label="Buscar en la carta">
+  <nav class="chips" aria-label="Secciones">
+    {% if menu %}<a href="#menu-del-dia">Menú de hoy</a>{% endif %}
+    {% for nombre, _ in secciones %}<a href="#s{{ forloop.counter }}">{{ nombre }}</a>{% endfor %}
+  </nav>
+  <div class="hoja">
+    {% if menu %}
+    <section class="menu-dia seccion" id="menu-del-dia">
+      <h2>Menú de hoy</h2>
+      {% for t, grupos in menu %}
+      <div class="tipo">
+        <div class="fila plato" style="display: flex"><span class="nombre">{{ t.nombre }}</span><span class="precio">{{ t.precio|soles }}</span></div>
+        {% for nombre, ops in grupos %}<div class="grupo"><b>{{ nombre }}:</b>
+          {% for o in ops %}<span {% if o.agotada %}style="text-decoration: line-through; opacity: .6"{% endif %}>{{ o.nombre }}{% if o.precio %} (+{{ o.precio|soles }}){% endif %}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>{% endfor %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+    <div class="secciones">
+      {% for nombre, productos in secciones %}
+      <section class="seccion" id="s{{ forloop.counter }}">
+        <h2>{{ nombre }}</h2>
+        {% for b in productos %}
+        {% if b.cols %}
+        <div class="tabla">
+          <div class="fila cab"><span class="nombre"></span>{% for c in b.cols %}<span class="col">{{ c }}</span>{% endfor %}</div>
+          {% for p in b.productos %}
+          <div class="plato {% if p.agotado %}agotado{% endif %}" data-buscar="{{ p.nombre|lower }} {{ p.descripcion|lower }}">
+            <div class="fila"><span class="nombre">{{ p.nombre }}</span>{% for pr in p.celdas %}<span class="col precio">{{ pr|floatformat:2 }}</span>{% endfor %}</div>
+            {% if p.agotado %}<div class="aviso">Agotado hoy</div>{% endif %}
+            {% if p.descripcion %}<div class="desc">{{ p.descripcion|linebreaksbr }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        {% for p in b.productos %}
+        <div class="plato {% if p.agotado %}agotado{% endif %}" data-buscar="{{ p.nombre|lower }} {{ p.descripcion|lower }}">
+          <div class="fila"><span class="nombre">{{ p.nombre }}</span>{% if not p.precios %}<span class="precio">{{ p.precio|soles }}</span>{% endif %}</div>
+          {% if p.agotado %}<div class="aviso">Agotado hoy</div>{% endif %}
+          {% if p.descripcion %}<div class="desc">{{ p.descripcion|linebreaksbr }}</div>{% endif %}
+          {% for n, pr in p.precios %}<div class="fila variante"><span class="nombre">{{ n }}</span><span class="precio">{{ pr|soles }}</span></div>{% endfor %}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+      </section>
+      {% empty %}
+      <p class="nota">La carta todavía no tiene productos.</p>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="nota">Todos los precios en soles e incluyen IGV.{% if negocio.direccion %}<br>{{ negocio.direccion }}{% endif %}</p>
+</div>
+{% if negocio.whatsapp_link or negocio.telefono %}
+<div class="pie">
+  {% if negocio.whatsapp_link %}<a href="{{ negocio.whatsapp_link }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Pedir o reservar por WhatsApp</a>
+  {% else %}<a href="tel:{{ negocio.telefono }}" style="background: transparent; color: var(--texto); border: 1px solid var(--linea)"><i class="bi bi-telephone"></i> {{ negocio.telefono }}</a>{% endif %}
+</div>
+{% endif %}
+<script>
+(function () {
+  var q = document.getElementById("buscar");
+  var norm = function (t) { return (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); };
+  var platos = Array.prototype.slice.call(document.querySelectorAll("[data-buscar]"));
+  platos.forEach(function (p) { p._t = norm(p.dataset.buscar); });
+  q.addEventListener("input", function () {
+    var t = norm(q.value.trim());
+    platos.forEach(function (p) { p.classList.toggle("oculta", !!t && p._t.indexOf(t) < 0); });
+    document.querySelectorAll("section.seccion").forEach(function (s) {
+      if (s.id === "menu-del-dia") { s.classList.toggle("oculta", !!t); return; }
+      s.classList.toggle("oculta", !!t && !s.querySelector("[data-buscar]:not(.oculta)"));
+    });
+    document.querySelectorAll(".tabla").forEach(function (b) {
+      b.classList.toggle("oculta", !!t && !b.querySelector("[data-buscar]:not(.oculta)"));
+    });
+  });
+})();
+</script>
+</body>
+</html>

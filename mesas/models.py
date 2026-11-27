@@ -8,6 +8,8 @@ from django.utils import timezone
 CERO = Decimal("0")
 
 
+SIN_DIRECCION = "Ver la ubicación en el mapa"  # cuando el cliente solo mandó su ubicación
+
 class Zona(models.Model):
     nombre = models.CharField(max_length=40, unique=True, help_text='Ej.: "Salón", "Terraza", "Segundo piso".')
     orden = models.PositiveSmallIntegerField(default=0)
@@ -66,6 +68,8 @@ class Cuenta(models.Model):
     telefono = models.CharField("celular", max_length=20, blank=True)
     direccion = models.CharField("dirección", max_length=200, blank=True)
     referencia = models.CharField(max_length=200, blank=True, help_text='Ej.: "Frente al parque, puerta verde".')
+    ubicacion = models.CharField("ubicación", max_length=300, blank=True,
+                                 help_text="El enlace de la ubicación que mandó el cliente por WhatsApp (Google Maps, Waze) o sus coordenadas.")
     paga_con = models.CharField("paga con", max_length=40, blank=True, help_text='Ej.: "100", "Yape", "ya pagó".')
     costo_envio = models.DecimalField("costo de envío", max_digits=8, decimal_places=2, default=CERO)
     estado_envio = models.CharField(max_length=3, choices=Envio.choices, blank=True)
@@ -114,14 +118,37 @@ class Cuenta(models.Model):
 
     @property
     def mapa_url(self):
+        """La ubicación exacta si el cliente la mandó; si no, se busca la dirección en Google Maps."""
         from urllib.parse import quote
 
-        if not self.direccion:
+        if self.ubicacion:
+            return self.ubicacion
+        if not self.direccion or self.direccion == SIN_DIRECCION:
             return ""
         from core.models import Ajustes
 
         a = Ajustes.cargar()
         return "https://www.google.com/maps/search/?api=1&query=" + quote(", ".join(x for x in [self.direccion, a.distrito] if x))
+
+    @property
+    def wa_repartidor(self):
+        """WhatsApp con los datos del pedido para mandárselo al repartidor (elige a quién): dirección, mapa y cuánto cobrar."""
+        from core.utils import enlace_whatsapp
+
+        lineas = [f"*{self.titulo}*"]
+        if self.telefono:
+            lineas.append(f"Cel: {self.telefono}")
+        if self.direccion and self.direccion != SIN_DIRECCION:
+            lineas.append(self.direccion)
+        if self.referencia:
+            lineas.append(f"Ref.: {self.referencia}")
+        if self.mapa_url:
+            lineas.append(f"Mapa: {self.mapa_url}")
+        total = self.total_por_cobrar
+        lineas.append(f"Cobrar: S/ {total:.2f}" if total else "Ya pagado: no cobrar")
+        if total and self.paga_con:
+            lineas.append(f"Paga con: {self.paga_con}" + (f" (llevar vuelto S/ {self.vuelto_para:.2f})" if self.vuelto_para else ""))
+        return enlace_whatsapp(None, "\n".join(lineas))
 
     @property
     def vuelto_para(self):

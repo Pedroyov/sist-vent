@@ -9,6 +9,7 @@
 {% if c.telefono %}<div>Cel: {{ c.telefono }}</div>{% endif %}
 <div class="grande">{{ c.direccion }}</div>
 {% if c.referencia %}<div>Ref.: {{ c.referencia }}</div>{% endif %}
+{% if qr_mapa %}<div class="c">{{ qr_mapa }}<br>{% if c.ubicacion %}Escanea: ubicación exacta{% else %}Escanea para ver el mapa{% endif %}</div>{% endif %}
 {% else %}
 <div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">PRECUENTA</span><br>{{ c.titulo }}{% if c.personas %} · {{ c.personas }} pers.{% endif %}<br>{% now "d/m/Y H:i" %}</div>
 {% endif %}

@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 from core.permisos import permiso_requerido, puede
 from core.utils import dias, entero
 
-from .models import Cuenta, ItemCuenta, Mesa, Zona
+from .models import SIN_DIRECCION, Cuenta, ItemCuenta, Mesa, Zona
 from core.autorizacion import AutorizacionError, autorizar
 
 from .servicios import (MesaError, abrir_cuenta, abrir_delivery, agregar, anular_cuenta, cambiar_cantidad, cobrar, cortesia, datos_delivery,
@@ -182,7 +182,7 @@ def cuenta(request, pk):
     puede_pasar = c.abierta and _puede_pasar(request.user, c)
     return render(request, "mesas/cuenta.html", {
         "puede_pasar": puede_pasar, "mozos": mozos_disponibles() if puede_pasar else [],
-        "c": c, "por_enviar": por_enviar, "enviados": enviados, "pagados": pagados, "anulados": anulados,
+        "c": c, "sin_direccion": SIN_DIRECCION, "por_enviar": por_enviar, "enviados": enviados, "pagados": pagados, "anulados": anulados,
         "pendiente": sum((i.subtotal for i in por_enviar + enviados), 0),
         "ventas": sorted({i.venta for i in pagados}, key=lambda v: v.numero),
         "recien": [i for i in items if recien and not i.anulado and not i.es_envio and i.enviado_en == recien],
@@ -359,7 +359,10 @@ def servido(request, pk):
 def precuenta(request, pk):
     c = _cuenta(pk, request.user)
     total = c.total_por_cobrar
+    from core.utils import qr_svg
+
     return render(request, "mesas/precuenta.html", {"c": c, "items": c.por_cobrar().order_by("creado"), "total": total,
+                                                    "qr_mapa": qr_svg(c.mapa_url, 110) if c.es_delivery else "",
                                                     "propina_sugerida": (total / 10).quantize(total.__class__("0.10")),
                                                     "por_persona": (total / c.personas).quantize(total.__class__("0.01")) if c.personas > 1 and total and not c.es_delivery else None,
                                                     "pagado": sum((i.subtotal for i in c.items.filter(anulado=False, venta__isnull=False)), total.__class__("0"))})
@@ -509,7 +512,7 @@ def delivery_nuevo(request):
     try:
         with transaction.atomic():
             c = abrir_delivery(request.user, d.get("nombre"), d.get("telefono"), d.get("direccion"), d.get("referencia"), d.get("paga_con"),
-                               d.get("costo_envio"))
+                               d.get("costo_envio"), d.get("ubicacion"))
             if items:
                 _carrito_a_delivery(request.user, c, items)
     except MesaError as e:
@@ -553,7 +556,8 @@ def delivery_accion(request, pk):
             from django.db import transaction
 
             with transaction.atomic():
-                datos_delivery(c, d.get("nombre"), d.get("telefono"), d.get("direccion"), d.get("referencia"), d.get("paga_con"))
+                datos_delivery(c, d.get("nombre"), d.get("telefono"), d.get("direccion"), d.get("referencia"), d.get("paga_con"),
+                               d.get("ubicacion"))
                 poner_envio(c, d.get("costo_envio"), request.user)
             messages.success(request, "Datos del delivery guardados.")
         elif accion == "salio":

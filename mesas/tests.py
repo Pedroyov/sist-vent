@@ -720,6 +720,53 @@ class DeliveryTests(TestCase):
         self.assertEqual(Cuenta.objects.count(), n)  # apagado: no se puede
 
 
+    def test_ubicacion_que_manda_el_cliente(self):
+        from core.utils import enlace_mapa
+
+        from .models import SIN_DIRECCION
+
+        # qué se acepta como ubicación (solo mapas)
+        self.assertEqual(enlace_mapa("Mi ubicación: https://maps.app.goo.gl/Abc123"), "https://maps.app.goo.gl/Abc123")
+        self.assertEqual(enlace_mapa("-12.046374, -77.042793"), "https://www.google.com/maps/search/?api=1&query=-12.046374,-77.042793")
+        self.assertTrue(enlace_mapa("https://www.google.com.pe/maps/@-12.1,-77.0,17z"))
+        self.assertTrue(enlace_mapa("https://ul.waze.com/ul?ll=-12.1,-77.0"))
+        for malo in ["https://google.evil.com/maps/x", "https://evil.com/maps.google.com", "https://www.google.com/search?q=x",
+                     "https://goo.gl/abc", "Av. Grau 120, dpto 3.5", ""]:
+            self.assertEqual(enlace_mapa(malo), "", malo)
+        # solo la ubicación (sin dirección escrita): se toma el pedido
+        c = self._nuevo(direccion="", ubicacion="https://maps.app.goo.gl/Abc123")
+        self.assertEqual((c.direccion, c.ubicacion, c.mapa_url), (SIN_DIRECCION, "https://maps.app.goo.gl/Abc123", "https://maps.app.goo.gl/Abc123"))
+        r = self.client.get(reverse("mesas:cuenta", args=[c.pk]))
+        self.assertContains(r, "Ubicación exacta")
+        self.assertContains(r, "Enviar al repartidor")
+        self.assertContains(r, "Mapa%3A%20https%3A//maps.app.goo.gl/Abc123")  # va en el mensaje para el repartidor
+        r = self.client.get(reverse("mesas:precuenta", args=[c.pk]))
+        self.assertContains(r, "<svg")  # QR del mapa en la hoja impresa
+        self.assertContains(r, "ubicación exacta")
+        # el enlace pegado en la dirección pasa solo a la ubicación
+        c = self._nuevo(telefono="987333444", direccion="Jr. Lima 340 https://maps.google.com/?q=-12.06,-77.03")
+        self.assertEqual((c.direccion, c.ubicacion), ("Jr. Lima 340", "https://maps.google.com/?q=-12.06,-77.03"))
+        # otro enlace no se acepta
+        n = Cuenta.objects.count()
+        self._nuevo(telefono="987555666", ubicacion="https://evil.com/x")
+        self.assertEqual(Cuenta.objects.count(), n)
+        # sin ubicación: se busca la dirección escrita
+        c = self._nuevo(telefono="987777888")
+        self.assertIn("google.com/maps/search", c.mapa_url)
+        self.assertNotContains(self.client.get(reverse("mesas:cuenta", args=[c.pk])), "Ubicación exacta")
+        # la próxima vez se recuerda la ubicación (si sigue la misma dirección)
+        r = self.client.get(reverse("clientes:celular"), {"tel": "987333444"})
+        self.assertEqual(r.json()["ubicacion"], "https://maps.google.com/?q=-12.06,-77.03")
+        # al editar se puede quitar; sin dirección ni ubicación no se guarda
+        c = Cuenta.objects.get(telefono="987111222")
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "datos", "nombre": "Rosa", "direccion": "", "ubicacion": "", "costo_envio": "5"})
+        c.refresh_from_db()
+        self.assertEqual(c.ubicacion, "https://maps.app.goo.gl/Abc123")
+        self.client.post(reverse("mesas:delivery", args=[c.pk]), {"accion": "datos", "nombre": "Rosa", "direccion": "Av. Grau 5", "ubicacion": "", "costo_envio": "5"})
+        c.refresh_from_db()
+        self.assertEqual((c.direccion, c.ubicacion), ("Av. Grau 5", ""))
+
+
 class DeliverySinMesasTests(TestCase):
     """Una tienda sin mesas puede hacer delivery: pedido, despacho, cobro y reporte, sin cocina."""
 

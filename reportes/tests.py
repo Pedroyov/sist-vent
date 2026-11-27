@@ -120,3 +120,72 @@ class ReportesTests(TestCase):
         r = self.client.get(reverse("reportes:inicio"))
         self.assertNotContains(r, "ventas que atendió como mozo")
         self.assertNotContains(r, "Deudores (fiado)")
+
+
+class ComparacionTests(TestCase):
+    """Comparar periodos, fechas especiales (para preparar) y la proyección al cierre."""
+
+    def setUp(self):
+        ReportesTests.setUp(self)
+
+    def vender(self, items, pagos, dias_atras=0):
+        v = registrar_venta(self.jefe, [{"variante": x.pk, "cantidad": str(n)} for x, n in items], pagos)
+        if dias_atras:
+            Venta.objects.filter(pk=v.pk).update(fecha=timezone.now() - timedelta(days=dias_atras))
+        return v
+
+    def test_fechas_especiales(self):
+        from datetime import date
+
+        self.assertEqual(s.fecha_especial("madre", 2026), (date(2026, 5, 9), date(2026, 5, 10)))   # 2.º domingo de mayo
+        self.assertEqual(s.fecha_especial("padre", 2026), (date(2026, 6, 20), date(2026, 6, 21)))  # 3.º domingo de junio
+        self.assertEqual(s.fecha_especial("anio_nuevo", 2026), (date(2026, 12, 30), date(2027, 1, 1)))
+        self.assertEqual(s.fecha_especial("patrias", 2025), (date(2025, 7, 27), date(2025, 7, 29)))
+        # la de este año si viene pronto (para preparar); si falta mucho, la del año pasado
+        self.assertEqual(s.especial_cercana("navidad", date(2026, 11, 27)), (date(2026, 12, 20), date(2026, 12, 25)))
+        self.assertEqual(s.especial_cercana("patrias", date(2026, 3, 1)), (date(2025, 7, 27), date(2025, 7, 29)))
+        self.assertEqual(s.un_anio_antes(date(2024, 2, 29)), date(2023, 2, 28))
+        # con qué se compara
+        d, h = date(2026, 11, 20), date(2026, 11, 26)
+        self.assertEqual(s.rango_comparado(d, h, "anterior"), (date(2026, 11, 13), date(2026, 11, 19)))
+        self.assertEqual(s.rango_comparado(d, h, "anio"), (date(2025, 11, 20), date(2025, 11, 26)))
+        self.assertEqual(s.rango_comparado(d, h, "fechas", date(2026, 1, 9), date(2026, 1, 2)), (date(2026, 1, 2), date(2026, 1, 9)))
+        self.assertEqual(s.rango_comparado(d, h, "fechas"), (date(2026, 11, 13), date(2026, 11, 19)))  # sin fechas: el anterior
+
+    def test_comparacion_y_proyeccion(self):
+        from datetime import date
+
+        self.vender([(self.gas, 4), (self.lomo, 1)], [{"metodo": "EFE", "monto": "32"}])
+        self.vender([(self.gas, 1), (self.lomo, 3)], [{"metodo": "EFE", "monto": "63"}], dias_atras=1)
+        ayer = self.hoy - timedelta(days=1)
+        cm = s.comparacion(self.hoy, self.hoy, ayer, ayer)
+        self.assertEqual((cm["ahora"]["total"], cm["antes"]["total"], cm["ahora"]["var_total"]), (D("32"), D("63"), D("-49.2")))
+        self.assertEqual([(f["nombre"], f["dif"]) for f in cm["subieron"]], [("Gaseosa", D("9"))])
+        self.assertEqual([(f["nombre"], f["dif"]) for f in cm["bajaron"]], [("Lomo", D("-40"))])
+        self.assertEqual([(f["nombre"], f["cantidad"]) for f in cm["preparar"]], [("Lomo", D("3")), ("Gaseosa", D("1"))])
+        sin = s.comparacion(self.hoy, self.hoy, self.hoy - timedelta(days=400), self.hoy - timedelta(days=400))
+        self.assertIsNone(sin["ahora"]["var_total"])  # sin ventas antes: no hay variación (no se divide entre cero)
+        # proyección: a mitad de mes, al mismo ritmo
+        p = s.proyeccion(date(2026, 11, 1), date(2026, 11, 30), D("300"), hoy=date(2026, 11, 10))
+        self.assertEqual((p["total"], p["pasados"], p["todos"]), (D("900.00"), 10, 30))
+        self.assertIsNone(s.proyeccion(date(2026, 11, 1), date(2026, 11, 30), D("300"), hoy=date(2026, 11, 30)))  # ya terminó
+
+    def test_pantalla_y_excel(self):
+        self.vender([(self.gas, 2)], [{"metodo": "EFE", "monto": "6"}])
+        self.vender([(self.lomo, 1)], [{"metodo": "EFE", "monto": "20"}], dias_atras=1)
+        self.client.force_login(self.jefe)
+        url = reverse("reportes:inicio")
+        r = self.client.get(url + "?p=hoy")
+        self.assertContains(r, "Comparación")
+        self.assertNotContains(r, "Qué preparar")  # con el periodo anterior no se sugiere qué preparar
+        r = self.client.get(url + "?p=esp:navidad")  # fecha especial: compara con el año pasado
+        self.assertEqual(r.context["comparar"], "anio")
+        self.assertContains(r, "Año pasado")
+        r = self.client.get(url + f"?p=hoy&comparar=fechas&c_desde={self.hoy - timedelta(days=1)}&c_hasta={self.hoy - timedelta(days=1)}")
+        self.assertContains(r, "Qué preparar")
+        self.assertContains(r, "Lomo")
+        r = self.client.get(url + "?p=mes")
+        if self.hoy.day < 28:  # el mes aún no termina: «Si sigue así»
+            self.assertContains(r, "Si sigue así")
+        r = self.client.get(url + "?p=hoy&comparar=raro&excel=1")  # un valor desconocido no rompe nada
+        self.assertIn("Comparación", load_workbook(BytesIO(r.content)).sheetnames)
