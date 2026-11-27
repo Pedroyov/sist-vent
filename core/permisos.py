@@ -81,6 +81,7 @@ PERMISOS = [
     ("cobranzas.ver", "cobranzas", "Ver inscritos, sus cuotas, morosos y por vencer", [CAJERO, VENDEDOR]),
     ("cobranzas.cobrar", "cobranzas", "Cobrar cuotas y mensualidades", [CAJERO]),
     ("cobranzas.inscribir", "cobranzas", "Inscribir, adelantar periodos, cambiar el precio y dar de baja", [CAJERO]),
+    ("cobranzas.ingreso", "cobranzas", "Registrar el ingreso de los socios (control de ingreso)", [CAJERO, VENDEDOR]),
     ("cobranzas.gestionar", "cobranzas", "Planes, configuración, exonerar cuotas o mora, anular cobros y ver el reporte", []),
 
     ("reservas.ver", "reservas", "Ver las reservas y marcar cuando llegan o no vienen (si también atiende mesas)", [CAJERO, VENDEDOR, MOZO]),

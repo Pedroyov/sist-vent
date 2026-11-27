@@ -13,6 +13,7 @@ from core.models import Ajustes
 from productos.models import MovimientoStock, Producto
 from productos.servicios import asegurar_variante_unica, mover_stock
 
+from . import servicios as s
 from .models import Compra, Proveedor
 from .servicios import (CompraError, anular_compra, deudas_por_proveedor, pagar, pagar_proveedor, registrar_compra,
                         vencen_pronto)
@@ -156,6 +157,22 @@ class ComprasTests(Base):
         g = gastos(self.hoy, self.hoy)
         self.assertEqual((g["proveedores"], g["operativos"]), (D("30"), D("0")))
         self.assertEqual(self.client.get(reverse("reportes:inicio")).status_code, 200)
+
+
+class PreciosAlComprarTests(Base):
+    def test_subio_el_costo_sugiere_el_precio(self):
+        c = s.registrar_compra(self.jefe, self.prov, self.items(costo="5"), pago="fuera")  # antes costaba 4, se vende a 6
+        (f,) = s.precios_a_revisar(c)
+        self.assertEqual((f["costo_antes"], f["costo"], f["precio"], f["sugerido"]), (D("4"), D("5.00"), D("6"), D("7.50")))
+        self.client.force_login(self.jefe)
+        self.assertContains(self.client.get(reverse("compras:detalle", args=[c.pk])), "Subió el costo")
+        i = c.items.get()
+        self.client.post(reverse("compras:actualizar_precios", args=[c.pk]), {"sel": [i.pk], f"precio_{i.pk}": "7.90"})
+        self.arroz.refresh_from_db()
+        self.assertEqual(self.arroz.producto.precio, D("7.90"))
+        self.assertEqual(s.precios_a_revisar(c), [])  # ya se subió: no se vuelve a sugerir
+        c2 = s.registrar_compra(self.jefe, self.prov, self.items(costo="4.50"), pago="fuera")  # bajó: nada que revisar
+        self.assertEqual(s.precios_a_revisar(c2), [])
 
 
 class ConexionesTests(Base):

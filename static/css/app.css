@@ -154,3 +154,14 @@ label.mesa { cursor: pointer; margin: 0; }
 }
 .app-sidebar .sidebar-menu > .nav-header:first-of-type { margin-top: .2rem; border-top: 0; }
 .app-sidebar .sidebar-menu > .nav-header + .nav-item { margin-top: .1rem; }
+
+/* Los ejemplos de ayuda (placeholder) deben verse distintos de un dato ya escrito: más claros y en cursiva.
+   Vale para todo el sistema y para el modo oscuro. */
+.form-control::placeholder,
+.form-select::placeholder,
+textarea::placeholder {
+  color: var(--bs-tertiary-color);
+  font-style: italic;
+  font-size: .875em;
+  opacity: 1;
+}

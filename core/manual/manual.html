@@ -707,8 +707,9 @@
 <li><strong>Listas de precios:</strong> precios por cantidad («desde 6 unidades, S/ 2.30») y precios por tipo de cliente (mayorista, revendedor). Ver 4.11.</li>
 <li><strong>Promociones:</strong> 2×1, 3×2, % de descuento o precio especial, con fechas, días y horario (happy hour). Ver 4.12.</li>
 <li><strong>Monedero:</strong> un % de cada compra pagada vuelve al cliente como saldo a favor para su próxima compra. Ver 12.6.</li>
+<li><strong>Control de ingreso (gimnasios):</strong> con Cobranzas, en la puerta se busca al socio (o su QR) y sale si puede entrar; planes con número de clases. Ver 15.10.</li>
 </ul>
-<p>Las seis últimas vienen <strong>apagadas</strong> en todos los negocios: solo se encienden si se necesitan.</p>
+<p>Las siete últimas vienen <strong>apagadas</strong> en todos los negocios: solo se encienden si se necesitan.</p>
 <p>Lo desmarcado desaparece de las pantallas (por ejemplo, ya no se ofrece “Combo” al crear un producto), pero <strong>no se borra nada</strong>. Al cambiar el tipo de negocio, el sistema marca las funciones que ese rubro suele usar y oculta las demás <strong>solo si no se están usando</strong> (si ya hay combos, Combos se queda), y muestra un mensaje con lo que cambió.</p>
 <p>Algunas palabras del menú también cambian según el negocio:</p>
 <div class="table-responsive"><table class="table table-sm table-bordered">
@@ -1160,6 +1161,27 @@
 <img src="/static/manual/capturas/123_carta_digital.jpg" loading="lazy" alt="" /><figcaption>La carta digital en el celular (estilo oscuro): el menú de hoy arriba y los ceviches con sus tamaños en tabla.</figcaption>
 </figure>
 <p><strong>El QR:</strong> en la misma tarjeta, <strong>Imprimir el QR para las mesas</strong> saca una hoja con un QR grande y cuatro chicos para recortar y poner en cada mesa. <strong>Ver la carta</strong> abre la página para copiar su enlace y mandarlo por WhatsApp.</p>
+</section>
+<section id="s-4-14" class="level2">
+<h2>4.14 Cambiar precios en bloque</h2>
+<p><strong>Productos → Cambiar precios</strong> (quien puede editar productos). Sirve para subir o bajar muchos precios a la vez: «todas las bebidas +10 %», «lo que le compro a Backus +S/ 0.50», «que todo gane 40 % sobre su costo».</p>
+<ol type="1">
+<li><strong>¿A qué productos?</strong> Una categoría o todas, lo que le compras a un proveedor (con el módulo Compras), los que tienen una palabra en el nombre, o solo productos o solo servicios.</li>
+<li><strong>¿Cómo?</strong>
+<ul>
+<li><strong>Subir o bajar un %:</strong> 10 sube 10 %; −5 baja 5 %.</li>
+<li><strong>Sumar o restar soles:</strong> 0.50 suma 50 céntimos a cada precio.</li>
+<li><strong>Ganar un % sobre el costo:</strong> el precio queda en costo + ese % (solo lo ve quien puede ver costos; los productos sin costo no cambian).</li>
+<li><strong>Redondeo:</strong> sin redondear, a 10 céntimos, a 50 céntimos o al sol. Siempre hacia arriba.</li>
+</ul></li>
+<li><strong>Ver cómo queda:</strong> sale cada precio nuevo con el de antes tachado, agrupado por categoría. Los que quedarían <strong>por debajo de su costo</strong> salen en rojo y arriba hay un aviso. Desmarca los que no quieras cambiar y pulsa <strong>Aplicar</strong>.</li>
+</ol>
+<figure>
+<img src="/static/manual/capturas/131_cambiar_precios.jpg" loading="lazy" alt="" /><figcaption>Cambiar precios: así quedaría cada precio antes de aplicarlo.</figcaption>
+</figure>
+<p>Cambia también las variantes que tienen precio propio (Personal, Mediano, Familiar). La carta digital y las listas de precios se actualizan solas.</p>
+<p><strong>Si te equivocaste:</strong> abajo están los <strong>últimos cambios en bloque</strong> con <strong>Deshacer</strong>. Los precios vuelven a como estaban, salvo los que alguien cambió después (esos se dejan). Todo queda en la bitácora.</p>
+<p>Para una rebaja de unos días (liquidación, campaña) es mejor una <strong>promoción</strong> (4.12): vuelve sola al precio normal.</p>
 </section>
 </section>
 <section id="s-5" class="level1">
@@ -2351,7 +2373,7 @@
 </tr>
 <tr class="odd">
 <td>Cada cuánto paga</td>
-<td>Mensual, Quincenal, Semanal o Pago único</td>
+<td>Mensual, Quincenal, Semanal, Trimestral, Semestral, Anual o Pago único. Trimestral, semestral y anual se pagan por adelantado</td>
 </tr>
 <tr class="even">
 <td>Número de cuotas</td>
@@ -2362,12 +2384,20 @@
 <td>Se cobra una sola vez al inscribirse (0 = no tiene)</td>
 </tr>
 <tr class="even">
+<td>Días de vigencia</td>
+<td>Solo para pago único: cuántos días sirve. Pase diario = 1; paquete de un mes = 30; 0 = no vence</td>
+</tr>
+<tr class="odd">
+<td>Clases o ingresos por periodo</td>
+<td>Con Control de ingreso (15.10): cuántas veces puede entrar en cada periodo pagado (12 clases al mes, paquete de 10). 0 = sin límite</td>
+</tr>
+<tr class="even">
 <td>Descripción</td>
 <td>Horario, sede o lo que incluye</td>
 </tr>
 </tbody>
 </table></div>
-<p>Si cambias el precio de un plan, los que ya están inscritos conservan el suyo. Un plan desactivado ya no admite inscripciones nuevas.</p>
+<p>Si cambias el precio de un plan, los que ya están inscritos conservan el suyo, salvo que marques <strong>Cobrar el precio nuevo a los inscritos</strong> (15.12). Un plan desactivado ya no admite inscripciones nuevas.</p>
 </section>
 <section id="s-15-3" class="level2">
 <h2>15.3 Inscribir</h2>
@@ -2490,6 +2520,83 @@
 <img src="/static/manual/capturas/50_cobranzas_reporte.jpg" loading="lazy" alt="" /><figcaption>Reporte de cobranzas del mes.</figcaption>
 </figure>
 <p>Eliges el mes y ves lo cobrado, por método, por plan y por quién cobró; qué porcentaje de lo que vencía en el mes ya se pagó; inscripciones nuevas y bajas; y los recibos (tocar uno lo reimprime). <strong>Excel de cobros</strong> baja la lista para el contador.</p>
+</section>
+<section id="s-15-10" class="level2">
+<h2>15.10 Control de ingreso (gimnasios)</h2>
+<p>Para saber en la puerta si el socio puede entrar. Se enciende en <strong>Datos del negocio → Funciones → Control de ingreso</strong> y aparece <strong>Ingreso de socios</strong> en el menú (lo usan el cajero y el vendedor).</p>
+<p><strong>Hasta cuándo puede entrar</strong> sale de sus cuotas: está al día hasta el día antes de su primera cuota sin pagar. Si pagó noviembre (vence el 17), puede entrar hasta el 16 de diciembre. La mora no le impide entrar y una cuota exonerada (beca) cuenta como pagada. Un pase o paquete sirve los días de su vigencia.</p>
+<ol type="1">
+<li>Escribe su <strong>DNI, nombre o celular</strong>, o toca la <strong>cámara</strong> y apunta al <strong>QR de su carné</strong>.</li>
+<li>Sale una tarjeta por cada plan que tenga:</li>
+</ol>
+<div class="table-responsive"><table class="table table-sm table-bordered">
+<colgroup>
+<col />
+<col />
+<col />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Color</th>
+<th>Qué significa</th>
+<th>Qué hacer</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Verde</td>
+<td>Al día (y cuántas clases le quedan)</td>
+<td><strong>Registrar ingreso</strong></td>
+</tr>
+<tr class="even">
+<td>Amarillo</td>
+<td>Vence en menos de 3 días, o ya venció pero está en los días de tolerancia</td>
+<td>Puede entrar; recuérdale pagar</td>
+</tr>
+<tr class="odd">
+<td>Rojo</td>
+<td>Venció, aún no paga o ya usó sus clases</td>
+<td><strong>Cobrar</strong>; si quien cobra lo deja pasar igual, <strong>Dejar pasar igual</strong> con el motivo (queda en la bitácora)</td>
+</tr>
+<tr class="even">
+<td>Celeste</td>
+<td>Membresía congelada (15.11)</td>
+<td>No entra; si volvió antes, desde su cuenta → <strong>Volvió antes</strong></td>
+</tr>
+</tbody>
+</table></div>
+<figure>
+<img src="/static/manual/capturas/128_ingreso_socios.jpg" loading="lazy" alt="" /><figcaption>Ingreso de socios: congelado, al día con clases y un pase vencido.</figcaption>
+</figure>
+<p>Se registra <strong>una vez por día</strong>: si vuelve a pasar sale «Ya entró hoy a las 07:10» y no gasta otra clase. Abajo se ve quién entró hoy.</p>
+<p><strong>Carné con QR:</strong> en la cuenta del socio, menú ⋮ del plan → <strong>Carné con QR</strong>. Se imprime en la ticketera o se le muestra en el celular para que le tome foto. El código lleva una firma: nadie puede inventar el de otro.</p>
+<p><strong>Tolerancia:</strong> en Cobranzas → Configuración, <strong>días de tolerancia al entrar</strong> (0 = ninguno). No aplica a pases ni paquetes.</p>
+<p>En la cuenta del socio, cada plan muestra hasta cuándo puede entrar, las clases que le quedan y sus últimos ingresos.</p>
+<figure>
+<img src="/static/manual/capturas/129_socio_vigencia.jpg" loading="lazy" alt="" /><figcaption>Cuenta del socio: hasta cuándo puede entrar y su congelamiento.</figcaption>
+</figure>
+</section>
+<section id="s-15-11" class="level2">
+<h2>15.11 Congelar una membresía</h2>
+<p>Cuando el socio viaja o se lesiona, se pausa su membresía: esos días no entra y <strong>su vencimiento se corre los mismos días</strong>.</p>
+<ol type="1">
+<li>En Cobranzas → Configuración, pon los <strong>días para congelar al año</strong> (por ejemplo 30; 0 = no se congela).</li>
+<li>En la cuenta del socio, menú ⋮ del plan → <strong>Congelar</strong>: desde cuándo (hoy o después), cuántos días y el motivo.</li>
+<li>Si vuelve antes, <strong>Volvió antes</strong> devuelve los días que no usó.</li>
+</ol>
+<p>No deja pasar los días del año ni juntar dos congelamientos en las mismas fechas. Queda en la bitácora.</p>
+</section>
+<section id="s-15-12" class="level2">
+<h2>15.12 Subir el precio de un plan</h2>
+<p>Al editar un plan, si cambias el precio puedes marcar <strong>Cobrar el precio nuevo a los inscritos</strong>:</p>
+<ul>
+<li>Lo cobran <strong>desde su próxima cuota sin pagar</strong>. Lo ya pagado no cambia.</li>
+<li>Solo cambia a quienes pagaban el precio del plan. Los que tienen precio especial o beca se quedan como están.</li>
+<li>Al guardar sale la lista de inscritos con el botón <strong>Avisar</strong> por WhatsApp, con el mensaje listo («desde el 01/12 Natación niños será S/ 130.00…»).</li>
+</ul>
+<figure>
+<img src="/static/manual/capturas/130_plan_precio_avisar.jpg" loading="lazy" alt="" /><figcaption>Precio nuevo de un plan: la lista para avisar a cada inscrito.</figcaption>
+</figure>
 </section>
 </section>
 <section id="s-16" class="level1">
@@ -2892,6 +2999,10 @@
 <p><strong>¿Compra o gasto?</strong> En Compras va lo que compras para <strong>vender o preparar</strong> (mercadería, insumos, verduras, bebidas). La luz, el alquiler, la movilidad o la limpieza van en <strong>Gastos</strong> (6.7); la pantalla de compra lo recuerda.</p>
 <figure>
 <img src="/static/manual/capturas/114_compra_proveedor_varios.jpg" loading="lazy" alt="" /><figcaption>Nueva compra sin proveedor: queda en «Proveedor varios».</figcaption>
+</figure>
+<p><strong>Si subió el costo:</strong> al registrar la compra, si algún producto llegó más caro que antes, la compra muestra <strong>«Subió el costo: ¿subes el precio?»</strong> con el precio que mantiene la misma ganancia (redondeado a 10 céntimos). Puedes cambiarlo o desmarcarlo y pulsar <strong>Actualizar precios</strong>. Se puede deshacer en Productos → Cambiar precios (4.14).</p>
+<figure>
+<img src="/static/manual/capturas/132_compra_subio_costo.jpg" loading="lazy" alt="" /><figcaption>Subió el costo: el precio sugerido para no perder ganancia.</figcaption>
 </figure>
 <p>Una compra mal registrada <strong>se anula</strong> con motivo (devuelve el stock y anula sus pagos); nunca se borra.</p>
 </section>

@@ -22,6 +22,8 @@ FUNCIONES = [
                     "horario (happy hour). Se aplican solas al vender."),
     ("monedero", "Monedero", "Un % de cada compra pagada vuelve al cliente registrado como saldo a favor para su próxima compra "
                  "(por ejemplo 2 %, vence a los 90 días)."),
+    ("ingreso", "Control de ingreso (gimnasios)", "Con Cobranzas: en la puerta se busca al socio por DNI, nombre o el QR de su carné y "
+                "sale en verde si está al día o en rojo si debe o venció. Cada ingreso queda anotado; planes con número de clases."),
     ("pagos", "Pagos al personal", "Sueldo fijo de cada persona (por semana, quincena o mes), pagos y adelantos ligados a la persona "
               "y cuánto falta pagarle a cada uno."),
 ]

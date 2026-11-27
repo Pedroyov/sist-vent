@@ -71,9 +71,17 @@
           </a>
         </li>
         {% endif %}
+        {% if NEGOCIO.usa_ingreso and P.cobranzas_ingreso and P.mod_cobranzas %}
+        <li class="nav-item">
+          <a href="{% url 'cobranzas:ingreso' %}" class="nav-link {% if ns == 'cobranzas' and url == 'ingreso' %}active{% endif %}">
+            <i class="nav-icon bi bi-door-open"></i>
+            <p>Ingreso de socios</p>
+          </a>
+        </li>
+        {% endif %}
         {% if P.cobranzas_ver %}
         <li class="nav-item">
-          <a href="{% url 'cobranzas:inicio' %}" class="nav-link {% if ns == 'cobranzas' %}active{% endif %}">
+          <a href="{% url 'cobranzas:inicio' %}" class="nav-link {% if ns == 'cobranzas' and url != 'ingreso' %}active{% endif %}">
             <i class="nav-icon bi bi-calendar-check"></i>
             <p>{{ T.cobranzas }}</p>
           </a>

@@ -117,6 +117,8 @@ class CompraItem(models.Model):
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=4)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2)
+    costo_antes = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True,
+                                      help_text="El costo que tenía antes de esta compra (para sugerir el precio si subió).")
 
     class Meta:
         verbose_name = "línea de compra"

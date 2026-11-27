@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Ingreso{% endblock %}
+{% block page_title %}Ingreso de socios{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:inicio' %}">{{ T.cobranzas }}</a></li><li class="breadcrumb-item active">Ingreso</li>{% endblock %}
+{% block content %}
+{% include "cobranzas/partials/menu.html" with activo="ingreso" %}
+<form method="get" class="mb-3" autocomplete="off">
+  <div class="input-group input-group-lg">
+    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="DNI, nombre, celular o QR del carné" autofocus data-escaner aria-label="Buscar socio">
+    <button class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% for i in encontrados %}
+{% with e=i.e %}
+<div class="card mb-3 border-{{ e.color }} border-3">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="rounded-circle text-bg-{{ e.color }} d-flex align-items-center justify-content-center flex-shrink-0" style="width: 3.5rem; height: 3.5rem">
+      <i class="bi {% if e.puede %}bi-check-lg{% elif e.color == 'info' %}bi-snow{% else %}bi-x-lg{% endif %} fs-2"></i></div>
+    <div class="flex-grow-1" style="min-width: 12rem">
+      <div class="fs-5 fw-semibold">{{ i.quien }}</div>
+      <div class="small text-body-secondary">{{ i.plan.nombre }}{% if i.alumno %} · paga {{ i.cliente.nombre }}{% endif %}</div>
+      <div class="fw-semibold text-{% if e.color == 'warning' %}warning-emphasis{% else %}{{ e.color }}{% endif %}">{{ e.titulo }}</div>
+      {% if e.detalle %}<div class="small">{{ e.detalle }}</div>{% endif %}
+      {% if e.hoy_entro %}<div class="small text-body-secondary"><i class="bi bi-clock-history me-1"></i>Ya entró hoy a las {{ e.hoy_entro|time:"H:i" }}</div>{% endif %}
+    </div>
+    <div class="d-flex flex-column gap-2 ms-auto">
+      {% if e.hoy_entro %}
+      {% elif e.puede %}
+      <form method="post" action="{% url 'cobranzas:ingreso_registrar' i.pk %}">{% csrf_token %}
+        <button class="btn btn-success btn-lg"><i class="bi bi-door-open me-1"></i>Registrar ingreso</button></form>
+      {% elif i.estado != "BAJ" and P.cobranzas_cobrar %}
+      {% if e.color == "info" or not e.debe %}<a href="{% url 'cobranzas:cuenta' i.cliente_id %}" class="btn btn-outline-primary"><i class="bi bi-person me-1"></i>Ver su cuenta</a>
+      {% else %}<a href="{% url 'cobranzas:cuenta' i.cliente_id %}" class="btn btn-primary"><i class="bi bi-cash-coin me-1"></i>Cobrar</a>{% endif %}
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#pasar-{{ i.pk }}">Dejar pasar igual</button>
+      {% endif %}
+    </div>
+  </div>
+  {% if not e.puede and not e.hoy_entro and P.cobranzas_cobrar %}
+  <form method="post" action="{% url 'cobranzas:ingreso_registrar' i.pk %}" class="collapse card-footer" id="pasar-{{ i.pk }}">{% csrf_token %}
+    <input type="hidden" name="permitir" value="1">
+    <div class="input-group"><input type="text" name="nota" class="form-control" maxlength="200" required placeholder="Motivo (ej.: paga a la salida)">
+      <button class="btn btn-warning">Dejar pasar</button></div>
+    <div class="form-text">Queda anotado en la bitácora con tu nombre.</div>
+  </form>
+  {% endif %}
+</div>
+{% endwith %}
+{% empty %}
+{% if q %}<div class="alert alert-light border">Nadie encontrado con «{{ q }}».{% if P.cobranzas_inscribir %} <a href="{% url 'cobranzas:inscribir' %}">Inscribir</a>{% endif %}</div>{% endif %}
+{% endfor %}
+
+<div class="card">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-door-open me-1"></i> Entraron hoy <span class="badge text-bg-secondary">{{ n_hoy }}</span></h3></div>
+  <ul class="list-group list-group-flush small">
+    {% for a in ultimos %}
+    <li class="list-group-item d-flex gap-2"><span class="text-body-secondary">{{ a.fecha|time:"H:i" }}</span>
+      <a href="{% url 'cobranzas:cuenta' a.inscripcion.cliente_id %}" class="text-truncate">{{ a.inscripcion.quien }}</a>
+      {% if a.con_permiso %}<span class="badge text-bg-warning" title="{{ a.nota }}">sin estar al día</span>{% endif %}
+      <span class="ms-auto text-body-secondary text-truncate">{{ a.inscripcion.plan.nombre }}</span></li>
+    {% empty %}
+    <li class="list-group-item text-body-secondary">Todavía nadie.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

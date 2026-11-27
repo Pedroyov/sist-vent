@@ -242,3 +242,147 @@ class VistasTests(Base):
         a.modulos_inactivos = ["clientes"]
         a.save()
         self.assertEqual(self.client.get(reverse("cobranzas:inicio")).status_code, 403)
+
+
+class GimnasioTests(Base):
+    """Planes por vigencia, control de ingreso, clases, congelar y el precio nuevo de un plan."""
+
+    def setUp(self):
+        super().setUp()
+        a = Ajustes.cargar()
+        a.funciones_inactivas = []
+        a.save()
+        self.cfg = Config.cargar()
+
+    def _insc(self, insc):
+        from .servicios import para_ingreso
+
+        return para_ingreso(Inscripcion.objects.filter(pk=insc.pk)).get()
+
+    def _pagar(self, insc):
+        cuotas = [q for q in insc.cuotas.all() if q.pendiente]
+        cobrar(insc.cliente, [q.pk for q in cuotas], str(sum(q.pendiente for q in cuotas)), "EFE", self.cajero)
+
+    def test_trimestral_vigencia_y_tolerancia(self):
+        from .servicios import estado_ingreso, vigencia
+
+        tri = Plan.objects.create(nombre="Trimestral", precio=D("240"), frecuencia=Plan.Frecuencia.TRIMESTRAL)
+        inicio = self.hoy - timedelta(days=10)
+        insc = inscribir(self.ana, tri, self.cajero, inicio=inicio)
+        self.assertTrue(insc.cuotas.first().concepto.startswith("Trimestre desde"))
+        e = estado_ingreso(self._insc(insc), self.hoy)
+        self.assertEqual((e["puede"], e["titulo"]), (False, "Aún no paga"))
+        self._pagar(insc)
+        fin = sumar_meses(inicio, 3, inicio.day) - timedelta(days=1)
+        insc = self._insc(insc)
+        self.assertEqual(vigencia(insc, self.hoy)["hasta"], fin)
+        self.assertEqual((estado_ingreso(insc, self.hoy)["puede"], estado_ingreso(insc, self.hoy)["color"]), (True, "success"))
+        self.assertEqual(estado_ingreso(insc, fin - timedelta(days=1))["color"], "warning")  # vence pronto
+        despues = fin + timedelta(days=1)
+        self.assertFalse(estado_ingreso(insc, despues, self.cfg)["puede"])
+        self.cfg.dias_tolerancia = 3
+        self.cfg.save()
+        e = estado_ingreso(insc, despues, self.cfg)
+        self.assertEqual((e["puede"], e["color"]), (True, "warning"))
+        self.assertFalse(estado_ingreso(insc, fin + timedelta(days=4), self.cfg)["puede"])
+
+    def test_pase_paquete_de_clases_e_ingreso(self):
+        from core.models import Bitacora
+
+        from .models import Asistencia
+        from .servicios import estado_ingreso, registrar_ingreso
+
+        self.cfg.dias_tolerancia = 3
+        self.cfg.save()
+        pase = Plan.objects.create(nombre="Pase diario", precio=D("10"), frecuencia=Plan.Frecuencia.UNICO, duracion_dias=1)
+        paquete = Plan.objects.create(nombre="Paquete", precio=D("100"), frecuencia=Plan.Frecuencia.UNICO, duracion_dias=30, clases=2)
+        i1 = inscribir(self.ana, pase, self.cajero, inicio=self.hoy - timedelta(days=2))
+        self._pagar(i1)
+        e = estado_ingreso(self._insc(i1), self.hoy, self.cfg)
+        self.assertEqual((e["puede"], e["titulo"]), (False, f"Venció el {self.hoy - timedelta(days=2):%d/%m}"))  # un pase no tiene tolerancia
+        al_dia()
+        i1.refresh_from_db()
+        self.assertEqual(i1.estado, Inscripcion.Estado.TERMINADA)
+        i2 = inscribir(self.ana, paquete, self.cajero, inicio=self.hoy - timedelta(days=1))
+        self._pagar(i2)
+        i2.refresh_from_db()
+        self.assertEqual(i2.estado, Inscripcion.Estado.ACTIVA)  # pagado pero vigente: sigue activo
+        Asistencia.objects.create(inscripcion=i2, usuario=self.cajero, fecha=timezone.now() - timedelta(days=1))
+        registrar_ingreso(self._insc(i2), self.cajero)
+        with self.assertRaisesMessage(CobranzaError, "ya entró hoy"):
+            registrar_ingreso(self._insc(i2), self.cajero)
+        e = estado_ingreso(self._insc(i2), self.hoy + timedelta(days=1))
+        self.assertEqual((e["puede"], e["titulo"], e["quedan"]), (False, "Ya usó sus clases", 0))
+        with self.assertRaisesMessage(CobranzaError, "motivo"):
+            registrar_ingreso(self._insc(i2), self.cajero, permitir=True, hoy=self.hoy + timedelta(days=1))
+        a = registrar_ingreso(self._insc(i2), self.cajero, permitir=True, nota="paga a la salida", hoy=self.hoy + timedelta(days=1))
+        self.assertTrue(a.con_permiso)
+        self.assertTrue(Bitacora.objects.filter(accion="socio.ingreso_sin_pago").exists())
+
+    def test_congelar_y_volver_antes(self):
+        from .servicios import congelar, descongelar, estado_ingreso
+
+        insc = inscribir(self.ana, self.gym, self.cajero, inicio=self.hoy - timedelta(days=5))
+        self._pagar(insc)
+        with self.assertRaisesMessage(CobranzaError, "no está permitido"):
+            congelar(insc, self.hoy, 10, "viaje", self.cajero)
+        self.cfg.congelar_dias = 20
+        self.cfg.save()
+        with self.assertRaisesMessage(CobranzaError, "hasta 20"):
+            congelar(insc, self.hoy, 25, "viaje", self.cajero)
+        with self.assertRaisesMessage(CobranzaError, "motivo"):
+            congelar(insc, self.hoy, 10, "", self.cajero)
+        with self.assertRaisesMessage(CobranzaError, "hoy o después"):
+            congelar(insc, self.hoy - timedelta(days=1), 10, "viaje", self.cajero)
+        siguiente = sumar_meses(insc.inicio, 1, insc.dia_pago)
+        c = congelar(insc, self.hoy, 10, "viaje", self.cajero)
+        q2 = insc.cuotas.get(numero=2)
+        self.assertEqual(q2.vence, siguiente + timedelta(days=10))
+        e = estado_ingreso(self._insc(insc), self.hoy)
+        self.assertEqual((e["puede"], e["color"]), (False, "info"))
+        with self.assertRaisesMessage(CobranzaError, "Ya tiene un congelamiento"):
+            congelar(insc, self.hoy + timedelta(days=5), 3, "otro", self.cajero)
+        self.assertEqual(descongelar(c, self.cajero, hoy=self.hoy + timedelta(days=4)), 6)  # usó 4 días
+        q2.refresh_from_db()
+        self.assertEqual(q2.vence, siguiente + timedelta(days=4))
+        c.refresh_from_db()
+        self.assertEqual(c.hasta, self.hoy + timedelta(days=3))
+
+    def test_pantalla_de_ingreso_carne_y_permisos(self):
+        from .servicios import codigo_carne, por_codigo
+
+        insc = inscribir(self.ana, self.gym, self.cajero, inicio=self.hoy)
+        self.assertIsNone(por_codigo(codigo_carne(insc)[:-1] + "x"))  # un código inventado no sirve
+        self.assertEqual(por_codigo(codigo_carne(insc).lower()), insc)
+        self.client.force_login(self.vendedor)
+        url = reverse("cobranzas:ingreso")
+        r = self.client.get(url, {"q": codigo_carne(insc)})
+        self.assertContains(r, "Ana Torres")
+        self.assertContains(r, "Aún no paga")
+        self.assertNotContains(r, 'name="permitir"')  # el vendedor no cobra: no puede dejar pasar
+        r = self.client.post(reverse("cobranzas:ingreso_registrar", args=[insc.pk]), {"permitir": "1", "nota": "x"})
+        self.assertFalse(insc.asistencias.exists())
+        self.client.force_login(self.cajero)
+        self.client.post(reverse("cobranzas:ingreso_registrar", args=[insc.pk]), {"permitir": "1", "nota": "paga luego"})
+        self.assertTrue(insc.asistencias.get().con_permiso)
+        self.assertContains(self.client.get(reverse("cobranzas:carne", args=[insc.pk])), "<svg")
+        self.assertContains(self.client.get(reverse("cobranzas:cuenta", args=[self.ana.pk])), "Carné con QR")
+        a = Ajustes.cargar()
+        a.funciones_inactivas = ["ingreso"]
+        a.save()
+        self.assertRedirects(self.client.get(url), reverse("cobranzas:inicio"))  # función apagada
+
+    def test_precio_nuevo_del_plan_para_los_inscritos(self):
+        ana = inscribir(self.ana, self.gym, self.cajero, inicio=self.hoy)
+        beto = Cliente.objects.create(nombre="Beto Ruiz", telefono="987111222")
+        beca = inscribir(beto, self.gym, self.cajero, inicio=self.hoy, precio=D("70"))
+        self.client.force_login(self.jefe)
+        datos = {"nombre": self.gym.nombre, "precio": "100", "frecuencia": "MEN", "num_cuotas": "0", "matricula": "0", "orden": "0",
+                 "activo": "on", "aplicar_inscritos": "on"}
+        r = self.client.post(reverse("cobranzas:plan_editar", args=[self.gym.pk]), datos)
+        self.assertContains(r, "Avisar")
+        self.assertEqual([a["insc"].pk for a in r.context["avisos"]], [ana.pk])  # el de precio especial se queda
+        ana.refresh_from_db()
+        beca.refresh_from_db()
+        self.assertEqual((ana.precio, beca.precio), (D("100"), D("70")))
+        self.assertEqual(ana.cuotas.get(numero=1).monto, D("100"))  # vence hoy y no se pagó: ya con el precio nuevo

@@ -1,11 +1,10 @@
 {# Ubicación que mandó el cliente por WhatsApp: se pega el enlace (o se usa «Pegar»). Variables: id, valor. #}
-<div class="input-group mb-1">
+<div class="input-group mb-2">
   <span class="input-group-text"><i class="bi bi-geo-alt-fill text-danger"></i></span>
   <input type="text" name="ubicacion" id="{{ id }}" class="form-control" maxlength="1000" value="{{ valor }}" autocomplete="off"
-         placeholder="Ubicación (enlace)" aria-label="Ubicación que mandó el cliente">
+         placeholder="Ubicación de WhatsApp" aria-label="Ubicación que mandó el cliente">
   <button type="button" class="btn btn-outline-secondary d-none" data-pegar="{{ id }}" title="Pegar lo copiado"><i class="bi bi-clipboard"></i> Pegar</button>
 </div>
-<div class="form-text mt-0 mb-2">Opcional. Toca la ubicación que mandó el cliente por WhatsApp: se abre en Google Maps → <b>Compartir</b> → <b>Copiar enlace</b>, y pégalo aquí. Así el repartidor llega al punto exacto.</div>
 <script>
 (function () {
   var b = document.querySelector('[data-pegar="{{ id }}"]');

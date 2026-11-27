@@ -10,6 +10,8 @@ urlpatterns = [
     path("inscritos/", views.inscritos, name="inscritos"),
     path("inscribir/", views.nueva_inscripcion, name="inscribir"),
     path("inscripcion/<int:pk>/editar/", views.editar_inscripcion, name="editar_inscripcion"),
+    path("inscripcion/<int:pk>/carne/", views.carne, name="carne"),
+    path("inscripcion/<int:pk>/congelar/", views.congelar_vista, name="congelar"),
     path("inscripcion/<int:pk>/<str:accion>/", views.accion_inscripcion, name="accion_inscripcion"),
     path("cuota/<int:pk>/<str:accion>/", views.accion_cuota, name="accion_cuota"),
     path("cliente/<int:pk>/", views.cuenta, name="cuenta"),
@@ -22,4 +24,7 @@ urlpatterns = [
     path("planes/<int:pk>/", views.plan_form, name="plan_editar"),
     path("configurar/", views.configurar, name="configurar"),
     path("reporte/", views.reporte, name="reporte"),
+    path("ingreso/", views.ingreso, name="ingreso"),
+    path("ingreso/<int:pk>/", views.ingreso_registrar, name="ingreso_registrar"),
+    path("congelamiento/<int:pk>/terminar/", views.descongelar_vista, name="descongelar"),
 ]

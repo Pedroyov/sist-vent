@@ -5,23 +5,62 @@ from .models import Config, Inscripcion, Plan
 
 
 class PlanForm(forms.ModelForm):
+    aplicar_inscritos = forms.BooleanField(
+        required=False, label="Cobrar el precio nuevo a los inscritos",
+        help_text="Solo a quienes pagan el precio del plan (los que tienen precio especial o beca se quedan como están), "
+                  "desde su próxima cuota sin pagar. Después te muestra la lista para avisarles por WhatsApp.")
+
     class Meta:
         model = Plan
-        fields = ["nombre", "precio", "frecuencia", "num_cuotas", "matricula", "descripcion", "activo", "orden"]
+        fields = ["nombre", "precio", "frecuencia", "num_cuotas", "matricula", "duracion_dias", "clases", "descripcion", "activo", "orden"]
         widgets = {"precio": forms.NumberInput(attrs={"step": "0.10", "inputmode": "decimal"}),
                    "matricula": forms.NumberInput(attrs={"step": "0.10", "inputmode": "decimal"})}
 
     def clean(self):
         d = super().clean()
+        d["duracion_dias"] = d.get("duracion_dias") or 0
+        if "clases" in self.fields:
+            d["clases"] = d.get("clases") or 0
         if d.get("frecuencia") == Plan.Frecuencia.UNICO:
             d["num_cuotas"] = 0
+        elif d.get("duracion_dias"):
+            d["duracion_dias"] = 0  # la vigencia de los demás planes sale de sus cuotas
         return d
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Ajustes
+
+        if not Ajustes.cargar().usa_ingreso:  # sin control de ingreso no hay cómo contar las clases
+            self.fields.pop("clases")
+        if not self.instance.pk:  # al crear un plan no hay inscritos
+            self.fields.pop("aplicar_inscritos")
+        for c in ("duracion_dias", "clases"):
+            if c in self.fields:
+                self.fields[c].required = False
 
 
 class ConfigForm(forms.ModelForm):
     class Meta:
         model = Config
-        fields = ["dias_aviso", "mora_activa", "mora_monto", "dias_gracia"]
+        fields = ["dias_aviso", "mora_activa", "mora_monto", "dias_gracia", "dias_tolerancia", "congelar_dias"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.models import Ajustes
+
+        if not Ajustes.cargar().usa_ingreso:  # opciones de gimnasio: solo con Control de ingreso
+            self.fields.pop("dias_tolerancia")
+        for c in ("dias_tolerancia", "congelar_dias"):
+            if c in self.fields:
+                self.fields[c].required = False
+
+    def clean(self):
+        d = super().clean()
+        for c in ("dias_tolerancia", "congelar_dias"):
+            if c in self.fields and d.get(c) is None:
+                d[c] = getattr(self.instance, c)
+        return d
 
 
 class InscripcionForm(forms.Form):

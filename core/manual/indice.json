@@ -177,6 +177,11 @@
 "texto": "4.13 Carta digital con QR"
 },
 {
+"id": "s-4-14",
+"nivel": 2,
+"texto": "4.14 Cambiar precios en bloque"
+},
+{
 "id": "s-5",
 "nivel": 1,
 "texto": "5. Hoy: menú del día y agotados"
@@ -530,6 +535,21 @@
 "id": "s-15-9",
 "nivel": 2,
 "texto": "15.9 Reporte"
+},
+{
+"id": "s-15-10",
+"nivel": 2,
+"texto": "15.10 Control de ingreso (gimnasios)"
+},
+{
+"id": "s-15-11",
+"nivel": 2,
+"texto": "15.11 Congelar una membresía"
+},
+{
+"id": "s-15-12",
+"nivel": 2,
+"texto": "15.12 Subir el precio de un plan"
 },
 {
 "id": "s-16",

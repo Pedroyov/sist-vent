@@ -145,7 +145,7 @@ def registrar_compra(usuario, proveedor, items, documento=Compra.Documento.FACTU
                                       usuario=usuario, token=token or None)
             for v, nombre, cantidad, costo, subtotal in lineas:
                 CompraItem.objects.create(compra=c, variante=v, descripcion=nombre, cantidad=cantidad, costo_unitario=costo,
-                                          subtotal=subtotal)
+                                          subtotal=subtotal, costo_antes=v.costo_efectivo if v is not None else None)
                 if v is not None:
                     mover_stock(v, cantidad, MovimientoStock.Tipo.INGRESO, usuario, nota=f"Compra a {proveedor}"[:200],
                                 costo_unitario=costo, referencia=c.referencia)
@@ -322,3 +322,39 @@ def reposicion():
                                for x in g["items"])
             g["whatsapp"] = enlace_whatsapp(g["proveedor"].telefono, f"Hola, quiero hacer un pedido:\n{lineas}")
     return salida
+
+
+SUBIO = Decimal("1.01")  # menos de 1 % es redondeo, no una subida
+
+
+def precios_a_revisar(compra):
+    """Lo que subió de costo en esta compra, con el precio que mantendría la misma ganancia (redondeado hacia arriba a
+    10 céntimos): [{"item", "variante", "nombre", "precio", "sugerido", "costo_antes", "costo"}]. Sin costo anterior
+    no se sugiere nada, salvo que ya se venda por debajo del costo."""
+    from decimal import ROUND_CEILING
+
+    from productos.models import CambioPreciosItem
+
+    # lo que ya se subió de precio después de esta compra no se vuelve a sugerir
+    ya = set(CambioPreciosItem.objects.filter(cambio__fecha__gte=compra.creado, cambio__deshecho__isnull=True)
+             .values_list("producto_id", flat=True))
+    filas, vistos = [], set()
+    for i in compra.items.select_related("variante__producto").filter(variante__isnull=False):
+        v = i.variante
+        if v.pk in vistos or not v.producto.activo or v.producto_id in ya:
+            continue
+        precio = v.precio_venta
+        costo = Decimal(i.costo_unitario)
+        if i.costo_antes and costo > i.costo_antes * SUBIO:
+            nuevo = precio * costo / i.costo_antes
+        elif costo >= precio and precio > 0:
+            nuevo = costo * Decimal("1.25")  # vende a pérdida y no hay con qué comparar: 25 % sobre el costo
+        else:
+            continue
+        nuevo = (nuevo / Decimal("0.10")).to_integral_value(ROUND_CEILING) * Decimal("0.10")
+        if nuevo <= precio:
+            continue
+        vistos.add(v.pk)
+        filas.append({"item": i, "variante": v, "nombre": str(v), "precio": precio, "sugerido": nuevo.quantize(Decimal("0.01")),
+                      "costo_antes": i.costo_antes, "costo": costo.quantize(Decimal("0.01"))})
+    return filas

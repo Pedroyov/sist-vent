@@ -1,5 +1,6 @@
 <ul class="nav nav-pills small mb-3 flex-nowrap overflow-auto text-nowrap">
   <li class="nav-item"><a class="nav-link py-1 {% if activo == 'inicio' %}active{% endif %}" href="{% url 'cobranzas:inicio' %}"><i class="bi bi-house me-1"></i>Inicio</a></li>
+  {% if NEGOCIO.usa_ingreso and P.cobranzas_ingreso %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'ingreso' %}active{% endif %}" href="{% url 'cobranzas:ingreso' %}"><i class="bi bi-door-open me-1"></i>Ingreso</a></li>{% endif %}
   <li class="nav-item"><a class="nav-link py-1 {% if activo == 'morosos' %}active{% endif %}" href="{% url 'cobranzas:morosos' %}"><i class="bi bi-exclamation-circle me-1"></i>Morosos</a></li>
   <li class="nav-item"><a class="nav-link py-1 {% if activo == 'inscritos' %}active{% endif %}" href="{% url 'cobranzas:inscritos' %}"><i class="bi bi-people me-1"></i>{{ T.inscritos }}</a></li>
   {% if P.cobranzas_gestionar %}<li class="nav-item"><a class="nav-link py-1 {% if activo == 'planes' %}active{% endif %}" href="{% url 'cobranzas:planes' %}"><i class="bi bi-card-list me-1"></i>{{ T.planes }}</a></li>{% endif %}

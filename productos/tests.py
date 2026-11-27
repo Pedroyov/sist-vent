@@ -653,3 +653,61 @@ class CartaDigitalTests(TestCase):
         # sin tocar los campos de la carta, el formulario deja todo como estaba
         self.client.post(reverse("core:datos_negocio"), {k: v for k, v in datos.items() if k != "carta"} | {"carta": "ARC"})
         self.assertEqual(Ajustes.cargar().carta_estilo, "OSC")
+
+
+class CambiarPreciosTests(TestCase):
+    """Cambiar precios en bloque: ver cómo queda, aplicar a los elegidos, redondeo, margen sobre el costo y deshacer."""
+
+    def setUp(self):
+        from core.models import Ajustes
+
+        Ajustes.objects.update_or_create(pk=1, defaults={"modulos_inactivos": [], "funciones_inactivas": []})
+        self.jefe = User.objects.create_user("jefe", password="x-clave-123")
+        self.jefe.groups.add(Group.objects.get(name="Administración"))
+        self.cajero = User.objects.create_user("cajero", password="x-clave-123")
+        self.cajero.groups.add(Group.objects.get(name="Cajero"))
+        self.bebidas = Categoria.objects.create(nombre="Bebidas")
+        self.coca = Producto.objects.create(nombre="Coca-Cola", precio=Decimal("4.00"), costo=Decimal("2.00"), categoria=self.bebidas)
+        asegurar_variante_unica(self.coca)
+        self.agua = Producto.objects.create(nombre="Agua", precio=Decimal("2.00"), costo=Decimal("1.80"), categoria=self.bebidas)
+        asegurar_variante_unica(self.agua)
+        self.polo = Producto.objects.create(nombre="Polo", precio=Decimal("30"))
+        Variante.objects.create(producto=self.polo, nombre="S")
+        Variante.objects.create(producto=self.polo, nombre="XL", precio=Decimal("35"))  # precio propio
+        self.url = reverse("productos:cambiar_precios")
+
+    def test_ver_aplicar_y_deshacer(self):
+        from .models import CambioPrecios
+
+        self.assertEqual(self.client.get(self.url).status_code, 302)  # sin sesión
+        self.client.force_login(self.cajero)
+        self.assertEqual(self.client.get(self.url).status_code, 403)  # solo quien edita productos
+        self.client.force_login(self.jefe)
+        r = self.client.get(self.url, {"cat": self.bebidas.pk, "modo": "POR", "valor": "10", "red": "0.50"})
+        self.assertEqual([(f["nombre"], f["despues"]) for f in r.context["filas"]], [("Agua", Decimal("2.50")), ("Coca-Cola", Decimal("4.50"))])
+        r = self.client.get(self.url, {"modo": "POR", "valor": "10"})
+        self.assertIn(("Polo · XL", Decimal("38.50")), [(f["nombre"], f["despues"]) for f in r.context["filas"]])  # variante con precio propio
+        self.assertIn(("Polo", Decimal("33.00")), [(f["nombre"], f["despues"]) for f in r.context["filas"]])  # y la que usa el del producto
+        # se aplica solo a lo marcado; el precio lo calcula el servidor
+        filas = {f["nombre"]: f["clave"] for f in r.context["filas"]}
+        self.client.post(self.url, {"modo": "POR", "valor": "10", "sel": [filas["Coca-Cola"], filas["Polo · XL"]]})
+        self.coca.refresh_from_db()
+        self.agua.refresh_from_db()
+        self.assertEqual((self.coca.precio, self.agua.precio, Variante.objects.get(nombre="XL").precio),
+                         (Decimal("4.40"), Decimal("2.00"), Decimal("38.50")))
+        cambio = CambioPrecios.objects.get()
+        self.assertIn("+10 %", cambio.descripcion)
+        # bajar con margen: avisa lo que queda bajo el costo
+        r = self.client.get(self.url, {"cat": self.bebidas.pk, "modo": "MON", "valor": "-1"})
+        self.assertEqual(r.context["n_bajo_costo"], 1)
+        r = self.client.get(self.url, {"cat": self.bebidas.pk, "modo": "MAR", "valor": "100"})  # 100 % sobre el costo
+        self.assertEqual({f["nombre"]: f["despues"] for f in r.context["filas"]}, {"Agua": Decimal("3.60"), "Coca-Cola": Decimal("4.00")})
+        # deshacer: vuelve lo que nadie tocó después
+        Producto.objects.filter(pk=self.coca.pk).update(precio=Decimal("5"))
+        self.client.post(reverse("productos:deshacer_precios", args=[cambio.pk]))
+        self.coca.refresh_from_db()
+        self.assertEqual((self.coca.precio, Variante.objects.get(nombre="XL").precio), (Decimal("5"), Decimal("35")))
+        cambio.refresh_from_db()
+        self.assertIsNotNone(cambio.deshecho)
+        r = self.client.post(reverse("productos:deshacer_precios", args=[cambio.pk]), follow=True)
+        self.assertContains(r, "ya se deshizo")

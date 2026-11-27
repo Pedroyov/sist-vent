@@ -9,6 +9,7 @@
   {% if P.productos_editar %}
   <a href="{% url 'productos:nuevo' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nuevo producto</a>
   <a href="{% url 'productos:importar' %}" class="btn btn-outline-primary"><i class="bi bi-file-earmark-arrow-up me-1"></i>Importar Excel</a>
+  <a href="{% url 'productos:cambiar_precios' %}" class="btn btn-outline-primary"><i class="bi bi-percent me-1"></i>Cambiar precios</a>
   {% endif %}
   <a href="{% url 'productos:exportar' %}?{{ query.urlencode }}" id="btn-exportar" class="btn btn-outline-success ms-sm-auto"><i class="bi bi-file-earmark-excel me-1"></i>Exportar</a>
 </div>

@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Max, Q, Sum
 from django.utils import timezone
 
-from .models import CERO, Config, Cuota, Inscripcion, Pago, PagoCuota, Plan
+from .models import CERO, Asistencia, Config, Congelamiento, Cuota, Inscripcion, Pago, PagoCuota, Plan
 
 MESES = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "set.", "oct.", "nov.", "dic."]
 POR_BAJA = "Por baja"
@@ -44,17 +44,28 @@ def sumar_meses(fecha, meses, dia):
     return date(anio, mes, min(dia, calendar.monthrange(anio, mes)[1]))
 
 
-def vence_cuota(insc, k):
-    """Fecha en que vence la cuota k (1, 2, 3…). La primera vence el día que empieza."""
+MESES_POR = {Plan.Frecuencia.MENSUAL: 1, Plan.Frecuencia.TRIMESTRAL: 3, Plan.Frecuencia.SEMESTRAL: 6, Plan.Frecuencia.ANUAL: 12}
+NOMBRE_PERIODO = {Plan.Frecuencia.TRIMESTRAL: "Trimestre", Plan.Frecuencia.SEMESTRAL: "Semestre", Plan.Frecuencia.ANUAL: "Año"}
+
+
+def siguiente_vence(insc, vence):
+    """Cuándo vence la cuota que sigue a la que vence en `vence`: cada periodo cuenta desde el anterior, así que al
+    congelar basta con correr las cuotas que vienen."""
     f = insc.plan.frecuencia
-    if k <= 1 or f == Plan.Frecuencia.UNICO:
-        return insc.inicio
     if f == Plan.Frecuencia.SEMANAL:
-        return insc.inicio + timedelta(days=7 * (k - 1))
+        return vence + timedelta(days=7)
     if f == Plan.Frecuencia.QUINCENAL:
-        return insc.inicio + timedelta(days=15 * (k - 1))
-    # Mensual: desde el segundo mes vence en su día de pago
-    return sumar_meses(insc.inicio, k - 1, insc.dia_pago)
+        return vence + timedelta(days=15)
+    return sumar_meses(vence, MESES_POR.get(f, 1), insc.dia_pago)  # por meses: vence en su día de pago
+
+
+def vence_cuota(insc, k):
+    """Fecha en que vence la cuota k (1, 2, 3…), contando desde el inicio. La primera vence el día que empieza."""
+    vence = insc.inicio
+    if insc.plan.frecuencia != Plan.Frecuencia.UNICO:
+        for _ in range(max(0, k - 1)):
+            vence = siguiente_vence(insc, vence)
+    return vence
 
 
 def concepto_cuota(insc, k, vence):
@@ -65,6 +76,8 @@ def concepto_cuota(insc, k, vence):
         return f"Cuota {k} de {plan.num_cuotas}"
     if plan.frecuencia == Plan.Frecuencia.MENSUAL:
         return f"Mensualidad {MESES[vence.month - 1]} {vence.year}"
+    if plan.frecuencia in NOMBRE_PERIODO:
+        return f"{NOMBRE_PERIODO[plan.frecuencia]} desde {MESES[vence.month - 1]} {vence.year}"
     return f"{'Semana' if plan.frecuencia == Plan.Frecuencia.SEMANAL else 'Quincena'} del {vence:%d/%m}"
 
 
@@ -82,12 +95,13 @@ def generar(insc, hoy=None, extra=0):
         return 0
     hoy = hoy or timezone.localdate()
     hasta = hoy + timedelta(days=Config.cargar().dias_aviso)
-    ultima = insc.cuotas.filter(numero__gt=0).aggregate(n=Max("numero"))["n"] or 0
+    previa = insc.cuotas.filter(numero__gt=0).order_by("-numero").first()
+    ultima, vence = (previa.numero, previa.vence) if previa else (0, None)
     tope = total_cuotas(insc.plan)
     nuevas = []
     k = ultima + 1
     while tope is None or k <= tope:
-        vence = vence_cuota(insc, k)
+        vence = insc.inicio if vence is None or insc.plan.frecuencia == Plan.Frecuencia.UNICO else siguiente_vence(insc, vence)
         if tope is None and k > 1 and vence > hasta and extra <= 0:
             break
         if tope is None and k > 1 and vence > hasta:
@@ -112,6 +126,11 @@ def al_dia(hoy=None):
                   .annotate(ultima=Max("cuotas__vence", filter=Q(cuotas__numero__gt=0))))
     for insc in pendientes.filter(Q(ultima__isnull=True) | Q(ultima__lt=hasta)):
         generar(insc, hoy)
+    # pases y paquetes con días de vigencia: terminan solos cuando se acaban sus días
+    for insc in (Inscripcion.objects.filter(estado=Inscripcion.Estado.ACTIVA, plan__frecuencia=Plan.Frecuencia.UNICO,
+                                            plan__duracion_dias__gt=0, inicio__lt=hoy).select_related("plan")):
+        if vigencia(insc, hoy)["hasta"] < hoy:
+            _revisar_terminada(insc)
     if cfg.cobra_mora:
         limite = hoy - timedelta(days=cfg.dias_gracia)
         (Cuota.objects.filter(anulada=False, mora=0, mora_perdonada=False, numero__gt=0, vence__lt=limite,
@@ -152,6 +171,25 @@ def cambiar_precio(insc, precio):
         n = (insc.cuotas.filter(numero__gt=0, pagado=0, anulada=False, vence__gte=timezone.localdate())
              .update(monto=precio))
     return n
+
+
+def aplicar_precio_plan(plan, anterior, hoy=None):
+    """El plan cambió de precio: lo cobran desde su próxima cuota sin pagar los inscritos (activos) que pagaban el precio
+    del plan. Los que tienen precio especial o beca se quedan. Devuelve [{"insc", "desde", "wa"}] para avisarles."""
+    hoy = hoy or timezone.localdate()
+    salida = []
+    for insc in (Inscripcion.objects.filter(plan=plan, estado=Inscripcion.Estado.ACTIVA, precio=anterior)
+                 .select_related("cliente", "plan")):
+        cambiar_precio(insc, plan.precio)
+        proxima = insc.cuotas.filter(numero__gt=0, pagado=0, anulada=False, vence__gte=hoy).order_by("vence").first()
+        desde = proxima.vence if proxima else None
+        texto = (f"Hola {insc.cliente.nombre.split()[0]}, te avisamos que "
+                 + (f"desde el {desde:%d/%m/%Y} " if desde else "desde tu próximo pago ")
+                 + f"{insc.plan.nombre}" + (f" ({insc.alumno})" if insc.alumno else "")
+                 + f" será S/ {plan.precio:.2f}. ¡Gracias por seguir con nosotros!")
+        salida.append({"insc": insc, "desde": desde,
+                       "wa": _enlace_wa(insc.cliente.telefono, texto) if insc.cliente.whatsapp else ""})
+    return salida
 
 
 def dar_baja(insc, usuario, motivo=""):
@@ -216,6 +254,9 @@ def _revisar_terminada(insc):
     if insc.plan.es_indefinido or insc.estado == Inscripcion.Estado.BAJA:
         return
     queda = insc.cuotas.filter(anulada=False, pagado__lt=F("monto") + F("mora")).exists()
+    if not queda and insc.plan.frecuencia == Plan.Frecuencia.UNICO and insc.plan.duracion_dias:
+        fin = vigencia(insc)["hasta"]  # un pase o paquete pagado sigue activo mientras dure
+        queda = fin is not None and fin >= timezone.localdate()
     estado = Inscripcion.Estado.ACTIVA if queda else Inscripcion.Estado.TERMINADA
     if insc.estado != estado:
         insc.estado = estado
@@ -390,3 +431,246 @@ def resumen(hoy=None):
         "cobrado_hoy": pagos_mes.filter(**dias("fecha", hoy)).aggregate(t=Sum("monto"))["t"] or CERO,
         "activos": Inscripcion.objects.filter(estado=Inscripcion.Estado.ACTIVA).count(),
     }
+
+
+# --- Gimnasios: vigencia, control de ingreso y congelar ------------------------------
+# La vigencia sale de las mismas cuotas: cada cuota cubre su periodo (desde que vence hasta que vence la siguiente).
+# El socio está al día mientras las cuotas pagadas (o exoneradas) lleguen hasta hoy. No hay una fecha aparte que cuadrar.
+
+def _cubierta(q):
+    """La cuota ya da derecho a entrar: pagada (la mora no cuenta) o exonerada (beca). La quitada por baja no."""
+    return q.pagado >= q.monto or (q.anulada and q.nota != POR_BAJA)
+
+
+def _congelados(insc):
+    return list(insc.congelamientos.all())
+
+
+def vigencia(insc, hoy=None):
+    """Hasta cuándo puede entrar y el periodo pagado en el que está hoy.
+
+    {"hasta": fecha o None (no vence), "desde": inicio del periodo de hoy, "fin_periodo": último día de ese periodo,
+     "debe_desde": la primera cuota sin pagar (o None)}. Con `hasta` menor que el inicio, todavía no pagó nada."""
+    hoy = hoy or timezone.localdate()
+    plan = insc.plan
+    cuotas = [q for q in insc.cuotas.all() if q.numero > 0]
+    cuotas.sort(key=lambda q: q.numero)
+    if plan.frecuencia == Plan.Frecuencia.UNICO:
+        pagada = bool(cuotas) and _cubierta(cuotas[0])
+        if not plan.duracion_dias:
+            fin = None
+        else:
+            extra = sum(c.dias for c in _congelados(insc))
+            fin = insc.inicio + timedelta(days=plan.duracion_dias - 1 + extra)
+        return {"hasta": fin if pagada else insc.inicio - timedelta(days=1), "desde": insc.inicio, "fin_periodo": fin,
+                "debe_desde": None if pagada else (cuotas[0] if cuotas else None)}
+    hasta, desde, debe = insc.inicio - timedelta(days=1), insc.inicio, None
+    for i, q in enumerate(cuotas):
+        if not _cubierta(q):
+            debe = q
+            break
+        siguiente = cuotas[i + 1].vence if i + 1 < len(cuotas) else siguiente_vence(insc, q.vence)
+        hasta = siguiente - timedelta(days=1)
+        if q.vence <= hoy:
+            desde = q.vence
+    # el periodo que contiene hoy (para contar clases), aunque no esté pagado
+    fin_periodo = hasta
+    for i, q in enumerate(cuotas):
+        siguiente = cuotas[i + 1].vence if i + 1 < len(cuotas) else siguiente_vence(insc, q.vence)
+        if q.vence <= hoy < siguiente:
+            desde, fin_periodo = q.vence, siguiente - timedelta(days=1)
+    return {"hasta": hasta, "desde": desde, "fin_periodo": fin_periodo, "debe_desde": debe}
+
+
+def congelado_hoy(insc, hoy=None):
+    hoy = hoy or timezone.localdate()
+    return next((c for c in _congelados(insc) if c.desde <= hoy <= c.hasta), None)
+
+
+def estado_ingreso(insc, hoy=None, cfg=None):
+    """¿Puede entrar hoy? Lo que se muestra en la puerta:
+    {"puede", "color" (success/warning/danger/secondary), "titulo", "detalle", "hasta", "clases", "quedan", "hoy_entro"}."""
+    hoy = hoy or timezone.localdate()
+    cfg = cfg or Config.cargar()
+    v = vigencia(insc, hoy)
+    e = {"puede": False, "color": "danger", "titulo": "", "detalle": "", "hasta": v["hasta"], "clases": insc.plan.clases,
+         "quedan": None, "hoy_entro": None, "debe": CERO}
+    entradas = [a for a in insc.asistencias.all() if timezone.localtime(a.fecha).date() == hoy]
+    e["hoy_entro"] = timezone.localtime(entradas[0].fecha) if entradas else None
+    deuda = sum((q.pendiente for q in insc.cuotas.all() if q.vence <= hoy), CERO)
+    e["debe"] = deuda
+    if insc.estado == Inscripcion.Estado.BAJA:
+        e.update(color="secondary", titulo="De baja", detalle=f"Se dio de baja el {insc.fin:%d/%m/%Y}." if insc.fin else "")
+        return e
+    if insc.inicio > hoy:
+        e.update(color="secondary", titulo=f"Empieza el {insc.inicio:%d/%m}")
+        return e
+    cong = congelado_hoy(insc, hoy)
+    if cong:
+        e.update(color="info", titulo=f"Congelado hasta el {cong.hasta:%d/%m}", detalle=cong.motivo)
+        return e
+    hasta = v["hasta"]
+    if hasta is not None and hasta < hoy:
+        vencio = hasta + timedelta(days=1)
+        if hasta >= insc.inicio or v["debe_desde"] is None:
+            texto = f"Venció el {hasta:%d/%m}"
+        else:
+            texto = "Aún no paga"
+        recurrente = insc.plan.frecuencia != Plan.Frecuencia.UNICO  # un pase o paquete vencido no tiene tolerancia
+        if recurrente and (hoy - vencio).days < cfg.dias_tolerancia and hasta >= insc.inicio:
+            e.update(puede=True, color="warning", titulo=texto,
+                     detalle=f"Puede entrar hasta el {vencio + timedelta(days=cfg.dias_tolerancia - 1):%d/%m} (tolerancia). Recuérdale pagar.")
+        else:
+            e.update(titulo=texto, detalle=f"Debe S/ {deuda:.2f}" if deuda else "")
+            return e
+    if insc.plan.clases:
+        usadas = sum(1 for a in insc.asistencias.all() if v["desde"] <= timezone.localtime(a.fecha).date() <= (v["fin_periodo"] or hoy))
+        e["quedan"] = max(0, insc.plan.clases - usadas)
+        if e["quedan"] == 0 and not e["hoy_entro"]:
+            e.update(puede=False, color="danger", titulo="Ya usó sus clases",
+                     detalle=f"Usó las {insc.plan.clases} de este periodo" + (f" (hasta el {v['fin_periodo']:%d/%m})." if v["fin_periodo"] else "."))
+            return e
+    if e["color"] != "warning":
+        e["puede"] = True
+    if e["color"] == "warning":
+        pass  # en tolerancia: ya tiene su título
+    elif hasta is None:
+        e.update(color="success", titulo="Al día")
+    elif (hasta - hoy).days < 3:
+        e.update(color="warning", titulo=f"Al día hasta el {hasta:%d/%m}", detalle="Vence pronto: recuérdale renovar.")
+    else:
+        e.update(color="success", titulo=f"Al día hasta el {hasta:%d/%m}")
+    if e["quedan"] is not None:
+        e["detalle"] = (e["detalle"] + " " if e["detalle"] else "") + (f"Le queda 1 clase." if e["quedan"] == 1 else f"Le quedan {e['quedan']} clases.")
+    return e
+
+
+def para_ingreso(inscripciones):
+    """Las inscripciones con lo que hace falta para mostrarlas en la puerta (pocas consultas)."""
+    return (inscripciones.select_related("cliente", "plan")
+            .prefetch_related("cuotas", "congelamientos", "asistencias"))
+
+
+def registrar_ingreso(insc, usuario, permitir=False, nota="", hoy=None):
+    """Anota que el socio entró. Si no está al día, solo entra con `permitir` y un motivo (queda en la bitácora).
+    Una vez por día: si ya entró hoy, no se cuenta de nuevo (no gasta otra clase)."""
+    from core.bitacora import anotar
+
+    e = estado_ingreso(insc, hoy)
+    if e["hoy_entro"]:
+        raise CobranzaError(f"{insc.quien} ya entró hoy a las {e['hoy_entro']:%H:%M}.")
+    nota = " ".join(str(nota or "").split())[:200]
+    if not e["puede"]:
+        if insc.estado == Inscripcion.Estado.BAJA:
+            raise CobranzaError(f"{insc.quien} está de baja.")
+        if not permitir:
+            raise CobranzaError(f"{insc.quien}: {e['titulo'].lower()}. Para dejarlo pasar igual, indica el motivo.")
+        if not nota:
+            raise CobranzaError("Indica el motivo para dejarlo pasar (por ejemplo: «paga a la salida»).")
+    a = Asistencia.objects.create(inscripcion=insc, usuario=usuario, con_permiso=not e["puede"], nota=nota)
+    if not e["puede"]:
+        anotar("socio.ingreso_sin_pago", f"{insc.quien} ({insc.plan.nombre}) entró sin estar al día: {e['titulo']}. Motivo: {nota}",
+               objeto=insc, usuario=usuario)
+    return a
+
+
+def codigo_carne(insc):
+    """Lo que lleva el QR del carné: SOCIO-<id>-<firma>. La firma evita que alguien invente el código de otro."""
+    from django.core.signing import Signer
+
+    return f"SOCIO-{insc.pk}-{Signer(salt='carne').signature(str(insc.pk))[:8]}"
+
+
+def por_codigo(texto):
+    """La inscripción de un código de carné leído con la cámara o el lector (o None)."""
+    import re
+
+    m = re.fullmatch(r"\s*SOCIO-(\d+)-([\w-]{8})\s*", str(texto or ""), re.I)
+    if not m:
+        return None
+    insc = Inscripcion.objects.filter(pk=int(m.group(1))).first()
+    return insc if insc and codigo_carne(insc).upper() == str(texto).strip().upper() else None
+
+
+def dias_congelados(insc, anio):
+    return sum(min(c.hasta, date(anio, 12, 31)).toordinal() - max(c.desde, date(anio, 1, 1)).toordinal() + 1
+               for c in insc.congelamientos.all() if c.desde.year <= anio <= c.hasta.year)
+
+
+def _correr(insc, despues_de, dias):
+    """Corre `dias` las cuotas que vencen después de `despues_de` (y el día de pago de los planes por meses)."""
+    cuotas = list(insc.cuotas.filter(numero__gt=0, vence__gt=despues_de))
+    for q in cuotas:
+        q.vence += timedelta(days=dias)
+    if cuotas:
+        Cuota.objects.bulk_update(cuotas, ["vence"])
+        if insc.plan.frecuencia in MESES_POR:
+            insc.dia_pago = min(cuotas, key=lambda q: q.vence).vence.day
+            insc.save(update_fields=["dia_pago"])
+
+
+def congelar(insc, desde, dias, motivo, usuario, hoy=None):
+    """Pausa la membresía `dias` días desde `desde`: esos días no entra y todo lo que vence después se corre."""
+    from core.bitacora import anotar
+
+    hoy = hoy or timezone.localdate()
+    cfg = Config.cargar()
+    if not cfg.congelar_dias:
+        raise CobranzaError("Congelar no está permitido (Cobranzas → Configuración).")
+    if insc.estado == Inscripcion.Estado.BAJA:
+        raise CobranzaError("La inscripción está de baja.")
+    if insc.plan.frecuencia == Plan.Frecuencia.UNICO and not insc.plan.duracion_dias:
+        raise CobranzaError("Este plan no vence: no hace falta congelarlo.")
+    motivo = " ".join(str(motivo or "").split())[:200]
+    if not motivo:
+        raise CobranzaError("Indica el motivo (viaje, lesión…).")
+    try:
+        dias = int(dias)
+    except (TypeError, ValueError):
+        raise CobranzaError("Indica cuántos días.")
+    if desde is None or desde < hoy:
+        raise CobranzaError("El congelamiento empieza hoy o después.")
+    usados = dias_congelados(insc, desde.year)
+    libres = cfg.congelar_dias - usados
+    if dias < 1 or dias > libres:
+        raise CobranzaError(f"Puede congelar hasta {libres} día{'s' if libres != 1 else ''} más este año (usó {usados} de {cfg.congelar_dias})."
+                            if libres > 0 else f"Ya usó sus {cfg.congelar_dias} días de congelamiento de este año.")
+    hasta = desde + timedelta(days=dias - 1)
+    if any(c.desde <= hasta and desde <= c.hasta for c in insc.congelamientos.all()):
+        raise CobranzaError("Ya tiene un congelamiento en esas fechas.")
+    with transaction.atomic():
+        if insc.plan.es_indefinido:  # que exista la cuota que vence después del congelamiento, para correrla
+            for _ in range(24):
+                ultima = insc.cuotas.filter(numero__gt=0).order_by("-numero").first()
+                if ultima and ultima.vence > desde:
+                    break
+                generar(insc, hoy, extra=1)
+        c = Congelamiento.objects.create(inscripcion=insc, desde=desde, hasta=hasta, motivo=motivo, usuario=usuario)
+        if insc.plan.frecuencia != Plan.Frecuencia.UNICO:
+            _correr(insc, desde, dias)
+        anotar("socio.congelado", f"{insc.quien} ({insc.plan.nombre}): congelado del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y}. {motivo}",
+               objeto=insc, usuario=usuario)
+    return c
+
+
+def descongelar(cong, usuario, hoy=None):
+    """Vuelve antes: el congelamiento termina ayer (o se quita si aún no empezaba) y lo que se corrió de más regresa."""
+    from core.bitacora import anotar
+
+    hoy = hoy or timezone.localdate()
+    if cong.hasta < hoy:
+        raise CobranzaError("Ese congelamiento ya terminó.")
+    insc = cong.inscripcion
+    nuevo_hasta = hoy - timedelta(days=1)
+    sobran = (cong.hasta - max(nuevo_hasta, cong.desde - timedelta(days=1))).days
+    with transaction.atomic():
+        if insc.plan.frecuencia != Plan.Frecuencia.UNICO:
+            _correr(insc, cong.hasta, -sobran)
+        if nuevo_hasta < cong.desde:
+            cong.delete()
+        else:
+            cong.hasta = nuevo_hasta
+            cong.save(update_fields=["hasta"])
+        anotar("socio.congelado", f"{insc.quien} ({insc.plan.nombre}): volvió antes; se devolvieron {sobran} día{'s' if sobran != 1 else ''}.",
+               objeto=insc, usuario=usuario)
+    return sobran

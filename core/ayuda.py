@@ -75,6 +75,10 @@ AYUDA = {
         "Toca los platos de hoy; los de otros días quedan guardados.",
         "«+ Tipo de menú» para otro precio con sus propios platos (o los mismos de otro tipo).",
         "«Copiar para WhatsApp» copia el menú de todos los tipos, con sus precios."], "5.1"),
+    "productos:cambiar_precios": ("Cambiar precios", "Subir o bajar muchos precios a la vez: por categoría, por proveedor o todos.", [
+        "Elige a qué productos y cómo: un %, soles o un % de ganancia sobre el costo; con redondeo.",
+        "Mira cómo quedaría, desmarca los que no y pulsa Aplicar.",
+        "Si te equivocaste, «Deshacer» los vuelve a como estaban."], "4.14"),
     "productos:listas_precios": ("Listas de precios", "Tipos de cliente con sus precios (Mayorista, Revendedor).", [
         "Cada lista con un % menos sobre el precio normal.",
         "Se asigna al cliente en su ficha; al elegirlo en el cobro, la venta se recalcula."], "4.11"),
@@ -186,6 +190,11 @@ AYUDA = {
     "cobranzas:morosos": ("Morosos", "Quién debe cuotas vencidas, con recordatorio por WhatsApp.", [], "15.7"),
     "cobranzas:planes": ("Planes", "Los planes (mensualidad, curso, membresía) con su precio y cuotas.", [], "15.2"),
     "cobranzas:reporte": ("Reporte de cobranzas", "Lo cobrado y lo pendiente del periodo; se imprime o baja en Excel.", [], "15.9"),
+    "cobranzas:ingreso": ("Ingreso de socios", "En la puerta: busca al socio por DNI, nombre o el QR de su carné y mira si puede entrar.", [
+        "Verde: al día, pulsa «Registrar ingreso». Amarillo: vence pronto o está en tolerancia. Rojo: venció, debe o ya usó sus clases.",
+        "Con la cámara del celular se lee el QR del carné.",
+        "«Dejar pasar igual» pide un motivo y queda en la bitácora.",
+    ], "15.10"),
     "cobranzas:cuenta": ("Cuenta de la persona", "Sus cuotas, pagos y lo que debe.", [
         "Cobrar una o varias cuotas; imprimir recibo."], "15.5"),
     # --- Reservas y citas ---
@@ -289,6 +298,7 @@ GUIA = {
         "Si se acaba un plato, avisa para marcarlo agotado o poner las porciones que quedan."]),
     "mesas:pedidos": ([
         "Nuevo pedido: escribe el celular; si ya pidió antes, su dirección sale sola.",
+        "Si el cliente mandó su ubicación por WhatsApp: tócala, se abre en Google Maps → Compartir → Copiar enlace, y pégala en «Ubicación». El repartidor llega al punto exacto.",
         "Agrega los productos y el costo de envío.",
         "«Salió» con el repartidor: imprime su hoja con dirección y vuelto.",
         "Al volver, cobra y queda como entregado."], [

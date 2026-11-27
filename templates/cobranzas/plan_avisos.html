@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Avisar el precio nuevo{% endblock %}
+{% block page_title %}Avisar el precio nuevo{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'cobranzas:planes' %}">Planes</a></li><li class="breadcrumb-item active">{{ plan.nombre }}</li>{% endblock %}
+{% block content %}
+<div class="alert alert-success">{{ plan.nombre }} pasó de {{ anterior|soles }} a <strong>{{ plan.precio|soles }}</strong>.
+  {% if avisos %}Lo cobran desde su próxima cuota sin pagar {{ avisos|length }} inscrito{{ avisos|pluralize }}. Avísales por WhatsApp:{% else %}Nadie pagaba el precio del plan (todos tienen precio especial o beca).{% endif %}</div>
+{% if avisos %}
+<div class="card mb-3"><ul class="list-group list-group-flush">
+  {% for a in avisos %}
+  <li class="list-group-item d-flex align-items-center gap-2">
+    <div class="flex-grow-1" style="min-width: 0"><div>{{ a.insc.quien }}</div>
+      <div class="small text-body-secondary">{% if a.desde %}desde el {{ a.desde|date:"d/m/Y" }}{% else %}desde su próximo pago{% endif %}{% if a.insc.alumno %} · paga {{ a.insc.cliente.nombre }}{% endif %}</div></div>
+    {% if a.wa %}<a href="{{ a.wa }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" onclick="this.classList.replace('btn-outline-success','btn-success')"><i class="bi bi-whatsapp me-1"></i>Avisar</a>
+    {% else %}<span class="small text-body-secondary">sin celular</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul></div>
+{% endif %}
+<a href="{% url 'cobranzas:planes' %}" class="btn btn-primary">Volver a los planes</a>
+{% endblock %}

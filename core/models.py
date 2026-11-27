@@ -27,7 +27,7 @@ def modulos_inactivos_iniciales():
 
 def funciones_inactivas_iniciales():
     """Una instalación nueva empieza como tienda: solo variantes (ver core/rubros.py)."""
-    return ["combos", "servicios", "agotados", "menu", "atendio", "comisiones", "pagos", "precios", "promociones", "monedero"]
+    return ["combos", "servicios", "agotados", "menu", "atendio", "comisiones", "pagos", "precios", "promociones", "monedero", "ingreso"]
 
 
 class Ajustes(models.Model):
@@ -174,6 +174,10 @@ class Ajustes(models.Model):
         """Cómo se arma la hoja de lo impreso: ancho útil, tamaño de letra y si es una hoja normal (A4) en vez de un rollo."""
         ancho, letra = {58: ("48mm", "10.5px"), 76: ("64mm", "11.5px"), 210: ("120mm", "13px")}.get(self.ticket_ancho, ("72mm", "12px"))
         return {"ancho": ancho, "letra": letra, "hoja": self.ticket_ancho == 210, "rollo": self.ticket_ancho if self.ticket_ancho != 210 else 0}
+
+    @property
+    def usa_ingreso(self):
+        return self.usa("ingreso")
 
     @property
     def usa_comisiones(self):

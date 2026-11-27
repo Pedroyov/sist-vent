@@ -1,0 +1,13 @@
+{% extends "impresion/base.html" %}
+{% load sis %}
+{% block titulo %}Carné de {{ i.quien }}{% endblock %}
+{% block contenido %}
+<div class="c"><span class="grande">{{ NEGOCIO_NOMBRE }}</span><br><span class="b">CARNÉ DE SOCIO</span></div>
+<div class="linea"></div>
+<div class="c"><span class="grande">{{ i.quien }}</span><br>{{ i.plan.nombre }}<br>Desde {{ i.inicio|date:"d/m/Y" }}</div>
+<div class="c" style="margin-top: 6px">{{ qr }}</div>
+<div class="c"><small>{{ codigo }}</small></div>
+<div class="linea"></div>
+<div class="c">Muéstralo al entrar.</div>
+{% endblock %}
+{% block volver %}<a href="{% url 'cobranzas:cuenta' i.cliente_id %}">Volver</a>{% endblock %}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load sis %}
+{% block title %}Cambiar precios{% endblock %}
+{% block page_title %}Cambiar precios{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{% url 'productos:lista' %}">{{ T.productos }}</a></li><li class="breadcrumb-item active">Cambiar precios</li>{% endblock %}
+{% block content %}
+<form method="get" class="card mb-3">
+  <div class="card-body">
+    <div class="fw-semibold mb-2">1. ¿A qué productos?</div>
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-md-4"><select name="cat" class="form-select" aria-label="Categoría">
+        <option value="">Todas las categorías</option>
+        {% for c in categorias %}<option value="{{ c.pk }}" {% if r.cat == c.pk %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}</select></div>
+      {% if proveedores %}<div class="col-12 col-md-4"><select name="prov" class="form-select" aria-label="Proveedor">
+        <option value="">De cualquier proveedor</option>
+        {% for p in proveedores %}<option value="{{ p.pk }}" {% if r.prov == p.pk %}selected{% endif %}>Lo que le compro a {{ p.nombre }}</option>{% endfor %}</select></div>{% endif %}
+      <div class="col-7 col-md-2"><input type="search" name="q" value="{{ r.q }}" class="form-control" placeholder="Nombre contiene…" aria-label="Nombre"></div>
+      <div class="col-5 col-md-2"><select name="tipo" class="form-select" aria-label="Tipo">
+        <option value="">Todo</option><option value="P" {% if r.tipo == "P" %}selected{% endif %}>Productos</option><option value="S" {% if r.tipo == "S" %}selected{% endif %}>Servicios</option></select></div>
+    </div>
+    <div class="fw-semibold mb-2">2. ¿Cómo?</div>
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md-4"><select name="modo" id="cp-modo" class="form-select" aria-label="Cómo cambiar">
+        {% for v, t in modos %}<option value="{{ v }}" {% if r.modo == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-6 col-md-3"><div class="input-group"><span class="input-group-text" id="cp-pre">{% if r.modo == "MON" %}S/{% else %}%{% endif %}</span>
+        <input type="text" name="valor" value="{% if r.valor is not None %}{{ r.valor }}{% endif %}" class="form-control" inputmode="decimal" required placeholder="Ej.: 10 o -5" aria-label="Cuánto"></div></div>
+      <div class="col-6 col-md-3"><select name="red" class="form-select" aria-label="Redondeo">
+        {% for v, t in redondeos %}<option value="{{ v }}" {% if r.red == v %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="col-12 col-md-2 d-grid"><button class="btn btn-primary"><i class="bi bi-eye me-1"></i>Ver cómo queda</button></div>
+    </div>
+    <div class="form-text">Para bajar, escribe el número con signo menos (−5). El redondeo es hacia arriba. Para una rebaja por unos días, mejor usa una promoción: vuelve sola al precio normal.</div>
+  </div>
+</form>
+
+{% if r.valor is not None %}
+{% if filas %}
+<form method="post" class="card mb-3">{% csrf_token %}
+  <input type="hidden" name="modo" value="{{ r.modo }}"><input type="hidden" name="valor" value="{{ r.valor }}">
+  <input type="hidden" name="red" value="{{ r.red }}"><input type="hidden" name="cat" value="{{ r.cat|default:'' }}">
+  <input type="hidden" name="prov" value="{{ r.prov|default:'' }}"><input type="hidden" name="q" value="{{ r.q }}"><input type="hidden" name="tipo" value="{{ r.tipo }}">
+  <div class="card-header d-flex align-items-center gap-2">
+    <h3 class="card-title mb-0">3. Así quedaría <span class="badge text-bg-secondary">{{ filas|length }}</span></h3>
+    <label class="ms-auto small"><input type="checkbox" class="form-check-input me-1" id="cp-todos" checked>Todos</label>
+  </div>
+  {% if n_bajo_costo %}<div class="alert alert-danger rounded-0 mb-0 py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>{{ n_bajo_costo }} quedaría{{ n_bajo_costo|pluralize:"n" }} por debajo de su costo (en rojo). Desmárcalos si no quieres perder.</div>{% endif %}
+  <ul class="list-group list-group-flush">
+    {% regroup filas by categoria as grupos %}
+    {% for g in grupos %}
+    <li class="list-group-item py-1 small fw-semibold text-body-secondary bg-body-tertiary">{{ g.grouper }}</li>
+    {% for f in g.list %}
+    <li class="list-group-item d-flex align-items-center gap-2 py-2">
+      <input type="checkbox" name="sel" value="{{ f.clave }}" class="form-check-input cp-sel flex-shrink-0" checked aria-label="Cambiar {{ f.nombre }}">
+      <div class="flex-grow-1" style="min-width: 0">
+        <div>{{ f.nombre }}</div>
+        {% if ve_costos and f.costo is not None %}<div class="small text-body-secondary">costo {{ f.costo|soles }}</div>{% endif %}
+      </div>
+      <div class="text-end flex-shrink-0">
+        <div class="text-nowrap fw-semibold {% if f.bajo_costo %}text-danger{% endif %}">{{ f.despues|soles }}</div>
+        <div class="text-nowrap small text-body-secondary">antes <span class="text-decoration-line-through">{{ f.antes|soles }}</span></div>
+      </div>
+    </li>
+    {% endfor %}
+    {% endfor %}
+  </ul>
+  <div class="card-footer d-grid d-md-flex">
+    <button class="btn btn-success ms-md-auto" id="cp-aplicar"><i class="bi bi-check-lg me-1"></i>Aplicar a <span id="cp-n">{{ filas|length }}</span> precio{{ filas|length|pluralize }}</button>
+  </div>
+</form>
+{% else %}
+<div class="alert alert-light border">Con esa regla ningún precio cambia{% if r.modo == "MAR" %} (o no tienen costo registrado){% endif %}.</div>
+{% endif %}
+{% endif %}
+
+{% if historial %}
+<div class="card">
+  <div class="card-header"><h3 class="card-title mb-0"><i class="bi bi-clock-history me-1"></i> Últimos cambios en bloque</h3></div>
+  <ul class="list-group list-group-flush small">
+    {% for c in historial %}
+    <li class="list-group-item d-flex align-items-center gap-2 {% if c.deshecho %}text-body-tertiary{% endif %}">
+      <div class="flex-grow-1" style="min-width: 0"><div>{{ c.descripcion }}</div>
+        <div class="text-body-secondary">{{ c.fecha|date:"d/m/Y H:i" }} · {{ c.usuario|nombre }}{% if c.deshecho %} · deshecho por {{ c.deshecho_por|nombre }}{% endif %}</div></div>
+      {% if not c.deshecho %}<form method="post" action="{% url 'productos:deshacer_precios' c.pk %}" onsubmit="return confirm('¿Volver estos precios a como estaban?')">{% csrf_token %}
+        <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i>Deshacer</button></form>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    var modo = document.getElementById("cp-modo"), pre = document.getElementById("cp-pre");
+    if (modo) modo.addEventListener("change", function () { pre.textContent = modo.value === "MON" ? "S/" : "%"; });
+    var todos = document.getElementById("cp-todos");
+    if (!todos) return;
+    function contar() {
+      var n = document.querySelectorAll(".cp-sel:checked").length;
+      document.getElementById("cp-n").textContent = n;
+      document.getElementById("cp-aplicar").disabled = !n;
+    }
+    todos.addEventListener("change", function () { document.querySelectorAll(".cp-sel").forEach(function (c) { c.checked = todos.checked; }); contar(); });
+    document.addEventListener("change", function (e) { if (e.target.classList.contains("cp-sel")) contar(); });
+  })();
+</script>
+{% endblock %}

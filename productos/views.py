@@ -871,3 +871,53 @@ def promocion_form(request, pk=None):
         messages.success(request, f"Promoción «{p.nombre}» guardada.")
         return redirect("productos:promociones")
     return render(request, "productos/promocion_form.html", {"form": form, "promo": promo})
+
+
+@permiso_requerido("productos.editar")
+def cambiar_precios(request):
+    """Subir o bajar muchos precios a la vez: se elige a qué y cómo, se ve cómo quedaría y se aplica."""
+    from core.permisos import puede
+
+    from . import precios_bloque as pb
+    from .models import CambioPrecios
+
+    datos = request.POST if request.method == "POST" else request.GET
+    r = pb.leer(datos)
+    ve_costos = puede(request.user, "productos.costos")
+    if r["modo"] == "MAR" and not ve_costos:
+        r["modo"] = "POR"
+    if request.method == "POST":
+        try:
+            cambio = pb.aplicar(r, request.POST.getlist("sel"), request.user)
+            messages.success(request, f"Listo: {cambio.descripcion}. Si te equivocaste, puedes deshacerlo abajo.")
+            return redirect("productos:cambiar_precios")
+        except pb.PreciosError as e:
+            messages.error(request, str(e))
+    filas = pb.propuesta(r)
+    proveedores = []
+    if puede(request.user, "compras.ver"):
+        from compras.models import Proveedor
+
+        proveedores = Proveedor.objects.filter(activo=True).order_by("nombre")
+    return render(request, "productos/cambiar_precios.html", {
+        "r": r, "filas": filas, "modos": [m for m in pb.MODOS if m[0] != "MAR" or ve_costos], "redondeos": pb.REDONDEOS,
+        "categorias": Categoria.objects.order_by("orden", "nombre"), "proveedores": proveedores, "ve_costos": ve_costos,
+        "n_bajo_costo": sum(1 for f in filas if f["bajo_costo"]),
+        "historial": CambioPrecios.objects.select_related("usuario", "deshecho_por")[:8],
+    })
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def deshacer_precios(request, pk):
+    from . import precios_bloque as pb
+    from .models import CambioPrecios
+
+    cambio = get_object_or_404(CambioPrecios, pk=pk)
+    try:
+        vueltos, dejados = pb.deshacer(cambio, request.user)
+        messages.success(request, f"Se deshizo: {vueltos} precio{'s' if vueltos != 1 else ''} volvieron a como estaban."
+                         + (f" {dejados} se dejaron porque alguien los cambió después." if dejados else ""))
+    except pb.PreciosError as e:
+        messages.error(request, str(e))
+    return redirect("productos:cambiar_precios")

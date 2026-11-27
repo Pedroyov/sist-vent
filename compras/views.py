@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -147,8 +148,9 @@ def detalle(request, pk):
     if puede(request.user, "compras.pagar") and c.saldo:
         form = PagoForm(puede_caja=caja is not None, initial={"monto": c.saldo, "origen": "caja" if caja else "fuera",
                                                               "dia": timezone.localdate()})
+    revisar = s.precios_a_revisar(c) if puede(request.user, "productos.editar") and not c.anulada else []
     return render(request, "compras/detalle.html", {
-        "c": c, "items": c.items.select_related("variante__producto"), "form": form, "caja": caja,
+        "c": c, "items": c.items.select_related("variante__producto"), "form": form, "caja": caja, "revisar": revisar,
         "pagos": c.pagos.select_related("sesion", "usuario", "anulado_por").order_by("fecha"),
     })
 
@@ -268,3 +270,29 @@ def por_pagar(request):
     return render(request, "compras/por_pagar.html", {
         "deudas": deudas, "compras": compras[:200], "hoy": timezone.localdate(),
     })
+
+
+@permiso_requerido("productos.editar")
+@require_POST
+def actualizar_precios(request, pk):
+    """Sube los precios de lo que subió de costo en esta compra (los que se marcaron, con el precio que se escribió)."""
+    from productos import precios_bloque as pb
+
+    c = get_object_or_404(Compra, pk=pk)
+    filas = {str(f["item"].pk): f for f in s.precios_a_revisar(c)}
+    nuevos = []
+    for k in request.POST.getlist("sel"):
+        f = filas.get(k)
+        if not f:
+            continue
+        try:
+            nuevos.append((f["variante"], Decimal(request.POST.get(f"precio_{k}", "").replace(",", "."))))
+        except (InvalidOperation, ValueError):
+            messages.error(request, f"Revisa el precio de {f['nombre']}.")
+            return redirect("compras:detalle", pk=pk)
+    try:
+        cambio = pb.aplicar_precios(nuevos, request.user, f"Subió el costo en {c.documento_str} de {c.proveedor}")
+        messages.success(request, f"Precios actualizados: {cambio.descripcion}. Se puede deshacer en Productos → Cambiar precios.")
+    except pb.PreciosError as e:
+        messages.error(request, str(e))
+    return redirect("compras:detalle", pk=pk)

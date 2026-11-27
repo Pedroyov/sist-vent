@@ -24,6 +24,14 @@ class Config(models.Model):
                                                    help_text="Días después del vencimiento en que todavía no se cobra mora.")
     dias_aviso = models.PositiveSmallIntegerField("avisar antes del vencimiento", default=3, validators=[MaxValueValidator(30)],
                                                   help_text="Días antes de que venza una cuota para que salga en «Por vencer».")
+    # --- Gimnasios: control de ingreso y congelar (función «Control de ingreso» en Datos del negocio) ---
+    dias_tolerancia = models.PositiveSmallIntegerField(
+        "días de tolerancia al entrar", default=0, validators=[MaxValueValidator(15)],
+        help_text="Días que el socio puede seguir entrando después de que vence su pago (sale en amarillo). 0 = ninguno.")
+    congelar_dias = models.PositiveSmallIntegerField(
+        "días para congelar al año", default=0, validators=[MaxValueValidator(180)],
+        help_text="Cuántos días al año puede congelar cada socio su membresía (viaje, lesión): su vencimiento se corre esos días. "
+                  "0 = no se congela.")
 
     class Meta:
         verbose_name = "configuración de cobranzas"
@@ -47,6 +55,9 @@ class Plan(models.Model):
         MENSUAL = "MEN", "Mensual"
         QUINCENAL = "QUI", "Quincenal"
         SEMANAL = "SEM", "Semanal"
+        TRIMESTRAL = "TRI", "Trimestral"
+        SEMESTRAL = "SES", "Semestral"
+        ANUAL = "ANU", "Anual"
         UNICO = "UNI", "Pago único"
 
     nombre = models.CharField(max_length=80, help_text="Ej.: «Gimnasio mensual», «Inglés básico», «Vacaciones útiles».")
@@ -57,6 +68,13 @@ class Plan(models.Model):
         help_text="Para cursos con duración fija (ej.: 6). 0 = sigue cobrando hasta que se dé de baja.")
     matricula = models.DecimalField("matrícula o inscripción", max_digits=10, decimal_places=2, default=CERO,
                                     validators=[MinValueValidator(CERO)], help_text="Se cobra una sola vez al inscribirse. 0 = no tiene.")
+    duracion_dias = models.PositiveSmallIntegerField(
+        "días de vigencia", default=0, validators=[MaxValueValidator(366)],
+        help_text="Solo para pago único: cuántos días sirve desde que empieza (pase diario = 1, promoción de verano = 60). 0 = no vence.")
+    clases = models.PositiveSmallIntegerField(
+        "clases o ingresos por periodo", default=0, validators=[MaxValueValidator(999)],
+        help_text="Con Control de ingreso: cuántas veces puede entrar en cada periodo pagado (12 clases al mes, paquete de 10). "
+                  "0 = sin límite.")
     descripcion = models.CharField("descripción", max_length=200, blank=True, help_text="Horario, sede o lo que incluye.")
     activo = models.BooleanField(default=True, help_text="Si lo desactivas, ya no se puede inscribir a nadie nuevo (los inscritos siguen).")
     orden = models.PositiveSmallIntegerField(default=0)
@@ -72,10 +90,13 @@ class Plan(models.Model):
     @property
     def resumen(self):
         if self.frecuencia == self.Frecuencia.UNICO:
-            return f"S/ {self.precio:.2f} (pago único)"
-        texto = f"S/ {self.precio:.2f} {self.get_frecuencia_display().lower()}"
-        if self.num_cuotas:
-            texto += f" × {self.num_cuotas}"
+            texto = f"S/ {self.precio:.2f} (pago único" + (f", {self.duracion_dias} día{'s' if self.duracion_dias != 1 else ''}" if self.duracion_dias else "") + ")"
+        else:
+            texto = f"S/ {self.precio:.2f} {self.get_frecuencia_display().lower()}"
+            if self.num_cuotas:
+                texto += f" × {self.num_cuotas}"
+        if self.clases:
+            texto += f" · {self.clases} clase{'s' if self.clases != 1 else ''}"
         return texto
 
     @property
@@ -223,3 +244,46 @@ class PagoCuota(models.Model):
     class Meta:
         verbose_name = "cuota pagada"
         verbose_name_plural = "cuotas pagadas"
+
+
+class Congelamiento(models.Model):
+    """El socio pausa su membresía (viaje, lesión): esos días no entra y su vencimiento se corre. Nada se borra: si vuelve
+    antes, se acorta."""
+
+    inscripcion = models.ForeignKey(Inscripcion, on_delete=models.CASCADE, related_name="congelamientos")
+    desde = models.DateField()
+    hasta = models.DateField()
+    motivo = models.CharField(max_length=200)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    creado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "congelamiento"
+        verbose_name_plural = "congelamientos"
+        ordering = ["-desde"]
+
+    def __str__(self):
+        return f"{self.inscripcion.quien}: {self.desde:%d/%m} al {self.hasta:%d/%m}"
+
+    @property
+    def dias(self):
+        return (self.hasta - self.desde).days + 1
+
+
+class Asistencia(models.Model):
+    """Cada vez que el socio entra (control de ingreso). `con_permiso`: entró sin estar al día porque alguien lo dejó pasar."""
+
+    inscripcion = models.ForeignKey(Inscripcion, on_delete=models.CASCADE, related_name="asistencias")
+    fecha = models.DateTimeField(default=timezone.now)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    con_permiso = models.BooleanField("entró sin estar al día", default=False)
+    nota = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "ingreso"
+        verbose_name_plural = "ingresos"
+        ordering = ["-fecha"]
+        indexes = [models.Index(fields=["fecha"])]
+
+    def __str__(self):
+        return f"{self.inscripcion.quien} · {timezone.localtime(self.fecha):%d/%m %H:%M}"

@@ -479,3 +479,32 @@ class MovimientoStock(models.Model):
     @property
     def entra(self):
         return self.cantidad > 0
+
+
+class CambioPrecios(models.Model):
+    """Un cambio de precios en bloque (subir 10 % una categoría, redondear…). Guarda cada precio de antes para poder
+    deshacerlo. La lógica está en productos/precios_bloque.py."""
+
+    fecha = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    descripcion = models.CharField(max_length=200)
+    deshecho = models.DateTimeField(null=True, blank=True)
+    deshecho_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+
+    class Meta:
+        verbose_name = "cambio de precios"
+        verbose_name_plural = "cambios de precios"
+        ordering = ["-fecha"]
+
+    def __str__(self):
+        return self.descripcion
+
+
+class CambioPreciosItem(models.Model):
+    """Un precio que cambió: del producto o de una variante con precio propio."""
+
+    cambio = models.ForeignKey(CambioPrecios, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="+")
+    variante = models.ForeignKey(Variante, on_delete=models.CASCADE, null=True, blank=True, related_name="+")
+    antes = models.DecimalField(max_digits=10, decimal_places=2)
+    despues = models.DecimalField(max_digits=10, decimal_places=2)

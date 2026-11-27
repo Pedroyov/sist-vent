@@ -134,6 +134,8 @@ Ver [ARQUITECTURA.md](ARQUITECTURA.md).
 - [x] **Comparar periodos y fechas especiales** – Reportes frente al periodo anterior, el mismo del año pasado u otras fechas; atajos de Navidad, Año Nuevo, Día de la Madre y del Padre y Fiestas Patrias; lo que subió y bajó, qué preparar y proyección al cierre del mes
 - [x] **Carta digital con QR** – Página pública con la carta (automática, sin fotos, estilo claro u oscuro, menú de hoy, tamaños en tabla) o el PDF del negocio; hoja de QR para las mesas
 - [x] **Ubicación del delivery** – El enlace de ubicación que manda el cliente por WhatsApp (Google Maps, Waze) queda en el pedido: botón de ubicación exacta, QR en la hoja del repartidor y mensaje listo para mandarle
+- [x] **Gimnasios** – Planes trimestral, semestral, anual, pase diario y paquete de clases; control de ingreso en la puerta (DNI o QR del carné, verde/amarillo/rojo, clases que quedan, dejar pasar con motivo); congelar la membresía; subir el precio de un plan a los inscritos con aviso por WhatsApp
+- [x] **Cambiar precios en bloque** – Por categoría, proveedor o nombre: %, soles o % sobre el costo, con redondeo; ver cómo queda, aplicar a los elegidos y deshacer. Al comprar más caro, sugiere el precio que mantiene la ganancia
 - [ ] Despliegue con HTTPS
 
 ## Ver el sistema con datos de ejemplo
